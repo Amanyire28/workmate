@@ -5,6 +5,14 @@
         <AppLogo />
         <p class="mt-2 text-sm text-[#64748B]">Local skills. Real opportunities.</p>
         <p class="mt-3 text-sm text-[#64748B]">A product of <span class="font-medium text-ink">ResNet Systems</span>.</p>
+        <button
+          v-if="!pwa.standalone"
+          type="button"
+          class="mt-4 inline-flex items-center gap-2 min-h-11 px-4 rounded-full text-sm font-medium text-primary bg-primary/10 hover:bg-primary/15"
+          @click="openInstall"
+        >
+          <i class="bi bi-phone" aria-hidden="true"></i> Get the app
+        </button>
       </div>
 
       <nav aria-labelledby="footer-quick">
@@ -41,6 +49,7 @@
 <script setup>
 import AppLogo from './AppLogo.vue';
 import { categories } from '@/stores/catalog.js';
+import { pwa, openInstall } from '@/stores/pwa.js';
 
 const year = new Date().getFullYear();
 

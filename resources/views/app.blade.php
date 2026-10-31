@@ -7,6 +7,14 @@
     <meta name="description" content="WorkMate – Find workers for any job in Kampala and across Uganda. Post jobs, browse services, and connect with skilled workers and service providers.">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
+    <!-- Installable app -->
+    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="WorkMate">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
     <title>WorkMate – Find People for the Job</title>
 
     <!-- Inter -->

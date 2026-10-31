@@ -1,6 +1,9 @@
 <template>
   <!-- The admin area brings its own shell (sidebar + top bar) -->
-  <router-view v-if="isAdmin" />
+  <template v-if="isAdmin">
+    <router-view />
+    <AppStatusLayer :with-nav="false" :offer-install="false" />
+  </template>
 
   <template v-else>
     <a href="#main" class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[200] wm-btn wm-btn-primary">
@@ -25,6 +28,7 @@
 
     <div class="wm-bottom-nav-spacer" aria-hidden="true"></div>
     <MobileBottomNav />
+    <AppStatusLayer />
   </template>
 </template>
 
@@ -33,6 +37,7 @@ import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import AppHeader from '@/components/AppHeader.vue';
 import MobileBottomNav from '@/components/MobileBottomNav.vue';
+import AppStatusLayer from '@/components/AppStatusLayer.vue';
 import { catalog, loadCatalog } from '@/stores/catalog.js';
 
 const route = useRoute();

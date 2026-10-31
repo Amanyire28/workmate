@@ -225,6 +225,13 @@
             <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
           </router-link>
         </li>
+        <li v-if="!pwa.standalone">
+          <button type="button" class="w-full flex items-center gap-3 min-h-[52px] px-4 text-left hover:bg-white/60" @click="openInstall">
+            <i class="bi bi-phone text-xl text-muted" aria-hidden="true"></i>
+            <span class="flex-1 text-[15px] font-medium text-ink">Get the app</span>
+            <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+          </button>
+        </li>
       </ul>
     </nav>
 
@@ -248,6 +255,7 @@ import { verification } from '@/stores/verification.js';
 import { VERIFICATION_STATUS } from '@/utils/verificationStatus.js';
 import { auth, loadSession, updateProfile, signOut } from '@/stores/auth.js';
 import { api, fieldErrors } from '@/api/client.js';
+import { pwa, openInstall } from '@/stores/pwa.js';
 
 const route = useRoute();
 const router = useRouter();

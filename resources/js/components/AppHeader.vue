@@ -48,6 +48,17 @@
           <i v-else class="bi bi-person-circle" aria-hidden="true"></i>
         </router-link>
 
+        <!-- Mobile: install the app (hidden once installed) -->
+        <button
+          v-if="!pwa.standalone && !pwa.installed"
+          type="button"
+          class="lg:hidden wm-icon-btn"
+          aria-label="Install the WorkMate app"
+          @click="install"
+        >
+          <i class="bi bi-download" aria-hidden="true"></i>
+        </button>
+
         <!-- Mobile: quick search -->
         <router-link to="/browse" class="lg:hidden wm-icon-btn -mr-2" aria-label="Search service providers">
           <i class="bi bi-search" aria-hidden="true"></i>
@@ -65,8 +76,15 @@ import UserAvatar from './UserAvatar.vue';
 import { navIsActive } from './navItems.js';
 import { unreadTotal } from '@/stores/messages.js';
 import { auth } from '@/stores/auth.js';
+import { pwa, openInstall, promptInstall } from '@/stores/pwa.js';
 
 const route = useRoute();
+
+// Android and desktop Chrome/Edge: the browser's own dialog; elsewhere the steps
+function install() {
+  if (pwa.canPrompt) promptInstall();
+  else openInstall();
+}
 
 const navItems = [
   { to: '/',          label: 'Home',             match: ['/'] },

@@ -797,6 +797,59 @@
 @keyframes wm-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
 /* ============================================================
+   Installed app: notices (offline, update, install) and install steps
+   ============================================================ */
+.wm-app-notice {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 10px 10px 14px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.94);
+    -webkit-backdrop-filter: blur(16px) saturate(160%);
+    backdrop-filter: blur(16px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 12px 36px rgba(15, 23, 42, 0.16), inset 0 1px 0 #fff;
+}
+.wm-pop-enter-active, .wm-pop-leave-active { transition: opacity 200ms ease, transform 240ms cubic-bezier(0.2, 0.7, 0.2, 1); }
+.wm-pop-enter-from, .wm-pop-leave-to { opacity: 0; transform: translateY(12px) scale(0.98); }
+
+.wm-install-steps { counter-reset: wm-step; display: grid; gap: 12px; }
+.wm-install-steps li {
+    counter-increment: wm-step;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 0.9375rem;
+    color: var(--color-ink);
+}
+.wm-install-steps li::before {
+    content: counter(wm-step);
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    background: var(--color-primary-tint);
+}
+.wm-install-steps li > span { padding-top: 2px; }
+
+/* Opened from the home screen: behave like a native app */
+@media (display-mode: standalone) {
+    body { overscroll-behavior-y: none; }
+    nav a, nav button, .wm-btn, .wm-icon-btn {
+        -webkit-user-select: none;
+        user-select: none;
+        -webkit-touch-callout: none;
+    }
+}
+
+/* ============================================================
    Glass fallbacks: no blur support, or the user asked for less transparency
    ============================================================ */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
