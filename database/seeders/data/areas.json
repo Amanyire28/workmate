@@ -1,0 +1,165 @@
+{
+  "_note": "Areas people search from and providers serve. Centre points are approximate area centres for distance estimates.",
+  "areas": [
+    {
+      "slug": "kampala",
+      "name": "Kampala",
+      "town": "Kampala",
+      "latitude": 0.3163,
+      "longitude": 32.5822,
+      "is_whole_town": true
+    },
+    {
+      "slug": "kampala-central",
+      "name": "Kampala Central",
+      "town": "Kampala",
+      "latitude": 0.3136,
+      "longitude": 32.5811,
+      "is_whole_town": false
+    },
+    {
+      "slug": "ntinda",
+      "name": "Ntinda",
+      "town": "Kampala",
+      "latitude": 0.3546,
+      "longitude": 32.616,
+      "is_whole_town": false
+    },
+    {
+      "slug": "kisaasi",
+      "name": "Kisaasi",
+      "town": "Kampala",
+      "latitude": 0.3663,
+      "longitude": 32.6005,
+      "is_whole_town": false
+    },
+    {
+      "slug": "bukoto",
+      "name": "Bukoto",
+      "town": "Kampala",
+      "latitude": 0.3487,
+      "longitude": 32.5957,
+      "is_whole_town": false
+    },
+    {
+      "slug": "kololo",
+      "name": "Kololo",
+      "town": "Kampala",
+      "latitude": 0.333,
+      "longitude": 32.593,
+      "is_whole_town": false
+    },
+    {
+      "slug": "nakawa",
+      "name": "Nakawa",
+      "town": "Kampala",
+      "latitude": 0.3326,
+      "longitude": 32.6156,
+      "is_whole_town": false
+    },
+    {
+      "slug": "kawempe",
+      "name": "Kawempe",
+      "town": "Kampala",
+      "latitude": 0.3796,
+      "longitude": 32.5583,
+      "is_whole_town": false
+    },
+    {
+      "slug": "rubaga",
+      "name": "Rubaga",
+      "town": "Kampala",
+      "latitude": 0.303,
+      "longitude": 32.553,
+      "is_whole_town": false
+    },
+    {
+      "slug": "makindye",
+      "name": "Makindye",
+      "town": "Kampala",
+      "latitude": 0.283,
+      "longitude": 32.585,
+      "is_whole_town": false
+    },
+    {
+      "slug": "kireka",
+      "name": "Kireka",
+      "town": "Kira",
+      "latitude": 0.3466,
+      "longitude": 32.6487,
+      "is_whole_town": false
+    },
+    {
+      "slug": "naalya",
+      "name": "Naalya",
+      "town": "Kira",
+      "latitude": 0.37,
+      "longitude": 32.64,
+      "is_whole_town": false
+    },
+    {
+      "slug": "namugongo",
+      "name": "Namugongo",
+      "town": "Kira",
+      "latitude": 0.3936,
+      "longitude": 32.651,
+      "is_whole_town": false
+    },
+    {
+      "slug": "kira",
+      "name": "Kira",
+      "town": "Kira",
+      "latitude": 0.397,
+      "longitude": 32.639,
+      "is_whole_town": false
+    },
+    {
+      "slug": "mukono",
+      "name": "Mukono",
+      "town": "Mukono",
+      "latitude": 0.3533,
+      "longitude": 32.7553,
+      "is_whole_town": false
+    },
+    {
+      "slug": "wakiso",
+      "name": "Wakiso",
+      "town": "Wakiso",
+      "latitude": 0.4044,
+      "longitude": 32.4594,
+      "is_whole_town": false
+    },
+    {
+      "slug": "entebbe",
+      "name": "Entebbe",
+      "town": "Entebbe",
+      "latitude": 0.0512,
+      "longitude": 32.4637,
+      "is_whole_town": false
+    },
+    {
+      "slug": "entebbe-road",
+      "name": "Entebbe Road",
+      "town": "Kampala",
+      "latitude": null,
+      "longitude": null,
+      "is_whole_town": false
+    },
+    {
+      "slug": "gayaza-road",
+      "name": "Gayaza Road",
+      "town": "Kampala",
+      "latitude": null,
+      "longitude": null,
+      "is_whole_town": false
+    },
+    {
+      "slug": "jinja-road",
+      "name": "Jinja Road",
+      "town": "Kampala",
+      "latitude": null,
+      "longitude": null,
+      "is_whole_town": false
+    }
+  ]
+}

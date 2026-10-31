@@ -1,0 +1,795 @@
+{
+  "_note": "Sample marketplace data for development, moved from resources/js/data/mockData.js. Every person, business and review is invented. Seeded with is_sample = true.",
+  "providers": [
+    {
+      "key": 1,
+      "name": "Ssemakula Robert",
+      "business_name": null,
+      "type": "individual",
+      "services": [
+        "plumbing"
+      ],
+      "base_area": "nakawa",
+      "latitude": 0.3312,
+      "longitude": 32.6131,
+      "service_areas": [
+        "nakawa",
+        "ntinda",
+        "kireka",
+        "bukoto",
+        "kololo",
+        "kampala-central"
+      ],
+      "description": "Experienced plumber with over 8 years handling residential and commercial pipe installations, blockages, and water pump repairs across Kampala.",
+      "skills": [
+        "Pipe installation",
+        "Blockage clearing",
+        "Water pump repair",
+        "Bathroom fitting",
+        "Tank installation"
+      ],
+      "availability_note": "Available Mon–Sat, from 7am",
+      "price_from": 30000,
+      "price_basis": "per job",
+      "document_verified": true,
+      "blue_tick": false,
+      "availability_status": "available",
+      "next_available": null
+    },
+    {
+      "key": 2,
+      "name": "Namukasa Grace",
+      "business_name": "Grace Clean Services",
+      "type": "company",
+      "services": [
+        "cleaning"
+      ],
+      "base_area": "kololo",
+      "latitude": 0.3345,
+      "longitude": 32.5902,
+      "service_areas": [
+        "kampala"
+      ],
+      "description": "Professional cleaning team available for homes, offices, and event venues. We bring our own equipment and eco-friendly cleaning products.",
+      "skills": [
+        "Deep cleaning",
+        "Post-construction cleaning",
+        "Office cleaning",
+        "Event cleanup",
+        "Laundry"
+      ],
+      "availability_note": "Available every day",
+      "price_from": 50000,
+      "price_basis": "per session",
+      "document_verified": true,
+      "blue_tick": true,
+      "availability_status": "available",
+      "next_available": null
+    },
+    {
+      "key": 3,
+      "name": "Okello Building Crew",
+      "business_name": "Okello & Sons Construction",
+      "type": "group",
+      "services": [
+        "construction",
+        "carpentry",
+        "painting"
+      ],
+      "base_area": "ntinda",
+      "latitude": 0.3561,
+      "longitude": 32.6188,
+      "service_areas": [
+        "ntinda",
+        "kisaasi",
+        "bukoto",
+        "nakawa",
+        "naalya",
+        "kira"
+      ],
+      "description": "A team of 6 skilled construction workers experienced in residential building, renovation, and finishing work. We handle projects of all sizes.",
+      "skills": [
+        "Masonry",
+        "Plastering",
+        "Tiling",
+        "Painting",
+        "Roofing",
+        "Carpentry"
+      ],
+      "availability_note": "Available for new projects from next week",
+      "price_from": 120000,
+      "price_basis": "per day (team)",
+      "document_verified": true,
+      "blue_tick": false,
+      "availability_status": "busy",
+      "next_available": "Next week"
+    },
+    {
+      "key": 4,
+      "name": "Tendo Patrick",
+      "business_name": null,
+      "type": "individual",
+      "services": [
+        "electrical"
+      ],
+      "base_area": "bukoto",
+      "latitude": 0.3502,
+      "longitude": 32.594,
+      "service_areas": [
+        "bukoto",
+        "ntinda",
+        "kisaasi",
+        "kololo",
+        "kawempe"
+      ],
+      "description": "Qualified electrician for home and commercial wiring, socket installations, lighting, and electrical fault finding.",
+      "skills": [
+        "House wiring",
+        "Solar installation",
+        "Socket fitting",
+        "Fault diagnosis",
+        "Security lights"
+      ],
+      "availability_note": "Available weekdays",
+      "price_from": 40000,
+      "price_basis": "per job",
+      "document_verified": true,
+      "blue_tick": false,
+      "availability_status": "available",
+      "next_available": null
+    },
+    {
+      "key": 5,
+      "name": "Kampala Movers Team",
+      "business_name": "Quick Move Uganda",
+      "type": "company",
+      "services": [
+        "moving"
+      ],
+      "base_area": "kampala-central",
+      "latitude": 0.315,
+      "longitude": 32.579,
+      "service_areas": [
+        "kampala",
+        "kira",
+        "wakiso",
+        "mukono",
+        "entebbe"
+      ],
+      "description": "Fast, careful furniture moving and loading services anywhere in Kampala and surrounding areas. Truck available for large moves.",
+      "skills": [
+        "Furniture moving",
+        "Loading & offloading",
+        "Packing",
+        "Truck hire",
+        "Long distance"
+      ],
+      "availability_note": "Available 7 days a week",
+      "price_from": 80000,
+      "price_basis": "per move",
+      "document_verified": true,
+      "blue_tick": false,
+      "availability_status": "busy",
+      "next_available": "Tomorrow"
+    },
+    {
+      "key": 6,
+      "name": "Nakato Juliet",
+      "business_name": null,
+      "type": "individual",
+      "services": [
+        "painting"
+      ],
+      "base_area": "rubaga",
+      "latitude": 0.301,
+      "longitude": 32.5551,
+      "service_areas": [
+        "rubaga",
+        "makindye",
+        "kampala-central"
+      ],
+      "description": "Skilled painter for interior and exterior walls. Clean, neat work with good coverage. Available for single rooms or whole houses.",
+      "skills": [
+        "Interior painting",
+        "Exterior painting",
+        "Wall preparation",
+        "Texture painting",
+        "Door painting"
+      ],
+      "availability_note": "Available most days",
+      "price_from": 35000,
+      "price_basis": "per room",
+      "document_verified": true,
+      "blue_tick": false,
+      "availability_status": "available",
+      "next_available": null
+    },
+    {
+      "key": 7,
+      "name": "Mugisha David",
+      "business_name": null,
+      "type": "individual",
+      "services": [
+        "repairs",
+        "electrical"
+      ],
+      "base_area": "namugongo",
+      "latitude": 0.3915,
+      "longitude": 32.6534,
+      "service_areas": [
+        "namugongo",
+        "kira",
+        "naalya",
+        "kireka",
+        "ntinda"
+      ],
+      "description": "General appliance repair technician. Fixes refrigerators, washing machines, cookers, water heaters, and electronics.",
+      "skills": [
+        "Refrigerator repair",
+        "Washing machine repair",
+        "Cooker repair",
+        "Water heater",
+        "TV repair"
+      ],
+      "availability_note": "Available daily",
+      "price_from": 25000,
+      "price_basis": "per repair",
+      "document_verified": false,
+      "blue_tick": false,
+      "availability_status": "unavailable",
+      "next_available": "Back on Monday"
+    },
+    {
+      "key": 8,
+      "name": "Kizito Carpenters",
+      "business_name": "Kizito Furniture Workshop",
+      "type": "company",
+      "services": [
+        "carpentry"
+      ],
+      "base_area": "kawempe",
+      "latitude": 0.3812,
+      "longitude": 32.5601,
+      "service_areas": [
+        "kampala"
+      ],
+      "description": "Custom furniture makers and repair specialists. We make beds, wardrobes, kitchen cabinets, and office furniture to order.",
+      "skills": [
+        "Custom furniture",
+        "Door fitting",
+        "Kitchen cabinets",
+        "Bed frames",
+        "Wardrobe fitting"
+      ],
+      "availability_note": "Mon–Sat, 8am–6pm",
+      "price_from": 150000,
+      "price_basis": "per piece",
+      "document_verified": true,
+      "blue_tick": true,
+      "availability_status": "busy",
+      "next_available": "Thursday"
+    },
+    {
+      "key": 9,
+      "name": "Kato Ivan",
+      "business_name": null,
+      "type": "individual",
+      "services": [
+        "plumbing"
+      ],
+      "base_area": "kisaasi",
+      "latitude": 0.3678,
+      "longitude": 32.6021,
+      "service_areas": [
+        "kisaasi",
+        "ntinda",
+        "bukoto",
+        "kawempe",
+        "naalya"
+      ],
+      "description": "Plumber for leaking taps, blocked sinks and toilets, and new water connections in homes around Kisaasi and Ntinda.",
+      "skills": [
+        "Leak repair",
+        "Blockage clearing",
+        "Toilet fitting",
+        "Water connections"
+      ],
+      "availability_note": "Available Mon–Sat",
+      "price_from": 25000,
+      "price_basis": "per job",
+      "document_verified": false,
+      "blue_tick": false,
+      "availability_status": "available",
+      "next_available": null
+    },
+    {
+      "key": 10,
+      "name": "Nabirye Sarah",
+      "business_name": null,
+      "type": "individual",
+      "services": [
+        "plumbing"
+      ],
+      "base_area": "mukono",
+      "latitude": 0.3548,
+      "longitude": 32.7531,
+      "service_areas": [
+        "mukono",
+        "kireka",
+        "namugongo",
+        "naalya",
+        "kira",
+        "nakawa",
+        "ntinda"
+      ],
+      "description": "Plumber based in Mukono who travels along Jinja Road for water tank installations, pipe repairs and bathroom fittings.",
+      "skills": [
+        "Tank installation",
+        "Pipe repair",
+        "Bathroom fitting",
+        "Water pumps"
+      ],
+      "availability_note": "Available weekdays",
+      "price_from": 30000,
+      "price_basis": "per job",
+      "document_verified": false,
+      "blue_tick": false,
+      "availability_status": "available",
+      "next_available": null
+    },
+    {
+      "key": 11,
+      "name": "Lubega Joseph",
+      "business_name": "Lubega Plumbing & Fittings",
+      "type": "company",
+      "services": [
+        "plumbing"
+      ],
+      "base_area": "entebbe",
+      "latitude": 0.0598,
+      "longitude": 32.4665,
+      "service_areas": [
+        "entebbe"
+      ],
+      "description": "Small plumbing business serving homes and guest houses in Entebbe. Pipe work, water heaters and drainage.",
+      "skills": [
+        "Water heaters",
+        "Drainage",
+        "Pipe work",
+        "Guest house maintenance"
+      ],
+      "availability_note": "Mon–Sat, 8am–5pm",
+      "price_from": 35000,
+      "price_basis": "per job",
+      "document_verified": false,
+      "blue_tick": false,
+      "availability_status": "busy",
+      "next_available": "Tomorrow"
+    },
+    {
+      "key": 12,
+      "name": "Ssali Moses",
+      "business_name": null,
+      "type": "individual",
+      "services": [
+        "plumbing"
+      ],
+      "base_area": "wakiso",
+      "latitude": null,
+      "longitude": null,
+      "service_areas": [
+        "wakiso",
+        "kawempe",
+        "rubaga",
+        "kampala-central"
+      ],
+      "description": "Plumber covering Wakiso and the western side of Kampala. Borehole pumps, pipe repairs and kitchen sinks.",
+      "skills": [
+        "Borehole pumps",
+        "Pipe repair",
+        "Kitchen sinks"
+      ],
+      "availability_note": "Available most days",
+      "price_from": 25000,
+      "price_basis": "per job",
+      "document_verified": false,
+      "blue_tick": false,
+      "availability_status": "available",
+      "next_available": null
+    },
+    {
+      "key": 13,
+      "name": "Achieng Brenda",
+      "business_name": null,
+      "type": "individual",
+      "services": [
+        "electrical"
+      ],
+      "base_area": "kira",
+      "latitude": 0.3988,
+      "longitude": 32.641,
+      "service_areas": [
+        "kira",
+        "naalya",
+        "namugongo",
+        "kireka",
+        "ntinda",
+        "kisaasi"
+      ],
+      "description": "Electrician for house wiring, socket and light fittings, and small solar setups in Kira and nearby areas.",
+      "skills": [
+        "House wiring",
+        "Light fitting",
+        "Solar setup",
+        "Fault finding"
+      ],
+      "availability_note": "Available Tue–Sun",
+      "price_from": 35000,
+      "price_basis": "per job",
+      "document_verified": false,
+      "blue_tick": false,
+      "availability_status": "available",
+      "next_available": null
+    },
+    {
+      "key": 14,
+      "name": "Nantongo Agnes",
+      "business_name": "Nantongo Home Care",
+      "type": "company",
+      "services": [
+        "cleaning"
+      ],
+      "base_area": "ntinda",
+      "latitude": 0.3532,
+      "longitude": 32.6139,
+      "service_areas": [
+        "ntinda",
+        "kisaasi",
+        "bukoto",
+        "nakawa",
+        "naalya"
+      ],
+      "description": "Home cleaning team for regular house cleaning, move-out cleans and laundry around Ntinda.",
+      "skills": [
+        "House cleaning",
+        "Move-out cleaning",
+        "Laundry"
+      ],
+      "availability_note": "Available every day",
+      "price_from": 40000,
+      "price_basis": "per session",
+      "document_verified": false,
+      "blue_tick": false,
+      "availability_status": "busy",
+      "next_available": "Thursday"
+    }
+  ],
+  "reviews": [
+    {
+      "provider_key": 1,
+      "job_title": "Fixed leaking kitchen pipe",
+      "reviewer_name": "Aisha N.",
+      "area_name": "Ntinda",
+      "days_ago": 7,
+      "rating": 5,
+      "would_hire_again": true,
+      "comment": "Came the same afternoon and fixed the leak properly. Explained what was wrong."
+    },
+    {
+      "provider_key": 1,
+      "job_title": "Installed water tank and pump",
+      "reviewer_name": "Brian O.",
+      "area_name": "Kireka",
+      "days_ago": 21,
+      "rating": 5,
+      "would_hire_again": true,
+      "comment": "Neat work. The pump has worked well since."
+    },
+    {
+      "provider_key": 1,
+      "job_title": "Unblocked bathroom drain",
+      "reviewer_name": "Ruth K.",
+      "area_name": "Nakawa",
+      "days_ago": 30,
+      "rating": 4,
+      "would_hire_again": true,
+      "comment": "Good job, but arrived an hour later than agreed."
+    },
+    {
+      "provider_key": 2,
+      "job_title": "Post-construction clean, 4 bedrooms",
+      "reviewer_name": "Daniel M.",
+      "area_name": "Kira",
+      "days_ago": 5,
+      "rating": 5,
+      "would_hire_again": true,
+      "comment": "Team of three, very thorough. Windows and floors spotless."
+    },
+    {
+      "provider_key": 2,
+      "job_title": "Weekly office cleaning",
+      "reviewer_name": "Sarah T.",
+      "area_name": "Kololo",
+      "days_ago": 14,
+      "rating": 5,
+      "would_hire_again": true,
+      "comment": "Reliable every week, never missed a day."
+    },
+    {
+      "provider_key": 2,
+      "job_title": "Event venue clean-up",
+      "reviewer_name": "Peter A.",
+      "area_name": "Bukoto",
+      "days_ago": 30,
+      "rating": 4,
+      "would_hire_again": true,
+      "comment": "Quick and organised. Missed one storeroom but came back to do it."
+    },
+    {
+      "provider_key": 3,
+      "job_title": "Boundary wall plastering",
+      "reviewer_name": "Moses W.",
+      "area_name": "Ntinda",
+      "days_ago": 14,
+      "rating": 4,
+      "would_hire_again": true,
+      "comment": "Strong work and finished on time."
+    },
+    {
+      "provider_key": 3,
+      "job_title": "Kitchen floor tiling",
+      "reviewer_name": "Joan B.",
+      "area_name": "Naalya",
+      "days_ago": 30,
+      "rating": 2,
+      "would_hire_again": false,
+      "comment": "Some tiles were uneven and had to be redone."
+    },
+    {
+      "provider_key": 3,
+      "job_title": "Two-room extension",
+      "reviewer_name": "Kenneth L.",
+      "area_name": "Gayaza Road",
+      "days_ago": 60,
+      "rating": 5,
+      "would_hire_again": true,
+      "comment": "Good crew, kept the site clean, explained every cost."
+    },
+    {
+      "provider_key": 4,
+      "job_title": "Rewired 3-bedroom house",
+      "reviewer_name": "Grace A.",
+      "area_name": "Bukoto",
+      "days_ago": 4,
+      "rating": 5,
+      "would_hire_again": true,
+      "comment": "Careful and safety-conscious. Labelled the whole breaker board."
+    },
+    {
+      "provider_key": 4,
+      "job_title": "Installed solar security lights",
+      "reviewer_name": "Ivan S.",
+      "area_name": "Kira",
+      "days_ago": 21,
+      "rating": 4,
+      "would_hire_again": true,
+      "comment": "Works well. Took a second visit to adjust the sensor."
+    },
+    {
+      "provider_key": 4,
+      "job_title": "Fixed tripping sockets",
+      "reviewer_name": "Mary N.",
+      "area_name": "Ntinda",
+      "days_ago": 30,
+      "rating": 5,
+      "would_hire_again": true,
+      "comment": "Found the fault fast and charged what he quoted."
+    },
+    {
+      "provider_key": 5,
+      "job_title": "Moved 2-bedroom apartment",
+      "reviewer_name": "Edwin K.",
+      "area_name": "Kampala Central",
+      "days_ago": 7,
+      "rating": 3,
+      "would_hire_again": false,
+      "comment": "Arrived two hours late and a chair got scratched."
+    },
+    {
+      "provider_key": 5,
+      "job_title": "Office furniture relocation",
+      "reviewer_name": "Linda M.",
+      "area_name": "Nakawa",
+      "days_ago": 21,
+      "rating": 5,
+      "would_hire_again": true,
+      "comment": "Packed everything carefully, nothing damaged."
+    },
+    {
+      "provider_key": 5,
+      "job_title": "Loaded truck for upcountry move",
+      "reviewer_name": "Hassan J.",
+      "area_name": "Jinja Road",
+      "days_ago": 30,
+      "rating": 4,
+      "would_hire_again": true,
+      "comment": "Strong team, worked fast."
+    },
+    {
+      "provider_key": 6,
+      "job_title": "Painted living room and corridor",
+      "reviewer_name": "Esther N.",
+      "area_name": "Rubaga",
+      "days_ago": 6,
+      "rating": 5,
+      "would_hire_again": true,
+      "comment": "Clean lines and covered all the furniture first."
+    },
+    {
+      "provider_key": 6,
+      "job_title": "Exterior walls, bungalow",
+      "reviewer_name": "Samuel O.",
+      "area_name": "Entebbe Road",
+      "days_ago": 30,
+      "rating": 5,
+      "would_hire_again": true,
+      "comment": "Two coats as promised, finished a day early."
+    },
+    {
+      "provider_key": 6,
+      "job_title": "Texture paint feature wall",
+      "reviewer_name": "Agnes K.",
+      "area_name": "Makindye",
+      "days_ago": 60,
+      "rating": 4,
+      "would_hire_again": true,
+      "comment": "Looks great. Needed reminding to clean up."
+    },
+    {
+      "provider_key": 7,
+      "job_title": "Repaired fridge not cooling",
+      "reviewer_name": "Rashid M.",
+      "area_name": "Namugongo",
+      "days_ago": 14,
+      "rating": 4,
+      "would_hire_again": true,
+      "comment": "Fixed it in one visit."
+    },
+    {
+      "provider_key": 7,
+      "job_title": "Washing machine drum repair",
+      "reviewer_name": "Prossy N.",
+      "area_name": "Kireka",
+      "days_ago": 30,
+      "rating": 3,
+      "would_hire_again": false,
+      "comment": "Worked for a week then broke again. He came back but charged extra."
+    },
+    {
+      "provider_key": 7,
+      "job_title": "Cooker igniter replacement",
+      "reviewer_name": "Tom B.",
+      "area_name": "Naalya",
+      "days_ago": 60,
+      "rating": 5,
+      "would_hire_again": true,
+      "comment": "Cheap and quick."
+    },
+    {
+      "provider_key": 8,
+      "job_title": "Built-in wardrobe, master bedroom",
+      "reviewer_name": "Harriet A.",
+      "area_name": "Kawempe",
+      "days_ago": 7,
+      "rating": 5,
+      "would_hire_again": true,
+      "comment": "Beautiful finish, exactly the design we agreed."
+    },
+    {
+      "provider_key": 8,
+      "job_title": "Kitchen cabinets",
+      "reviewer_name": "Fred M.",
+      "area_name": "Kampala Central",
+      "days_ago": 30,
+      "rating": 4,
+      "would_hire_again": true,
+      "comment": "Solid work. Delivery was a week later than promised."
+    },
+    {
+      "provider_key": 8,
+      "job_title": "Repaired office desks",
+      "reviewer_name": "Nancy K.",
+      "area_name": "Kawempe",
+      "days_ago": 60,
+      "rating": 5,
+      "would_hire_again": true,
+      "comment": "Fair price and very professional."
+    }
+  ],
+  "jobs": [
+    {
+      "title": "Plumber needed to fix leaking bathroom pipe",
+      "category": "plumbing",
+      "area": "ntinda",
+      "area_name": "Ntinda",
+      "description": "The pipe under the bathroom sink is leaking and needs to be fixed as soon as possible. The leak is causing water damage to the cabinet below.",
+      "preferred_time": "As soon as possible",
+      "workers_needed": 1,
+      "budget": 50000,
+      "budget_basis": "fixed",
+      "days_ago": 0.08333333333333333
+    },
+    {
+      "title": "House painters needed – 3-bedroom house, Makindye",
+      "category": "painting",
+      "area": "makindye",
+      "area_name": "Makindye",
+      "description": "Need 2–3 painters to paint the interior of a 3-bedroom house. Walls only, no ceilings. Paint will be provided.",
+      "preferred_time": "This weekend",
+      "workers_needed": 3,
+      "budget": 250000,
+      "budget_basis": "total",
+      "days_ago": 0.20833333333333334
+    },
+    {
+      "title": "Loading help needed – moving furniture to new house",
+      "category": "moving",
+      "area": "bukoto",
+      "area_name": "Bukoto",
+      "description": "Moving from a 2-bedroom apartment. Need strong people to help carry furniture down stairs and load onto a truck. Truck already arranged.",
+      "preferred_time": "Saturday, 8am",
+      "workers_needed": 4,
+      "budget": 20000,
+      "budget_basis": "per person",
+      "days_ago": 1
+    },
+    {
+      "title": "Electrician needed – install 4 ceiling lights",
+      "category": "electrical",
+      "area": "kololo",
+      "area_name": "Kololo",
+      "description": "Need a qualified electrician to install 4 ceiling light fixtures. Fixtures already purchased. Job should take about half a day.",
+      "preferred_time": "Next week, flexible",
+      "workers_needed": 1,
+      "budget": 80000,
+      "budget_basis": "fixed",
+      "days_ago": 2
+    },
+    {
+      "title": "Office deep cleaning – Nakawa Business Park",
+      "category": "cleaning",
+      "area": "nakawa",
+      "area_name": "Nakawa",
+      "description": "Deep clean needed for a medium-sized office space (approx. 200 sqm). Includes floors, windows, and bathrooms. Should be done before Monday.",
+      "preferred_time": "Sunday",
+      "workers_needed": 2,
+      "budget": 120000,
+      "budget_basis": "fixed",
+      "days_ago": 3
+    },
+    {
+      "title": "Construction workers – foundation laying, Gayaza",
+      "category": "construction",
+      "area": "gayaza-road",
+      "area_name": "Gayaza Road",
+      "description": "Starting construction of a small residential house. Need 5 experienced casual construction workers for foundation laying. Materials and food provided.",
+      "preferred_time": "Monday morning",
+      "workers_needed": 5,
+      "budget": 30000,
+      "budget_basis": "per person per day",
+      "days_ago": 0.16666666666666666
+    },
+    {
+      "title": "Carpenter to repair broken wardrobe door",
+      "category": "carpentry",
+      "area": "namugongo",
+      "area_name": "Namugongo",
+      "description": "The hinges and track on a sliding wardrobe door need to be replaced and the door re-hung properly. Should be a quick job.",
+      "preferred_time": "Anytime this week",
+      "workers_needed": 1,
+      "budget": null,
+      "budget_basis": null,
+      "days_ago": 0.25
+    }
+  ]
+}

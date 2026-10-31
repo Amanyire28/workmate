@@ -1,0 +1,827 @@
+@import "tailwindcss";
+
+/* ============================================================
+   WorkMate design system — "liquid glass"
+   Translucent, blurred surfaces float over a soft colour field.
+   Tokens are exposed as Tailwind theme colours, so utilities like
+   `text-ink`, `bg-primary-tint` and `border-line` work in templates.
+   ============================================================ */
+
+@theme {
+    --color-primary:       #1769D2;
+    --color-primary-hover: #1257B3;
+    --color-primary-tint:  #EAF3FF;
+    --color-navy:          #103B70;
+    --color-sky:           #DCEEFF;
+    --color-ink-soft:      #334155;
+    --color-nav:           #23496F;   /* sidebar text */
+    --color-nav-icon:      #315D88;
+    --color-ink:           #0F172A;
+    --color-muted:         #556378;   /* darker than slate-500 so it stays ≥4.5:1 on glass */
+    --color-page:          #EEF3FA;
+    --color-surface:       #FFFFFF;
+    --color-line:          rgba(15, 23, 42, 0.09);
+    --color-line-strong:   rgba(15, 23, 42, 0.18);
+    --color-success:       #15803D;
+    --color-success-tint:  #E7F7EC;
+    --color-warning:       #B45309;
+    --color-warning-tint:  #FEF3E2;
+    --color-error:         #B91C1C;
+    --color-error-tint:    #FDECEC;
+
+    --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
+    --shadow-soft: 0 2px 8px rgba(15, 23, 42, 0.04);
+    --shadow-raised: 0 12px 32px rgba(15, 23, 42, 0.10);
+}
+
+:root {
+    --wm-header-h: 60px;
+    --wm-bottom-nav-h: 64px;
+    --wm-safe-bottom: env(safe-area-inset-bottom, 0px);
+    /* Floating tab bar: height + gap below it + device inset */
+    --wm-nav-clearance: calc(var(--wm-bottom-nav-h) + 12px + var(--wm-safe-bottom));
+
+    /* Glass recipe (customer app components): white glass with a light-blue tint */
+    --glass-bg:        linear-gradient(135deg, rgba(255, 255, 255, 0.74), rgba(234, 243, 255, 0.70));
+    --glass-bg-strong: linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(234, 243, 255, 0.80));
+    --glass-bg-soft:   rgba(255, 255, 255, 0.45);
+    --glass-border:    rgba(255, 255, 255, 0.78);
+    --glass-blur:      saturate(175%) blur(22px);
+    --glass-shadow:
+        0 8px 32px rgba(36, 103, 170, 0.10),
+        0 1px 2px rgba(16, 59, 112, 0.05),
+        inset 0 1px 0 rgba(255, 255, 255, 0.85),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.25);
+
+    /* Liquid glass, strongest expression (admin sidebar): layered light blue */
+    --liquid-bg:
+        linear-gradient(172deg, rgba(236, 245, 255, 0.70) 0%, rgba(214, 233, 255, 0.72) 30%, rgba(196, 223, 252, 0.70) 62%, rgba(178, 212, 249, 0.74) 100%);
+    --liquid-blur: blur(26px) saturate(185%);
+    --liquid-border: rgba(255, 255, 255, 0.78);
+    --liquid-shadow:
+        0 8px 32px rgba(36, 103, 170, 0.14),
+        inset 0 1px 0 rgba(255, 255, 255, 0.85),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.25);
+
+    /* Readable glass for data: tables, forms, finance, sensitive records */
+    --surface-bg: rgba(255, 255, 255, 0.90);
+    --surface-border: rgba(203, 222, 243, 0.85);
+    --ease-glass: 200ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@media (min-width: 1024px) {
+    :root { --wm-header-h: 72px; }
+}
+
+/* ============================================================
+   Base
+   ============================================================ */
+@layer base {
+    html {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+    }
+    body {
+        font-family: var(--font-sans);
+        background: var(--color-page);
+        color: var(--color-ink);
+        font-size: 0.9375rem;
+        line-height: 1.5;
+        min-height: 100dvh;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+    /* Ambient colour field the glass refracts. Fixed so it doesn't scroll or repaint. */
+    body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        background:
+            radial-gradient(60vmax 50vmax at 0% 0%,    rgba(23, 105, 210, 0.22), transparent 60%),
+            radial-gradient(50vmax 45vmax at 100% 10%, rgba(91, 168, 245, 0.22), transparent 60%),
+            radial-gradient(55vmax 50vmax at 80% 100%, rgba(16, 59, 112, 0.12), transparent 60%),
+            radial-gradient(45vmax 40vmax at 10% 90%,  rgba(147, 197, 253, 0.22), transparent 60%),
+            var(--color-page);
+    }
+    h1, h2, h3, h4 { line-height: 1.25; }
+
+    :focus-visible {
+        outline: 2px solid var(--color-primary);
+        outline-offset: 2px;
+    }
+
+    button:not(:disabled), [role="button"]:not(:disabled) { cursor: pointer; }
+
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+        }
+    }
+}
+
+/* ============================================================
+   Components
+   ============================================================ */
+@layer components {
+
+    /* ---- Glass surfaces ---- */
+    .wm-glass, .wm-glass-strong, .wm-card {
+        background: var(--glass-bg);
+        -webkit-backdrop-filter: var(--glass-blur);
+        backdrop-filter: var(--glass-blur);
+        border: 1px solid var(--glass-border);
+        box-shadow: var(--glass-shadow);
+    }
+    .wm-glass-strong { background: var(--glass-bg-strong); }
+
+    /* ---- Layout ---- */
+    .wm-container {
+        width: 100%;
+        max-width: calc(1200px + 2 * 32px);
+        margin-inline: auto;
+        padding-inline: 16px;
+    }
+    @media (min-width: 640px)  { .wm-container { padding-inline: 24px; } }
+    @media (min-width: 1024px) { .wm-container { padding-inline: 32px; } }
+
+    .wm-container-md   { max-width: calc(1100px + 2 * 32px); }
+    .wm-container-form { max-width: calc(720px + 2 * 32px); }
+    .wm-container-sm   { max-width: calc(800px + 2 * 32px); }
+
+    .wm-page {
+        padding-top: 20px;
+        padding-bottom: 32px;
+    }
+    @media (min-width: 1024px) {
+        .wm-page { padding-top: 32px; padding-bottom: 48px; }
+    }
+
+    .wm-stack { display: flex; flex-direction: column; gap: 24px; }
+    @media (min-width: 1024px) { .wm-stack { gap: 32px; } }
+
+    /* ---- Typography ---- */
+    .wm-h1 {
+        font-size: 1.625rem;
+        font-weight: 700;
+        line-height: 1.25;
+        letter-spacing: -0.015em;
+        color: var(--color-ink);
+    }
+    .wm-h2 {
+        font-size: 1.25rem;
+        font-weight: 600;
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+        color: var(--color-ink);
+    }
+    .wm-h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        line-height: 1.35;
+        color: var(--color-ink);
+    }
+    .wm-lead {
+        font-size: 0.875rem;
+        line-height: 1.5;
+        color: var(--color-muted);
+    }
+    .wm-meta {
+        font-size: 0.8125rem;
+        line-height: 1.45;
+        color: var(--color-muted);
+    }
+    @media (min-width: 1024px) {
+        .wm-h1   { font-size: 2rem; }
+        .wm-h2   { font-size: 1.5rem; }
+        .wm-h3   { font-size: 1.125rem; }
+        .wm-lead { font-size: 0.9375rem; }
+        .wm-meta { font-size: 0.875rem; }
+    }
+
+    .wm-link {
+        color: var(--color-primary);
+        font-weight: 600;
+        font-size: 0.8125rem;
+        border-radius: 6px;
+    }
+    .wm-link:hover { color: var(--color-primary-hover); text-decoration: underline; }
+
+    /* ---- Card ---- */
+    .wm-card {
+        border-radius: 20px;
+        padding: 16px;
+    }
+    @media (min-width: 1024px) { .wm-card { padding: 20px; } }
+    .wm-card-lg { padding: 16px; }
+    @media (min-width: 1024px) { .wm-card-lg { padding: 24px; } }
+
+    .wm-card-link {
+        transition: background-color 0.2s, box-shadow 0.2s, transform 0.2s;
+    }
+    .wm-card-link:hover {
+        background: var(--glass-bg-strong);
+        box-shadow: var(--shadow-raised), inset 0 1px 0 rgba(255, 255, 255, 0.95);
+        transform: translateY(-1px);
+    }
+
+    .wm-divider { height: 1px; background: var(--color-line); border: 0; }
+
+    /* ---- Buttons (capsules) ---- */
+    .wm-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 44px;
+        padding: 0 20px;
+        border-radius: 999px;
+        border: 1px solid transparent;
+        font-size: 0.875rem;
+        font-weight: 600;
+        line-height: 1.2;
+        white-space: nowrap;
+        -webkit-user-select: none;
+        user-select: none;
+        transition: background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s, transform 0.1s;
+    }
+    .wm-btn:active:not(:disabled) { transform: scale(0.98); }
+    @media (min-width: 1024px) { .wm-btn { font-size: 0.9375rem; } }
+    .wm-btn:disabled, .wm-btn[aria-disabled="true"] { opacity: 0.55; cursor: not-allowed; }
+
+    .wm-btn-lg { min-height: 50px; padding: 0 24px; font-size: 0.9375rem; }
+    .wm-btn-block { width: 100%; }
+
+    /* Solid, glossy primary: full contrast for the main action */
+    .wm-btn-primary {
+        background: linear-gradient(180deg, #2B7BE6 0%, var(--color-primary) 100%);
+        color: #fff;
+        box-shadow:
+            0 6px 16px rgba(23, 105, 210, 0.30),
+            inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+    .wm-btn-primary:hover:not(:disabled) {
+        background: linear-gradient(180deg, #1F6FD8 0%, var(--color-primary-hover) 100%);
+    }
+
+    .wm-btn-secondary {
+        background: var(--glass-bg-strong);
+        -webkit-backdrop-filter: var(--glass-blur);
+        backdrop-filter: var(--glass-blur);
+        color: var(--color-ink);
+        border-color: rgba(15, 23, 42, 0.10);
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    }
+    .wm-btn-secondary:hover:not(:disabled) { background: #fff; border-color: var(--color-line-strong); }
+
+    .wm-btn-tint {
+        background: rgba(23, 105, 210, 0.10);
+        color: var(--color-primary-hover);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    }
+    .wm-btn-tint:hover:not(:disabled) { background: rgba(23, 105, 210, 0.16); }
+
+    .wm-btn-ghost { background: transparent; color: var(--color-primary); padding-inline: 12px; }
+    .wm-btn-ghost:hover:not(:disabled) { background: rgba(23, 105, 210, 0.08); }
+
+    .wm-btn-danger-ghost { background: transparent; color: var(--color-error); padding-inline: 12px; }
+    .wm-btn-danger-ghost:hover:not(:disabled) { background: var(--color-error-tint); }
+
+    .wm-icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        width: 44px;
+        height: 44px;
+        flex-shrink: 0;
+        border-radius: 999px;
+        color: var(--color-ink);
+        font-size: 1.25rem;
+        transition: background-color 0.15s;
+    }
+    .wm-icon-btn:hover { background: rgba(15, 23, 42, 0.06); }
+
+    /* Small unread counter on icons */
+    .wm-count-badge {
+        position: absolute;
+        top: 4px;
+        right: 2px;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 5px;
+        border-radius: 999px;
+        background: var(--color-error);
+        color: #fff;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 18px;
+        text-align: center;
+        box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.9);
+    }
+
+    /* ---- Forms ---- */
+    .wm-label {
+        display: block;
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: var(--color-ink);
+        margin-bottom: 8px;
+    }
+    .wm-input {
+        display: block;
+        width: 100%;
+        height: 50px;
+        padding: 0 16px;
+        border: 1px solid rgba(15, 23, 42, 0.12);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.75);
+        color: var(--color-ink);
+        font: inherit;
+        font-size: 1rem;
+        box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+        transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+    }
+    .wm-input::placeholder { color: #7A8699; }
+    .wm-input:hover { border-color: var(--color-line-strong); }
+    .wm-input:focus {
+        outline: none;
+        background: #fff;
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 4px rgba(23, 105, 210, 0.16);
+    }
+    .wm-input[aria-invalid="true"] { border-color: var(--color-error); }
+    .wm-input[aria-invalid="true"]:focus { box-shadow: 0 0 0 4px rgba(185, 28, 28, 0.14); }
+    .wm-input:disabled { background: rgba(255, 255, 255, 0.4); color: var(--color-muted); }
+
+    textarea.wm-input {
+        height: auto;
+        min-height: 140px;
+        padding: 12px 16px;
+        resize: vertical;
+        line-height: 1.5;
+    }
+    select.wm-input {
+        appearance: none;
+        padding-right: 40px;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23556378' viewBox='0 0 16 16'%3E%3Cpath d='M1.6 5.1a.6.6 0 0 1 .85 0L8 10.65l5.55-5.55a.6.6 0 1 1 .85.85l-5.98 5.98a.6.6 0 0 1-.85 0L1.6 5.95a.6.6 0 0 1 0-.85z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 16px center;
+    }
+
+    .wm-check {
+        width: 20px;
+        height: 20px;
+        accent-color: var(--color-primary);
+        flex-shrink: 0;
+    }
+
+    .wm-field-error {
+        margin-top: 6px;
+        font-size: 0.8125rem;
+        color: var(--color-error);
+    }
+    .wm-field-hint {
+        margin-top: 6px;
+        font-size: 0.8125rem;
+        color: var(--color-muted);
+    }
+
+    /* ---- Search field ---- */
+    .wm-search {
+        position: relative;
+        display: flex;
+        align-items: center;
+        height: 50px;
+        background: var(--glass-bg-strong);
+        -webkit-backdrop-filter: var(--glass-blur);
+        backdrop-filter: var(--glass-blur);
+        border: 1px solid var(--glass-border);
+        border-radius: 999px;
+        box-shadow: var(--glass-shadow);
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .wm-search:focus-within {
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 4px rgba(23, 105, 210, 0.16), var(--glass-shadow);
+    }
+    .wm-search input {
+        flex: 1;
+        min-width: 0;
+        height: 100%;
+        padding: 0 8px 0 0;
+        border: 0;
+        background: transparent;
+        font: inherit;
+        font-size: 1rem;
+        color: var(--color-ink);
+    }
+    .wm-search input:focus { outline: none; }
+    .wm-search input::placeholder { color: var(--color-muted); font-size: 0.875rem; }
+    .wm-search input::-webkit-search-cancel-button { display: none; }
+
+    /* ---- Chips ---- */
+    .wm-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        flex-shrink: 0;
+        height: 38px;
+        padding: 0 14px;
+        border-radius: 999px;
+        border: 1px solid var(--glass-border);
+        background: var(--glass-bg);
+        -webkit-backdrop-filter: var(--glass-blur);
+        backdrop-filter: var(--glass-blur);
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+        color: var(--color-ink);
+        font-size: 0.875rem;
+        font-weight: 500;
+        white-space: nowrap;
+        transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .wm-chip:hover { background: var(--glass-bg-strong); }
+    .wm-chip[aria-pressed="true"] {
+        background: linear-gradient(180deg, #2B7BE6 0%, var(--color-primary) 100%);
+        border-color: transparent;
+        color: #fff;
+        box-shadow: 0 4px 12px rgba(23, 105, 210, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+    .wm-tag {
+        display: inline-flex;
+        align-items: center;
+        min-height: 34px;
+        padding: 0 12px;
+        border-radius: 999px;
+        background: rgba(23, 105, 210, 0.10);
+        color: var(--color-primary-hover);
+        font-size: 0.8125rem;
+        font-weight: 500;
+    }
+
+    /* Controls drawn smaller than 44px (chips 38px, tabs 40px, tags 34px) get an
+       invisible hit area that extends them to the 44px minimum touch target. */
+    .wm-chip, a.wm-tag, .wm-hit { position: relative; }
+    .wm-chip::after, a.wm-tag::after, .wm-hit::after {
+        content: "";
+        position: absolute;
+        inset: min(0px, calc((100% - 44px) / 2)) 0;
+    }
+
+    /* Horizontal scroll row that bleeds to the screen edge on mobile */
+    .wm-scroll-row {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        margin-inline: -16px;
+        padding: 4px 16px;
+        scroll-padding-inline: 16px;
+    }
+    .wm-scroll-row::-webkit-scrollbar { display: none; }
+    @media (min-width: 640px) {
+        .wm-scroll-row { margin-inline: -24px; padding-inline: 24px; }
+    }
+    @media (min-width: 1024px) {
+        .wm-scroll-row { margin-inline: 0; padding-inline: 2px; flex-wrap: wrap; overflow: visible; }
+    }
+
+    /* ---- Segmented control (tabs) ---- */
+    .wm-segmented {
+        padding: 4px;
+        border-radius: 999px;
+        background: rgba(15, 23, 42, 0.06);
+        box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.06);
+    }
+    .wm-segment {
+        height: 40px;
+        padding: 0 16px;
+        border-radius: 999px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--color-muted);
+        white-space: nowrap;
+        transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+    }
+    .wm-segment:hover { color: var(--color-ink); }
+    .wm-segment[aria-selected="true"] {
+        background: rgba(255, 255, 255, 0.9);
+        color: var(--color-ink);
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.10), inset 0 1px 0 #fff;
+    }
+
+    /* ---- Status pill ---- */
+    .wm-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 28px;
+        padding: 0 10px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .wm-pill::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+    .wm-pill-plain::before { display: none; }
+    .wm-pill-info    { background: rgba(23, 105, 210, 0.11); color: var(--color-primary-hover); }
+    .wm-pill-success { background: rgba(21, 128, 61, 0.11);  color: var(--color-success); }
+    .wm-pill-warning { background: rgba(180, 83, 9, 0.11);   color: var(--color-warning); }
+    .wm-pill-error   { background: rgba(185, 28, 28, 0.10);  color: var(--color-error); }
+    .wm-pill-neutral { background: rgba(15, 23, 42, 0.07);   color: #475569; }
+
+    /* ---- Icon tile ---- */
+    .wm-icon-tile {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        flex-shrink: 0;
+        border-radius: 14px;
+        background: linear-gradient(160deg, rgba(23, 105, 210, 0.16), rgba(56, 189, 248, 0.10));
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+        color: var(--color-primary);
+        font-size: 1.375rem;
+    }
+
+    /* ---- Notices ---- */
+    .wm-notice {
+        display: flex;
+        gap: 10px;
+        padding: 12px 14px;
+        border-radius: 14px;
+        font-size: 0.875rem;
+        line-height: 1.5;
+    }
+    .wm-notice-info    { background: rgba(23, 105, 210, 0.09); color: #1E3A8A; }
+    .wm-notice-success { background: rgba(21, 128, 61, 0.10);  color: var(--color-success); }
+    .wm-notice-warning { background: rgba(180, 83, 9, 0.10);   color: #92400E; }
+    .wm-notice-error   { background: rgba(185, 28, 28, 0.09);  color: var(--color-error); }
+
+    /* ---- Skeleton loading ---- */
+    .wm-skeleton {
+        background: linear-gradient(90deg, rgba(15,23,42,0.06) 25%, rgba(15,23,42,0.03) 50%, rgba(15,23,42,0.06) 75%);
+        background-size: 200% 100%;
+        animation: wm-shimmer 1.2s ease-in-out infinite;
+        border-radius: 8px;
+    }
+
+    .wm-spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: wm-spin 0.65s linear infinite;
+    }
+
+    /* Space reserved under page content for the floating mobile tab bar */
+    .wm-bottom-nav-spacer {
+        height: var(--wm-nav-clearance);
+    }
+    @media (min-width: 1024px) {
+        .wm-bottom-nav-spacer { display: none; }
+    }
+}
+
+/* ============================================================
+   WorkMate liquid glass: shared materials
+   Four strengths, strongest first. Use the weakest that does the job:
+     .wm-liquid      the sidebar: light-blue, layered, reflective (needs position + content above ::before/::after)
+     .wm-glass-bar   top navigation bars
+     .wm-glass-card  summary cards and interactive widgets
+     .wm-glass-pop   dropdowns, drawers, dialogs (nearly opaque so their text stays crisp)
+     .wm-surface     tables, forms, finance and sensitive data (mostly opaque)
+   ============================================================ */
+@layer components {
+    .wm-liquid {
+        isolation: isolate;
+        background: var(--liquid-bg);
+        -webkit-backdrop-filter: var(--liquid-blur);
+        backdrop-filter: var(--liquid-blur);
+        border-right: 1px solid var(--liquid-border);
+        box-shadow: 10px 0 36px rgba(36, 103, 170, 0.14), var(--liquid-shadow), inset -1px 0 0 rgba(255, 255, 255, 0.55);
+    }
+    /* Top sheen and a soft deep-blue pool at the foot: depth, not a flat fill */
+    .wm-liquid::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        background:
+            linear-gradient(180deg, rgba(255, 255, 255, 0.70) 0%, rgba(255, 255, 255, 0.18) 9%, rgba(255, 255, 255, 0) 22%),
+            radial-gradient(140% 40% at 0% 0%, rgba(255, 255, 255, 0.60), transparent 62%),
+            radial-gradient(110% 26% at 0% 48%, rgba(120, 180, 245, 0.30), transparent 72%),
+            radial-gradient(120% 40% at 100% 100%, rgba(23, 105, 210, 0.26), transparent 70%),
+            radial-gradient(90% 22% at 30% 86%, rgba(255, 255, 255, 0.34), transparent 70%);
+    }
+    /* Two diagonal reflections (one broad, one fine) and a bright inner edge */
+    .wm-liquid::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        pointer-events: none;
+        background:
+            linear-gradient(122deg, transparent 8%, rgba(255, 255, 255, 0.46) 16%, rgba(255, 255, 255, 0.12) 24%, transparent 34%),
+            linear-gradient(122deg, transparent 52%, rgba(255, 255, 255, 0.28) 55%, transparent 58%),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.55) 0, transparent 2px, transparent calc(100% - 3px), rgba(255, 255, 255, 0.95) calc(100% - 1px), rgba(255, 255, 255, 0.4) 100%);
+    }
+
+    .wm-glass-bar {
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.80), rgba(234, 243, 255, 0.70));
+        -webkit-backdrop-filter: blur(22px) saturate(175%);
+        backdrop-filter: blur(22px) saturate(175%);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.80);
+        box-shadow: 0 1px 0 rgba(16, 59, 112, 0.06), 0 8px 28px rgba(36, 103, 170, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    }
+
+    .wm-glass-card {
+        background: linear-gradient(145deg, rgba(255, 255, 255, 0.84), rgba(234, 243, 255, 0.70));
+        -webkit-backdrop-filter: blur(18px) saturate(165%);
+        backdrop-filter: blur(18px) saturate(165%);
+        border: 1px solid rgba(255, 255, 255, 0.82);
+        box-shadow: 0 6px 24px rgba(36, 103, 170, 0.09), inset 0 1px 0 rgba(255, 255, 255, 0.92), inset 0 -1px 0 rgba(255, 255, 255, 0.3);
+        transition: box-shadow var(--ease-glass), border-color var(--ease-glass), transform var(--ease-glass), background-color var(--ease-glass);
+    }
+    a.wm-glass-card:hover, button.wm-glass-card:hover, .wm-glass-card.is-interactive:hover {
+        border-color: rgba(255, 255, 255, 0.95);
+        box-shadow: 0 10px 30px rgba(36, 103, 170, 0.14), inset 0 1px 0 #fff;
+    }
+
+    /* Nearly opaque on purpose: menus inside the top bar can't blur (a blur nested in a
+       blurred parent samples nothing in Chromium), so text behind must not show through */
+    .wm-glass-pop {
+        background: linear-gradient(160deg, rgba(255, 255, 255, 0.985), rgba(240, 247, 255, 0.97));
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
+        backdrop-filter: blur(24px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.86);
+        box-shadow: 0 20px 50px rgba(16, 59, 112, 0.18), inset 0 1px 0 #fff;
+    }
+
+    /* Inside a blurred bar a nested backdrop-filter can't sample the page and lets it bleed
+       through; menus there use the tinted glass colour without their own blur */
+    .wm-surface .wm-surface, .wm-glass-card .wm-surface, .wm-surface .wm-glass-card, .wm-glass-card .wm-glass-card {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+    .wm-glass-bar .wm-glass-pop {
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+        background: linear-gradient(160deg, #FFFFFF, #F4F9FF);
+    }
+
+    .wm-surface {
+        background: var(--surface-bg);
+        -webkit-backdrop-filter: blur(14px) saturate(140%);
+        backdrop-filter: blur(14px) saturate(140%);
+        border: 1px solid var(--surface-border);
+        box-shadow: 0 2px 14px rgba(36, 103, 170, 0.06), inset 0 1px 0 #fff;
+    }
+
+    /* Glass text field (search bars, filters) */
+    .wm-glass-input {
+        background: rgba(255, 255, 255, 0.66);
+        border: 1px solid rgba(255, 255, 255, 0.9);
+        box-shadow: inset 0 1px 2px rgba(16, 59, 112, 0.06), 0 1px 0 rgba(255, 255, 255, 0.6);
+        transition: background-color var(--ease-glass), border-color var(--ease-glass), box-shadow var(--ease-glass);
+    }
+    .wm-glass-input:hover { background: rgba(255, 255, 255, 0.8); }
+    .wm-glass-input:focus-within, .wm-glass-input:focus {
+        background: #fff;
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 3px rgba(23, 105, 210, 0.18);
+    }
+
+    /* Sidebar navigation states: only the active item gets the strong blue */
+    .wm-nav-item {
+        color: var(--color-nav);
+        transition: background-color var(--ease-glass), color var(--ease-glass), box-shadow var(--ease-glass);
+    }
+    .wm-nav-item .bi { color: var(--color-nav-icon); transition: color var(--ease-glass); }
+    .wm-nav-item:hover {
+        background: rgba(255, 255, 255, 0.48);
+        color: var(--color-navy);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), 0 1px 3px rgba(36, 103, 170, 0.08);
+    }
+    .wm-nav-item.is-active {
+        background: linear-gradient(180deg, #2275DD 0%, #1769D2 100%);
+        color: #fff;
+        font-weight: 600;
+        box-shadow: 0 6px 16px rgba(23, 105, 210, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.30);
+    }
+    .wm-nav-item.is-active .bi { color: #fff; }
+}
+
+/* ============================================================
+   Admin: blue tones, no blending.
+   The admin keeps its blue identity (sidebar, top bar, page background) but every
+   surface is solid: nothing shows through, so data always reads cleanly. The
+   customer site keeps the translucent glass above.
+   ============================================================ */
+.wm-admin-field {
+    background:
+        radial-gradient(70vmax 60vmax at -10% -10%, rgba(23, 105, 210, 0.12), transparent 60%),
+        radial-gradient(55vmax 45vmax at 105% 0%, rgba(147, 197, 253, 0.18), transparent 60%),
+        linear-gradient(180deg, #F2F7FD 0%, #EDF4FC 100%);
+    background-attachment: fixed;
+}
+
+/* Sidebar: solid layered blue with its reflections, not see-through */
+.wm-admin-field .wm-liquid {
+    background: linear-gradient(172deg, #EFF6FF 0%, #DDEBFD 32%, #D0E4FB 64%, #C3DBF8 100%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+}
+
+/* Top bar: solid white-to-pale-blue */
+.wm-admin-field .wm-glass-bar {
+    background: linear-gradient(180deg, #FFFFFF 0%, #F3F8FF 100%);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-bottom-color: #DCE7F5;
+}
+
+/* Cards and panels: solid white, crisp border, soft blue depth */
+.wm-admin-field .wm-glass-card,
+.wm-admin-field .wm-surface {
+    background: #FFFFFF;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border: 1px solid #DCE7F5;
+    box-shadow: 0 1px 2px rgba(16, 59, 112, 0.05), 0 4px 16px rgba(36, 103, 170, 0.06);
+}
+.wm-admin-field .wm-glass-input { background: #FFFFFF; border-color: #D5E3F3; }
+
+/* Menus, drawers and dialogs (some are teleported outside the admin root): always solid */
+.wm-glass-pop {
+    background: #FFFFFF;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border-color: #DCE7F5;
+}
+
+/* Clickable admin cards and rows: clear, quick feedback */
+.wm-admin-field .wm-hover-card {
+    transition: border-color var(--ease-glass), box-shadow var(--ease-glass), transform var(--ease-glass);
+}
+.wm-admin-field .wm-hover-card:hover {
+    border-color: #9CC3F0;
+    box-shadow: 0 2px 4px rgba(16, 59, 112, 0.06), 0 10px 26px rgba(36, 103, 170, 0.12);
+    transform: translateY(-1px);
+}
+.wm-admin-field .wm-hover-card:active { transform: translateY(0); }
+.wm-admin-field .wm-hover-row { transition: background-color var(--ease-glass); }
+.wm-admin-field .wm-hover-row:hover { background: #F2F7FE; }
+
+/* Gentle entrance for above-the-fold content */
+@keyframes wm-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.wm-rise { animation: wm-rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.wm-rise-delay-1 { animation-delay: 0.08s; }
+.wm-rise-delay-2 { animation-delay: 0.16s; }
+
+@keyframes wm-spin    { to { transform: rotate(360deg); } }
+@keyframes wm-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* ============================================================
+   Glass fallbacks: no blur support, or the user asked for less transparency
+   ============================================================ */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    :root {
+        --glass-bg: #FFFFFF;
+        --glass-bg-strong: #FFFFFF;
+        --glass-bg-soft: #FFFFFF;
+        --glass-border: #E2E8F0;
+        --liquid-bg: linear-gradient(160deg, #F4F9FF, #DCEEFF);
+        --surface-bg: #FFFFFF;
+    }
+    .wm-glass-card, .wm-glass-pop, .wm-glass-bar { background: #FFFFFF; }
+}
+@media (prefers-reduced-transparency: reduce) {
+    :root {
+        --glass-bg: #FFFFFF;
+        --glass-bg-strong: #FFFFFF;
+        --glass-bg-soft: #FFFFFF;
+        --glass-border: #E2E8F0;
+        --glass-blur: none;
+        --liquid-bg: linear-gradient(160deg, #F4F9FF, #DCEEFF);
+        --liquid-blur: none;
+        --surface-bg: #FFFFFF;
+    }
+    body::before { background: var(--color-page); }
+    .wm-glass-card, .wm-glass-pop, .wm-glass-bar { background: #FFFFFF; -webkit-backdrop-filter: none; backdrop-filter: none; }
+    .wm-liquid::after { display: none; }
+}
