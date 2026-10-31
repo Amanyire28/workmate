@@ -108,4 +108,18 @@ return [
 
     'password_timeout' => 10800,
 
+    /*
+    |--------------------------------------------------------------------------
+    | Email Confirmation Links
+    |--------------------------------------------------------------------------
+    |
+    | Minutes a "confirm your email address" link keeps working. A day gives
+    | people time to find the email; a new link can be sent at any time.
+    |
+    */
+
+    'verification' => [
+        'expire' => 1440,
+    ],
+
 ];

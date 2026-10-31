@@ -270,10 +270,18 @@ const verificationSummary = computed(() => (latestApplication.value
 
 const VERIFICATION_RESULTS = {
   success: { tone: 'success', icon: 'bi-check-circle', text: 'Your email address is confirmed.' },
-  expired: { tone: 'warning', icon: 'bi-clock-history', text: 'That confirmation link has expired. Sign in and ask for a new one.' },
-  invalid: { tone: 'error', icon: 'bi-exclamation-triangle', text: 'That confirmation link isn’t valid. Sign in and ask for a new one.' },
+  expired: { tone: 'warning', icon: 'bi-clock-history', text: 'That confirmation link has expired.' },
+  invalid: { tone: 'error', icon: 'bi-exclamation-triangle', text: 'That confirmation link isn’t valid.' },
 };
-const verificationNotice = computed(() => VERIFICATION_RESULTS[route.query.email_verification] || null);
+const verificationNotice = computed(() => {
+  const result = VERIFICATION_RESULTS[route.query.email_verification];
+  if (!result || result.tone === 'success') return result || null;
+  // Signed in: the "Send it again" link is right below; otherwise sign in first
+  const next = user.value
+    ? (user.value.email_verified ? ' Your email address is already confirmed.' : ' Use “Send it again” below for a new one.')
+    : ' Sign in and ask for a new one.';
+  return { ...result, text: result.text + next };
+});
 if (route.query.email_verification === 'success') loadSession({ force: true });
 
 const PROVIDER_SUMMARIES = {

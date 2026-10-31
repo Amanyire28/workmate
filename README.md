@@ -121,7 +121,7 @@ Throughout this README:
 | Reviews | Display, rating calculation and admin moderation | Customers can't write reviews yet (they will follow completed bookings) |
 | Document verification | Customer "Get verified" flow and admin review and requirements screens | Nothing is uploaded or stored on the server yet; those screens keep changes in the browser only |
 | Performance tick | Tick display and admin rules screen | Automatic evaluation isn't running; only sample providers carry a tick |
-| Email | Verification and reset emails are generated | Delivery needs mail settings in `.env` |
+| Email | WorkMate-branded confirmation (link valid 24 hours) and reset emails are generated | Delivery needs mail settings in `.env`; check them with `php artisan workmate:mail-test` |
 | Languages | Language preference is stored | The interface is English only; no translations yet |
 | Provider teams | `provider_members` table with an owner row | Adding and managing group or company members |
 | Photos on requests | A photo picker on the request form | Photos aren't uploaded (the form says so) |
@@ -538,6 +538,7 @@ The admin area is at <http://127.0.0.1:8000/admin>.
 | `php artisan db:seed --class=SampleMarketplaceSeeder` | Adds the sample providers, reviews and jobs |
 | `php artisan workmate:role {email} {role}` | Grants an admin role to an existing account |
 | `php artisan workmate:role {email} {role} --revoke` | Removes it (the last active Super Administrator can't be removed) |
+| `php artisan workmate:mail-test {email}` | Sends a test email to check the mail settings (shows the mailer and sender, never the password) |
 | `php artisan route:list --path=api` | Lists the API routes |
 | `php artisan test` | Runs the test suite on `workmate_test` |
 

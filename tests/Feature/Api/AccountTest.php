@@ -207,6 +207,67 @@ class AccountTest extends ApiTestCase
         $this->assertTrue($user->fresh()->hasVerifiedEmail());
     }
 
+    public function test_the_confirmation_email_is_worded_for_workmate_and_its_link_lasts_a_day()
+    {
+        Notification::fake();
+        $user = User::factory()->unverified()->create(['name' => 'Nakato Sarah']);
+
+        $user->sendEmailVerificationNotification();
+
+        $mail = null;
+        Notification::assertSentTo($user, VerifyEmail::class, function (VerifyEmail $notification) use ($user, &$mail) {
+            $mail = $notification->toMail($user);
+
+            return true;
+        });
+
+        $this->assertSame('Confirm your WorkMate email address', $mail->subject);
+        $this->assertSame('Hi Nakato,', $mail->greeting);
+        $this->assertSame('Confirm email address', $mail->actionText);
+
+        $html = (string) $mail->render();
+        $this->assertStringContainsString('WorkMate by ResNet Systems', $html);
+        $this->assertStringContainsString('#1769D2', $html);
+        $this->assertStringNotContainsString('Laravel', $html);
+
+        // Still works after 23 hours; expired after 25
+        $this->travel(23)->hours();
+        $this->get($mail->actionUrl)->assertRedirect('/account?email_verification=success');
+        $this->assertTrue($user->fresh()->hasVerifiedEmail());
+
+        $other = User::factory()->unverified()->create();
+        $other->sendEmailVerificationNotification();
+        $late = null;
+        Notification::assertSentTo($other, VerifyEmail::class, function (VerifyEmail $notification) use ($other, &$late) {
+            $late = $notification->toMail($other)->actionUrl;
+
+            return true;
+        });
+        $this->travel(25)->hours();
+        $this->get($late)->assertRedirect('/account?email_verification=expired');
+        $this->assertFalse($other->fresh()->hasVerifiedEmail());
+    }
+
+    public function test_the_mail_test_command_sends_a_message_and_explains_missing_settings()
+    {
+        config(['mail.from.address' => null]);
+        $this->artisan('workmate:mail-test', ['email' => 'owner@example.com'])
+            ->expectsOutput('Set MAIL_FROM_ADDRESS in .env, then run: php artisan config:clear')
+            ->assertExitCode(1);
+
+        $this->artisan('workmate:mail-test', ['email' => 'not-an-email'])->assertExitCode(1);
+
+        config(['mail.from.address' => 'no-reply@example.com']);
+        $this->artisan('workmate:mail-test', ['email' => 'owner@example.com'])
+            ->expectsOutput('Sent to owner@example.com. Check the inbox (and the spam folder).')
+            ->assertExitCode(0);
+
+        $sent = app('mailer')->getSwiftMailer()->getTransport()->messages();
+        $this->assertCount(1, $sent);
+        $this->assertSame(['owner@example.com'], array_keys($sent[0]->getTo()));
+        $this->assertSame('WorkMate test email', $sent[0]->getSubject());
+    }
+
     public function test_updating_the_profile()
     {
         $user = $this->signIn(User::factory()->create(['email' => 'okello@example.com']));

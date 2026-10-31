@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\URL;
 
@@ -52,10 +53,23 @@ class AuthServiceProvider extends ServiceProvider
 
         // Email links open pages in the Vue app, which call the API
         VerifyEmail::createUrlUsing(function ($user) {
-            return URL::temporarySignedRoute('api.v1.auth.verify-email', now()->addHour(), [
+            return URL::temporarySignedRoute('api.v1.auth.verify-email', now()->addMinutes(config('auth.verification.expire')), [
                 'id' => $user->getKey(),
                 'hash' => sha1($user->getEmailForVerification()),
             ]);
+        });
+
+        VerifyEmail::toMailUsing(function ($user, string $url) {
+            $firstName = trim(strtok((string) $user->name, ' ')) ?: 'there';
+
+            return (new MailMessage)
+                ->subject('Confirm your WorkMate email address')
+                ->greeting("Hi {$firstName},")
+                ->line('Welcome to WorkMate! Please confirm that this is your email address.')
+                ->action('Confirm email address', $url)
+                ->line('This link works for 24 hours. If it expires, you can ask for a new one from your Account page.')
+                ->line('If you didn’t create a WorkMate account, you can ignore this email.')
+                ->salutation('The WorkMate team');
         });
 
         ResetPassword::createUrlUsing(function ($user, string $token) {
