@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Admin\ProviderStandingController;
 use App\Http\Controllers\Api\V1\Admin\RoleController;
 use App\Http\Controllers\Api\V1\Admin\SettingController;
 use App\Http\Controllers\Api\V1\Admin\UserRoleController;
+use App\Http\Controllers\Api\V1\AppEventController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
@@ -57,6 +58,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('reviews/recent', [DirectoryController::class, 'recentReviews'])->name('reviews.recent');
     Route::get('jobs', [JobController::class, 'index'])->name('jobs.index');
     Route::get('jobs/{id}', [JobController::class, 'show'])->whereNumber('id')->name('jobs.show');
+    Route::post('app-events', [AppEventController::class, 'store'])->middleware('throttle:app-events')->name('app-events.store');
 
     // Signing in and out (cookie sessions; call GET /sanctum/csrf-cookie first)
     Route::prefix('auth')->name('auth.')->group(function () {

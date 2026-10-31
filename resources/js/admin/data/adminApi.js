@@ -10,7 +10,7 @@
  */
 import {
     core, ops, daily, COMMISSION_RATE, PROCESSING_FEE_RATE, categoryLabels, categoryWeights, NOW, DAY, townOf,
-    categories, loadAdminData, onReload,
+    categories, installs, loadAdminData, onReload,
 } from './liveData.js';
 import { patches, created, settings } from '../stores/prototypeChanges.js';
 import { api } from '@/api/client.js';
@@ -167,19 +167,30 @@ function peopleWithPresence() {
     return [];
 }
 
-/** Daily usage rows: registrations come from the database, everything else isn't tracked yet */
+const INSTALL_KEYS = ['installPrompts', 'installs', 'firstLaunches', 'installsButton', 'installsBrowser', 'appAndroid', 'appIos', 'appDesktop'];
+
+/**
+ * Daily usage rows: registrations and web app installs come from the database;
+ * launches, sessions and presence aren't tracked yet.
+ */
 function usageRows() {
-    return daily.map(d => ({
-        date: d.date, tracked: false,
-        dau: 0, newUsers: d.customersNew, returning: 0, wau: 0, mau: 0,
-        launches: null, sessions: null, avgSessionSec: null, installPrompts: null, installs: null, firstLaunches: null,
-        launchesByPlatform: null, registrations: d.customersNew,
-    }));
+    const installsOn = new Map(installs.daily.map(d => [d.date, d]));
+    const dates = daily.length ? daily : installs.daily.map(d => ({ date: d.date, customersNew: 0 }));
+    return dates.map((d) => {
+        const inst = installsOn.get(d.date);
+        return {
+            date: d.date, tracked: false,
+            dau: 0, newUsers: d.customersNew, returning: 0, wau: 0, mau: 0,
+            launches: null, sessions: null, avgSessionSec: null,
+            ...Object.fromEntries(INSTALL_KEYS.map(k => [k, installs.available ? (inst?.[k] || 0) : null])),
+            launchesByPlatform: null, registrations: d.customersNew,
+        };
+    });
 }
 
 function usageSnapshot() {
     return {
-        installsTotal: 0, dauToday: 0, launchesToday: 0, onlineNow: 0, onlineProviders: 0, offlineUsers: 0,
+        installsTotal: installs.devicesWithApp, dauToday: 0, launchesToday: 0, onlineNow: 0, onlineProviders: 0, offlineUsers: 0,
         analyticsFailures: 1,   // app usage and presence collection isn't connected yet
     };
 }
@@ -188,7 +199,6 @@ function usageSnapshot() {
 export function getUsage({ days = 30, compare = true } = {}) {
     return respond((empty) => {
         const usage = usageRows();
-        const installsBySource = [];
         const zero = (u) => Object.fromEntries(Object.entries(u).map(([k, v]) => [k, typeof v === 'number' ? 0 : v]));
         const rows = usage.slice(-days).map(u => (empty ? zero(u) : u));
         if (!rows.length) rows.push(...emptyDays(days).map(d => ({ ...d, tracked: false, dau: 0, newUsers: 0, registrations: 0 })));
@@ -222,7 +232,7 @@ export function getUsage({ days = 30, compare = true } = {}) {
                 unknown: people.filter(p => p.presence === 'unknown').length,
             },
             activeByArea: empty ? [] : [...areaCounts.entries()].map(([label, value]) => ({ label, value })).sort((a, b) => b.value - a.value),
-            installsBySource,
+            installTracking: { available: installs.available, since: installs.trackingSince, devicesWithApp: empty ? 0 : installs.devicesWithApp },
             totalRegistered: core().customers.length + core().providers.length,
         };
     });

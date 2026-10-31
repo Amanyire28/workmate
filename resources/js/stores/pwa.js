@@ -1,4 +1,5 @@
 import { reactive } from 'vue';
+import { api } from '@/api/client.js';
 
 /**
  * Installable app ("PWA") support: the service worker, release updates and
@@ -17,6 +18,8 @@ const AUTO_UPDATE_ON_LAUNCH_MS = 15_000;
 const UPDATED_FLAG = 'wm-just-updated';
 const INSTALL_DISMISSED_KEY = 'wm-install-dismissed';
 const INSTALL_DISMISS_DAYS = 14;
+const DEVICE_KEY = 'wm-device';
+const REPORTED_KEY = 'wm-install-reported';
 
 export const pwa = reactive({
     platform: detectPlatform(),
@@ -31,6 +34,7 @@ export const pwa = reactive({
 });
 
 let installEvent = null;
+let installViaButton = false;
 let runningRelease = '';
 let startedAt = Date.now();
 let hiddenAt = null;
@@ -57,10 +61,41 @@ function isStandalone() {
 
 export const isMobile = () => pwa.platform !== 'desktop';
 
+/* ---------- Install figures for the admin area ---------- */
+
+/** A random ID for this browser, so a device is counted once. Nothing personal. */
+function deviceId() {
+    let id = localStorage.getItem(DEVICE_KEY);
+    if (!id) {
+        id = crypto.randomUUID ? crypto.randomUUID()
+            : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+        localStorage.setItem(DEVICE_KEY, id);
+    }
+    return id;
+}
+
+/**
+ * Reports an install event: prompt_shown (once a day), installed and
+ * first_launch (once per device). Failures are retried next time.
+ */
+export async function reportInstallEvent(event, source = null) {
+    try {
+        const today = new Date().toISOString().slice(0, 10);
+        const reported = JSON.parse(localStorage.getItem(REPORTED_KEY) || '{}');
+        if (event === 'prompt_shown' ? reported[event] === today : reported[event]) return;
+
+        const platform = pwa.platform.startsWith('ios') ? 'ios' : pwa.platform.startsWith('android') ? 'android' : 'desktop';
+        await api('/app-events', { method: 'POST', body: { device_id: deviceId(), event, platform, source } });
+
+        localStorage.setItem(REPORTED_KEY, JSON.stringify({ ...reported, [event]: today }));
+    } catch { /* offline, private mode or rate limited: never get in the way */ }
+}
+
 /* ---------- Install ---------- */
 
 export function openInstall() {
     pwa.installOpen = true;
+    reportInstallEvent('prompt_shown');
 }
 
 export function closeInstall() {
@@ -72,6 +107,8 @@ export async function promptInstall() {
     if (!installEvent) return 'unavailable';
     let outcome;
     try {
+        installViaButton = true;
+        reportInstallEvent('prompt_shown');
         installEvent.prompt();
         ({ outcome } = await installEvent.userChoice);
     } catch {
@@ -83,7 +120,12 @@ export async function promptInstall() {
     }
     installEvent = null;
     pwa.canPrompt = false;
-    if (outcome === 'accepted') pwa.installed = true;
+    if (outcome === 'accepted') {
+        pwa.installed = true;
+        reportInstallEvent('installed', 'button');
+    } else {
+        installViaButton = false;
+    }
     return outcome;
 }
 
@@ -202,10 +244,15 @@ export function initPwa() {
         pwa.canPrompt = false;
         pwa.installed = true;
         pwa.installOpen = false;
+        reportInstallEvent('installed', installViaButton ? 'button' : 'browser');
     });
     window.matchMedia('(display-mode: standalone)').addEventListener?.('change', () => {
         pwa.standalone = isStandalone();
+        if (pwa.standalone) reportInstallEvent('first_launch');
     });
+
+    // Opened from the home-screen icon: also counts devices that installed before tracking began
+    if (pwa.standalone) reportInstallEvent('first_launch');
 
     window.addEventListener('online', () => { pwa.offline = false; checkForUpdate(); });
     window.addEventListener('offline', () => { pwa.offline = true; });

@@ -64,7 +64,7 @@ import PrimaryButton from './PrimaryButton.vue';
 import InstallAppSheet from './InstallAppSheet.vue';
 import {
   pwa, isMobile, applyUpdate, dismissUpdate, dismissUpdated,
-  openInstall, promptInstall, installBannerDismissed, dismissInstallBanner,
+  openInstall, promptInstall, installBannerDismissed, dismissInstallBanner, reportInstallEvent,
 } from '@/stores/pwa.js';
 
 const props = defineProps({
@@ -93,6 +93,10 @@ function hideInstallBanner() {
   bannerHidden.value = true;
   dismissInstallBanner();
 }
+
+watch(showInstallBanner, (shown) => {
+  if (shown) reportInstallEvent('prompt_shown');
+});
 
 watch(() => pwa.justUpdated, (shown) => {
   clearTimeout(updatedTimer);

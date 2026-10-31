@@ -29,6 +29,8 @@ export const categoryLabels = reactive({});      // id → label
 export const categoryWeights = reactive({});     // id → 1 (kept for code that lists every category)
 export const AREAS = reactive([]);               // [[name, weight, town]] as the demo shaped it
 export const townOf = reactive({});              // area name → town
+// Web app install figures, for administrators with usage.view
+export const installs = reactive({ available: false, trackingSince: null, devicesWithApp: 0, daily: [] });
 
 const emptyCore = () => ({
     customers: [], providers: [], applicants: [], jobs: [], quotations: [], reviews: [],
@@ -79,6 +81,10 @@ export function loadAdminData({ force = false } = {}) {
             for (const c of data.categories) { categoryLabels[c.id] = c.label; categoryWeights[c.id] = 1; }
             fill(AREAS, data.areas.map(a => [a.name, 1, a.town]));
             for (const a of data.areas) townOf[a.name] = a.town;
+            installs.available = !!data.installs;
+            installs.trackingSince = data.installs?.trackingSince || null;
+            installs.devicesWithApp = data.installs?.devicesWithApp || 0;
+            fill(installs.daily, data.installs?.daily || []);
             live.trackedSeries = data.trackedSeries;
             live.generatedAt = data.generatedAt;
             live.status = 'ready';

@@ -74,6 +74,11 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(30)->by(optional($request->user())->id ?: $request->ip());
         });
 
+        // Anonymous install events from the web app
+        RateLimiter::for('app-events', function (Request $request) {
+            return Limit::perMinute(10)->by($request->ip());
+        });
+
         // Registration and anything that sends an email
         RateLimiter::for('account-email', function (Request $request) {
             return Limit::perMinute(6)->by(optional($request->user())->id ?: $request->ip());

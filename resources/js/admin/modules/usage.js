@@ -23,7 +23,7 @@ export default {
                     kpiCount('Online now', d.presence.online, { context: `${formatNumber(d.presence.offline)} offline · ${formatNumber(d.presence.unknown)} unknown`, to: '/admin/analytics/presence' }),
                     kpiCount('Registered users', d.totalRegistered, { context: `${formatNumber(t.newUsers)} new in the period` }),
                     kpiCount('Returning users per day', Math.round(t.returning / days), { hint: 'Active users who registered before that day.' }),
-                    { label: 'Installed devices', value: '', available: false, unavailableReason: 'Browsers don’t report whether a web app is still installed.' },
+                    kpiCount('Devices with the app', d.installTracking.available ? d.installTracking.devicesWithApp : null, { to: '/admin/analytics/downloads', hint: 'Devices that installed or opened the app from its icon. Browsers don’t report later uninstalls.' }),
                     { label: 'Uninstalls', value: '', available: false, unavailableReason: 'Not measurable for a web app.' },
                 ],
                 charts: [
@@ -43,33 +43,37 @@ export default {
     /* ================= Downloads and installs ================= */
     downloads: {
         type: 'analytics', series: 'usage',
-        notice: 'WorkMate is a website and installable web app today. Website visits are not installs. Installs below are confirmed by the browser (sample data); there is no native Android or iOS app yet, so there are no store downloads.',
-        placeholderTitles: ['Install prompts and installs', 'First launch after install', 'Install source'],
+        notice: 'WorkMate is a website and installable web app today. Website visits are not installs. Figures are anonymous device counts recorded by the app; installs made before tracking began are counted the first time that device opens WorkMate from its icon. There is no native Android or iOS app yet, so there are no store downloads.',
+        placeholderTitles: ['Install prompts and installs', 'First launch after install', 'How people installed', 'Devices with the app by platform'],
         analytics: (d) => {
             const t = d.totals;
+            const since = d.installTracking.since ? `Recorded since ${new Date(d.installTracking.since).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}` : 'Nothing recorded yet';
+            const newDevices = (t.appAndroid || 0) + (t.appIos || 0) + (t.appDesktop || 0);
             return {
                 kpis: [
-                    kpiCount('Confirmed web app installs', t.installs, { delta: delta(d, 'installs'), hint: 'Counted when the browser fires its install-confirmed event.' }),
-                    kpiCount('Install prompts shown', t.installPrompts),
+                    kpiCount('Devices with the app', d.installTracking.available ? d.installTracking.devicesWithApp : null, { context: since, hint: 'Devices that confirmed an install or opened WorkMate from a home-screen icon. Includes iPhones and installs from before tracking began.' }),
+                    kpiCount('Confirmed web app installs', t.installs, { delta: delta(d, 'installs'), hint: 'Counted when the browser confirms the install (Android and desktop). iPhones never confirm installs.' }),
+                    kpiCount('Install prompts shown', t.installPrompts, { hint: 'Devices shown WorkMate’s install offer, at most once a day each.' }),
                     kpiRate('Prompt acceptance', share(t.installs, t.installPrompts)),
-                    kpiCount('First launch after install', t.firstLaunches, { hint: 'First time the app was opened from its installed icon.' }),
+                    kpiCount('First launch after install', t.firstLaunches, { hint: 'First time a device opened the app from its installed icon.' }),
                     { label: 'Android store downloads', value: '', available: false, unavailableReason: 'There is no native Android app yet.' },
                     { label: 'iOS store downloads', value: '', available: false, unavailableReason: 'There is no native iOS app yet.' },
                     { label: 'Uninstalls', value: '', available: false, unavailableReason: 'Browsers don’t report web app uninstalls.' },
-                    { label: 'Total recorded installs', value: formatNumber(t.installs), context: `In the last ${d.range.days} days` },
                 ],
                 charts: [
                     bucketBars(d, { id: 'installs', title: 'Install prompts and installs', summary: `${formatNumber(t.installPrompts)} prompts led to ${formatNumber(t.installs)} confirmed installs (${formatPercent(share(t.installs, t.installPrompts))}).`,
                         series: [{ key: 'p', label: 'Prompts shown', value: b => b.installPrompts }, { key: 'i', label: 'Confirmed installs', value: b => b.installs }] }),
-                    dailyLine(d, { id: 'first', title: 'First launch after install', summary: `${formatNumber(t.firstLaunches)} installs were followed by a first launch.`, series: [{ key: 'f', label: 'First launches', value: r => r.firstLaunches }] }),
-                    ranking({ id: 'sources', title: 'Install source', summary: 'Where people came from before installing (sample attribution).', rows: d.installsBySource.map(s => ({ label: s.label, value: Math.round(t.installs * s.share) })), showShare: true, columnLabel: 'Installs' }),
+                    dailyLine(d, { id: 'first', title: 'First launch after install', summary: `${formatNumber(t.firstLaunches)} devices opened WorkMate from its icon for the first time.`, series: [{ key: 'f', label: 'First launches', value: r => r.firstLaunches }] }),
+                    ranking({ id: 'sources', title: 'How people installed', summary: 'Confirmed installs by where the install started.', rows: [{ label: 'WorkMate install button', value: t.installsButton || 0 }, { label: 'Browser menu or banner', value: t.installsBrowser || 0 }], showShare: true, columnLabel: 'Installs' }),
+                    ranking({ id: 'platforms', title: 'Devices with the app by platform', summary: `${formatNumber(newDevices)} devices started using the installed app in this period.`, rows: [{ label: 'Android', value: t.appAndroid || 0 }, { label: 'iPhone and iPad', value: t.appIos || 0 }, { label: 'Desktop', value: t.appDesktop || 0 }], showShare: true, columnLabel: 'Devices' }),
                 ],
                 table: {
                     title: 'What each platform can measure', summary: 'Shown so nobody mistakes an unmeasured number for zero.',
                     columns: [{ key: 'platform', label: 'Platform' }, { key: 'downloads', label: 'Downloads' }, { key: 'installs', label: 'Installs' }, { key: 'launches', label: 'Launches' }, { key: 'uninstalls', label: 'Uninstalls' }],
                     rows: [
                         { platform: 'Website', downloads: 'Not applicable', installs: 'Not applicable', launches: 'Page visits only', uninstalls: 'Not applicable' },
-                        { platform: 'Installable web app', downloads: 'Not applicable', installs: 'Confirmed by browser', launches: 'Tracked from icon', uninstalls: 'Not reported' },
+                        { platform: 'Web app on Android and desktop', downloads: 'Not applicable', installs: 'Confirmed by browser', launches: 'First launch from icon', uninstalls: 'Not reported' },
+                        { platform: 'Web app on iPhone and iPad', downloads: 'Not applicable', installs: 'Not reported (counted at first launch)', launches: 'First launch from icon', uninstalls: 'Not reported' },
                         { platform: 'Android app (future)', downloads: 'Play Console', installs: 'Play Console', launches: 'App analytics', uninstalls: 'Play Console' },
                         { platform: 'iOS app (future)', downloads: 'App Store Connect', installs: 'App Store Connect', launches: 'App analytics', uninstalls: 'Limited' },
                     ],

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AppInstallEvent;
 use App\Models\Area;
 use App\Models\AuditLog;
 use App\Models\Category;
@@ -81,6 +82,7 @@ class AdminSnapshot
                 return ['name' => $a->name, 'town' => $a->town];
             })->values(),
             'daily' => $can('dashboard.view', 'analytics.view') ? $this->daily() : [],
+            'installs' => $can('usage.view') ? $this->installs() : null,
             'core' => [
                 'customers' => $customers->values(),
                 'providers' => $providers->values(),
@@ -349,6 +351,61 @@ class AdminSnapshot
             ->filter(function ($e) use ($includeSecurity) {
                 return $includeSecurity || $e['category'] !== 'security';
             });
+    }
+
+    /**
+     * Web app install figures per day. A device "has the app" from the first
+     * day it confirmed an install or opened WorkMate from its home-screen icon,
+     * which also counts iPhones (they never confirm installs) and devices that
+     * installed before tracking began.
+     */
+    private function installs(): array
+    {
+        $start = now()->startOfDay()->subDays(self::HISTORY_DAYS - 1);
+        $events = AppInstallEvent::where('occurred_on', '>=', $start->toDateString())
+            ->get(['device_id', 'event', 'platform', 'source', 'occurred_on']);
+
+        $firstSeen = AppInstallEvent::whereIn('event', AppInstallEvent::ONCE_PER_DEVICE)
+            ->selectRaw('device_id, MIN(occurred_on) as first_on, MIN(platform) as platform')
+            ->groupBy('device_id')
+            ->get();
+
+        $days = [];
+        for ($i = 0; $i < self::HISTORY_DAYS; $i++) {
+            $date = $start->copy()->addDays($i)->toDateString();
+            $days[$date] = [
+                'date' => $date, 'installPrompts' => 0, 'installs' => 0, 'firstLaunches' => 0,
+                'installsButton' => 0, 'installsBrowser' => 0, 'appAndroid' => 0, 'appIos' => 0, 'appDesktop' => 0,
+            ];
+        }
+
+        $keys = ['prompt_shown' => 'installPrompts', 'installed' => 'installs', 'first_launch' => 'firstLaunches'];
+        foreach ($events as $e) {
+            $date = $e->occurred_on->toDateString();
+            if (! isset($days[$date])) {
+                continue;
+            }
+            $days[$date][$keys[$e->event]]++;
+            if ($e->event === 'installed') {
+                $days[$date][$e->source === 'button' ? 'installsButton' : 'installsBrowser']++;
+            }
+        }
+
+        $platformKeys = ['android' => 'appAndroid', 'ios' => 'appIos', 'desktop' => 'appDesktop'];
+        foreach ($firstSeen as $device) {
+            $date = Carbon::parse($device->first_on)->toDateString();
+            if (isset($days[$date], $platformKeys[$device->platform])) {
+                $days[$date][$platformKeys[$device->platform]]++;
+            }
+        }
+
+        $since = AppInstallEvent::min('occurred_on');
+
+        return [
+            'trackingSince' => $since ? Carbon::parse($since)->toDateString() : null,
+            'devicesWithApp' => $firstSeen->count(),
+            'daily' => array_values($days),
+        ];
     }
 
     /** Per-day counts for the dashboard (samples excluded); untracked keys stay 0 */
