@@ -16,8 +16,9 @@ import { api } from '@/api/client.js';
 export const catalog = reactive({ status: 'idle', error: '' });   // idle | loading | ready | error
 
 export const categories = reactive([]);
+// Places the pages know about: the quick picks, every place a listed provider
+// or open job uses, and any place someone has searched for and chosen
 export const searchLocations = reactive([]);
-export const kampalaAreas = reactive([]);       // area names, for simple pickers
 export const providers = reactive([]);
 export const providerReviews = reactive([]);
 export const jobs = reactive([]);
@@ -117,7 +118,36 @@ function toCategory(c) {
 }
 
 function toArea(a) {
-    return { id: a.slug, name: a.name, town: a.town, latitude: a.latitude, longitude: a.longitude, wholeTown: a.is_whole_town };
+    return {
+        id: a.slug, name: a.name, town: a.town, district: a.district || a.town, kind: a.kind,
+        latitude: a.latitude, longitude: a.longitude, wholeTown: a.is_whole_town, featured: !!a.is_featured,
+    };
+}
+
+/** Adds a place from the API to the known places (once) and returns it */
+export function rememberArea(a) {
+    if (!a) return null;
+    const known = searchLocations.find(l => l.id === a.slug);
+    if (known) return known;
+    const area = toArea(a);
+    searchLocations.push(area);
+    return area;
+}
+
+/** Up to 12 places whose name starts with (or contains a word starting with) the text, closest first */
+export async function searchPlaces(text, near = null) {
+    const params = new URLSearchParams({ q: text.trim() });
+    if (near?.latitude != null) {
+        params.set('near_latitude', near.latitude.toFixed(3));
+        params.set('near_longitude', near.longitude.toFixed(3));
+    }
+    return (await api(`/areas/search?${params}`)).data.map(toArea);
+}
+
+/** The listed place nearest to a position (used only for this lookup) */
+export async function nearestPlace(latitude, longitude) {
+    const params = new URLSearchParams({ latitude: latitude.toFixed(5), longitude: longitude.toFixed(5) });
+    return rememberArea((await api(`/areas/nearest?${params}`)).data);
 }
 
 let loading = null;
@@ -133,9 +163,9 @@ export function loadCatalog({ force = false } = {}) {
     loading = api('/catalog')
         .then(({ data }) => {
             replace(categories, data.categories.map(toCategory));
-            replace(searchLocations, data.areas.map(toArea));
-            // Simple pickers list the neighbourhoods, not whole towns
-            replace(kampalaAreas, data.areas.filter(a => !a.is_whole_town).map(a => a.name));
+            // Keep places chosen from a search before the catalogue arrived
+            const chosen = searchLocations.filter(l => !data.areas.some(a => a.slug === l.id));
+            replace(searchLocations, [...data.areas.map(toArea), ...chosen]);
             replace(providers, data.providers.map(toProvider));
             replace(providerReviews, data.reviews.map(toReview));
             replace(jobs, data.jobs.map(toJob));
@@ -165,8 +195,17 @@ export async function loadProviderReviews(providerId) {
     return reviews;
 }
 
-export function areaSlugFor(name) {
-    return searchLocations.find(a => a.name === name)?.id || null;
+/** A known place by its id (slug) */
+export function areaById(id) {
+    return searchLocations.find(a => a.id === id) || null;
+}
+
+/** "Kyebando, Kampala"; "Kampala" for a whole town or a town named after its district */
+export function areaLabel(idOrArea) {
+    const a = typeof idOrArea === 'string' ? areaById(idOrArea) : idOrArea;
+    if (!a) return '';
+    if (a.wholeTown) return `All of ${a.name}`;
+    return a.name === a.district || !a.district ? a.name : `${a.name}, ${a.district}`;
 }
 
 export function getCategoryById(id) {

@@ -19,6 +19,15 @@
         </span>
       </p>
 
+      <!-- Approved before a place was required: nearby searches can't find them yet -->
+      <p v-if="profile?.status === 'approved' && !profile.base_area" class="wm-notice wm-notice-warning" role="status">
+        <i class="bi bi-geo-alt" aria-hidden="true"></i>
+        <span>
+          <strong class="font-semibold">Add where you’re based</strong>
+          <span class="block mt-0.5">Customers searching near you can’t find you until you choose your place below and save.</span>
+        </span>
+      </p>
+
       <PrimaryButton v-if="profile?.status === 'rejected'" variant="secondary" :loading="busy === 'reopen'" @click="reopen">
         Start a new application
       </PrimaryButton>
@@ -135,24 +144,39 @@
         <fieldset class="flex flex-col gap-4 pt-2">
           <legend class="text-[15px] font-semibold text-ink mb-1">How customers find you</legend>
 
-          <FormField v-model="form.base_area" type="select" label="Where you’re based" placeholder="Choose an area" optional
-            hint="Customers see this area, never your exact location." :error-message="errors.base_area">
-            <option v-for="a in baseAreaOptions" :key="a.id" :value="a.id">{{ a.name }}</option>
-          </FormField>
+          <PlacePicker
+            v-model="form.base_area"
+            id="provider-base-area"
+            label="Where you’re based"
+            required
+            :clearable="false"
+            hint="Your town, trading centre or village. Customers see this place, never your exact location."
+            :error-message="errors.base_area"
+          />
 
-          <fieldset>
-            <legend class="wm-label">Areas you travel to <span class="font-normal text-muted">(optional)</span></legend>
-            <div class="flex flex-wrap gap-2">
-              <button
-                v-for="a in searchLocations"
-                :key="a.id"
-                type="button"
-                class="wm-chip"
-                :aria-pressed="form.service_areas.includes(a.id)"
-                @click="toggleServiceArea(a.id)"
-              >{{ a.wholeTown ? `All of ${a.name}` : a.name }}</button>
-            </div>
-          </fieldset>
+          <div>
+            <PlacePicker
+              id="provider-service-areas"
+              label="Other places you travel to"
+              optional
+              placeholder="Type a place to add it"
+              reset-on-pick
+              :clearable="false"
+              :near="baseAreaPoint"
+              :exclude="[form.base_area, ...form.service_areas]"
+              :hint="form.service_areas.length >= 20 ? 'You can add up to 20 places.' : 'Customers there can find you too.'"
+              :error-message="errors.service_areas"
+              @select="addServiceArea"
+            />
+            <ul v-if="form.service_areas.length" class="mt-2 flex flex-wrap gap-2" aria-label="Places you travel to">
+              <li v-for="id in form.service_areas" :key="id" class="wm-chip !pr-1">
+                {{ areaLabel(id) || id }}
+                <button type="button" class="ml-1 w-8 h-8 inline-flex items-center justify-center rounded-full text-muted hover:text-ink" :aria-label="`Remove ${areaLabel(id) || id}`" @click="removeServiceArea(id)">
+                  <i class="bi bi-x" aria-hidden="true"></i>
+                </button>
+              </li>
+            </ul>
+          </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <FormField v-model="form.price_from" type="number" inputmode="numeric" min="1000" step="1000" prefix="UGX"
@@ -202,12 +226,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, nextTick } from 'vue';
+import { ref, reactive, computed, watch, onMounted, nextTick } from 'vue';
 import FormField from '@/components/FormField.vue';
 import PrimaryButton from '@/components/PrimaryButton.vue';
 import { api, fieldErrors } from '@/api/client.js';
 import { auth, loadSession } from '@/stores/auth.js';
-import { searchLocations, loadCatalog } from '@/stores/catalog.js';
+import { loadCatalog, rememberArea, areaById, areaLabel } from '@/stores/catalog.js';
+import PlacePicker from '@/components/PlacePicker.vue';
 import { focusFirstError } from '@/utils/forms.js';
 
 const PROVIDER_TYPES = [
@@ -230,12 +255,18 @@ const form = reactive({
   base_area: '', service_areas: [], price_from: '', price_basis: '', availability_status: '', availability_note: '',
 });
 
-const baseAreaOptions = computed(() => searchLocations.filter(a => !a.wholeTown));
-function toggleServiceArea(id) {
-  const i = form.service_areas.indexOf(id);
-  if (i === -1) form.service_areas.push(id);
-  else form.service_areas.splice(i, 1);
+const baseAreaPoint = computed(() => {
+  const a = areaById(form.base_area);
+  return a?.latitude != null ? { latitude: a.latitude, longitude: a.longitude } : null;
+});
+function addServiceArea(area) {
+  if (area && form.service_areas.length < 20 && !form.service_areas.includes(area.id) && area.id !== form.base_area) form.service_areas.push(area.id);
 }
+function removeServiceArea(id) {
+  form.service_areas.splice(form.service_areas.indexOf(id), 1);
+}
+// Choosing a place answers the "where are you based" error
+watch(() => form.base_area, (id) => { if (id) errors.value.base_area = ''; });
 
 const emailVerified = computed(() => !!auth.user?.email_verified);
 const editable = computed(() => !profile.value || profile.value.can_edit);
@@ -305,6 +336,8 @@ const banner = computed(() => {
 
 function fill(p) {
   profile.value = p;
+  // Its places may not be among the ones already loaded
+  for (const place of p?.places || []) rememberArea(place);
   if (!p) {
     form.display_name = auth.user?.name || '';
     return;
@@ -361,10 +394,12 @@ async function save(andSubmit) {
   errors.value = {
     display_name: form.display_name.trim() ? '' : 'Enter the name customers will see.',
     professions: form.professions.length ? '' : 'Choose at least one skill.',
+    // Needed to send; saving a draft without it is fine
+    base_area: andSubmit && !form.base_area ? 'Choose where you’re based.' : '',
   };
   saveError.value = '';
   saved.value = '';
-  if (errors.value.display_name || errors.value.professions) {
+  if (errors.value.display_name || errors.value.professions || errors.value.base_area) {
     await nextTick();
     return focusFirstError();
   }

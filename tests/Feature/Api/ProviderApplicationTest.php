@@ -15,6 +15,7 @@ class ProviderApplicationTest extends ApiTestCase
             'type' => 'individual',
             'display_name' => 'Okello Plumbing',
             'bio' => 'Ten years fixing pipes in Ntinda.',
+            'base_area' => 'ntinda',
             'professions' => [
                 ['profession' => 'plumber', 'years_experience' => 10],
                 ['profession' => 'electrician', 'years_experience' => 2],

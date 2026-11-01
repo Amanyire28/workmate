@@ -6,9 +6,9 @@ use App\Models\Area;
 use Illuminate\Database\Seeder;
 
 /**
- * Starting list of areas people search from and providers serve. Centre
+ * The quick-pick areas people search from and providers serve. Centre
  * points are approximate. Only adds missing areas; administrator changes
- * are kept.
+ * are kept. Every other place in Uganda is loaded by a migration.
  */
 class AreaSeeder extends Seeder
 {
@@ -24,9 +24,11 @@ class AreaSeeder extends Seeder
             Area::firstOrCreate(['slug' => $area['slug']], [
                 'name' => $area['name'],
                 'town' => $area['town'],
+                'district' => $area['town'] === 'Kira' || $area['town'] === 'Entebbe' ? 'Wakiso' : $area['town'],
                 'latitude' => $area['latitude'],
                 'longitude' => $area['longitude'],
                 'is_whole_town' => $area['is_whole_town'],
+                'is_featured' => true,
                 'sort_order' => $order += 10,
             ]);
         }

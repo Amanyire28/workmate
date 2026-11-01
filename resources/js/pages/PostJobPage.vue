@@ -7,7 +7,7 @@
         <i class="bi bi-check-lg"></i>
       </span>
       <h1 class="wm-h2">Job posted</h1>
-      <p class="text-sm text-success">“{{ form.title }}” is ready for workers in {{ form.area }}.</p>
+      <p class="text-sm text-success">“{{ form.title }}” is ready for workers near {{ areaLabel(form.area) }}.</p>
       <p class="text-sm text-muted max-w-[420px]">
         Providers can now see it in Find work. Their applications will appear in My Work.
       </p>
@@ -97,16 +97,14 @@
         <!-- Step 2: Where & when -->
         <fieldset v-else-if="currentStep === 2" class="flex flex-col gap-4">
           <legend class="sr-only">{{ stepTitles[1] }}</legend>
-          <FormField
+          <PlacePicker
             v-model="form.area"
-            type="select"
+            id="job-area"
             label="Where is the work?"
-            placeholder="Choose an area"
             required
+            :clearable="false"
             :error-message="errors.area"
-          >
-            <option v-for="area in kampalaAreas" :key="area" :value="area">{{ area }}</option>
-          </FormField>
+          />
 
           <FormField
             v-model="form.date"
@@ -185,7 +183,8 @@ import { ref, reactive, computed, nextTick } from 'vue';
 import FormField from '@/components/FormField.vue';
 import ServiceCategoryCard from '@/components/ServiceCategoryCard.vue';
 import PrimaryButton from '@/components/PrimaryButton.vue';
-import { categories, kampalaAreas, areaSlugFor, refreshJobs } from '@/stores/catalog.js';
+import { categories, areaLabel, refreshJobs } from '@/stores/catalog.js';
+import PlacePicker from '@/components/PlacePicker.vue';
 import { api, fieldErrors } from '@/api/client.js';
 import { categoryLabel, formatPrice } from '@/utils/ui.js';
 import { selectedArea } from '@/stores/location.js';
@@ -210,7 +209,7 @@ const reviewRows = computed(() => [
   { label: 'Job',            value: form.title },
   { label: 'Service',        value: form.category ? categoryLabel(form.category) : '—' },
   { label: 'Description',    value: form.description.trim() || 'None' },
-  { label: 'Location',       value: form.area },
+  { label: 'Location',       value: areaLabel(form.area) },
   { label: 'Date',           value: form.date || 'Flexible' },
   { label: 'Workers needed', value: form.workersNeeded },
   { label: 'Budget',         value: form.budget ? `${formatPrice(form.budget)} (${form.budgetBasis})` : 'Open to offers' },
@@ -249,7 +248,7 @@ async function submitJob() {
       category: form.category,
       title: form.title.trim(),
       description: form.description.trim() || null,
-      area: areaSlugFor(form.area),
+      area: form.area,
       preferred_time: form.date || null,
       workers_needed: form.workersNeeded === '6+' ? 6 : Number(form.workersNeeded),
       budget: form.budget === '' ? null : Number(form.budget),

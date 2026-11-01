@@ -113,6 +113,11 @@ class ProviderApplications
                 throw new BusinessRuleException('provider_incomplete', 'Choose at least one profession before sending your application.');
             }
 
+            // Nearby searches can't find a provider without a place
+            if (! $profile->base_area_id) {
+                throw new BusinessRuleException('base_area_missing', 'Choose where you’re based before sending your application.');
+            }
+
             $application = $profile->status === ProviderProfile::STATUS_MORE_INFO_REQUIRED
                 ? $profile->applications()->where('status', ProviderApplication::STATUS_MORE_INFO_REQUIRED)->latest('id')->firstOrFail()
                 : new ProviderApplication();

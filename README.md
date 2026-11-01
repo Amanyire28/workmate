@@ -89,7 +89,8 @@ Throughout this README:
 - Choose up to **5 skills** from 22 categories; the first is the main one
 - A skill that isn't listed can be typed under **Other**. Customers can't find anyone by it until an administrator adds it to the list, matches it to an existing profession or declines it (Marketplace → Typed Professions)
 - **Main skill first:** in an area, someone with a skill as one of their other skills is shown only when nobody based there has it as their main skill
-- Public listing details: base area, areas served, starting price, price basis, availability, usual hours
+- **Where you're based** (required to send the application) and other places they travel to, chosen by typing any place in Uganda
+- Public listing details: starting price, price basis, availability, usual hours
 - Application lifecycle with administrator review (see [statuses](#service-providers))
 
 **Marketplace**
@@ -118,6 +119,7 @@ Throughout this README:
 
 | Area | What exists | What's missing |
 |---|---|---|
+| Places | Every populated place in Uganda (about 11,300 towns, trading centres, villages and suburbs from GeoNames, CC BY 4.0) loaded by a migration; one type-to-search place box everywhere; "Use my location" names the nearest place | Some small places are missing from GeoNames (e.g. Najjera). There is no admin screen yet to add a place by hand |
 | Location matching | Distance ranking and widening run in the browser | Server-side matching. The search still uses fixed radii (5 km / 10 km) in `resources/js/utils/nearbySearch.js` rather than the admin-editable settings. |
 | Quotations | Providers can apply to posted jobs with a price | Customers can't yet view or accept applications; providers have no inbox for direct requests |
 | Reviews | Display, rating calculation and admin moderation | Customers can't write reviews yet (they will follow completed bookings) |
@@ -356,7 +358,7 @@ Request → middleware (auth:sanctum, active, can:<permission>, throttle)
 | `audit_logs` | Append-only record of actions: actor, action, subject, before and after values, reason, IP. Sensitive values are redacted. |
 | `platform_settings` | Settings changed from their defaults (allowed keys are defined in `config/workmate.php`) |
 | `categories`, `professions` | Service categories and the professions within them |
-| `areas` | Neighbourhoods and towns with approximate centre points |
+| `areas` | Every place in Uganda with its district and centre point; `is_featured` marks the quick picks, `geonames_id` the loaded places |
 | `provider_profiles` | Provider capabilities for an account: type, display name, status, base area, listing details, verification and tick dates, `is_sample` |
 | `provider_members` | People linked to a provider profile (currently the owner) |
 | `provider_professions` | A provider's professions (several per provider, one main) |
@@ -382,7 +384,7 @@ Migrations are in `database/migrations/`; all of them can be rolled back. Deleti
 |---|---|---|
 | `RolesAndPermissionsSeeder` | 23 permissions and 9 roles from `config/permissions.php` | Always (safe to re-run) |
 | `CatalogueSeeder` | The original 10 categories (the full list of 22 categories and about 80 professions is added by a migration) | Always (keeps administrator edits) |
-| `AreaSeeder` | 20 areas (`database/seeders/data/areas.json`) | Always |
+| `AreaSeeder` | The 20 popular quick-pick areas (`database/seeders/data/areas.json`); every other Uganda place comes from `places-ug.csv` through a migration | Always |
 | `SampleMarketplaceSeeder` | 14 invented providers, 24 reviews and 7 open jobs (`data/sample-marketplace.json`), all marked `is_sample` | **Only when `APP_ENV=local`**, and only once |
 
 Sample accounts use the reserved `@workmate.invalid` domain and random unknown passwords, so nobody can sign into them.
@@ -438,7 +440,7 @@ Not yet in the schema: bookings and booking event history; verification requirem
 
 | Group | Access | Examples |
 |---|---|---|
-| Public | Anyone | `GET health`, `GET catalog` (everything the first page needs), `GET categories`, `GET areas`, `GET providers`, `GET providers/{id}`, `GET reviews/recent`, `GET jobs`, `GET jobs/{id}`, `GET avatars/{file}` |
+| Public | Anyone | `GET health`, `GET catalog` (everything the first page needs), `GET categories`, `GET areas` (quick picks and places in use), `GET areas/search?q=` (type-to-search), `GET areas/nearest`, `GET providers`, `GET providers/{id}`, `GET reviews/recent`, `GET jobs`, `GET jobs/{id}`, `GET avatars/{file}` |
 | Auth | Guests (website session) | `POST auth/register`, `auth/login`, `auth/logout`, `auth/forgot-password`, `auth/reset-password`; `GET auth/verify-email/{id}/{hash}` (signed link) |
 | Account | Signed in | `GET/PATCH me`, `PUT me/password`, `POST/DELETE me/photo`, `POST me/email/verification-notification`, `GET me/requests`, `GET me/applications` |
 | Provider application | Signed in | `GET/PUT me/provider`, `POST me/provider/submit`, `POST me/provider/reopen` |

@@ -58,6 +58,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         ->where('file', '[0-9a-f-]{36}\.jpg')
         ->name('avatars.show');
     Route::get('areas', [DirectoryController::class, 'areas'])->name('areas.index');
+    Route::middleware('throttle:place-search')->group(function () {
+        Route::get('areas/search', [DirectoryController::class, 'searchAreas'])->name('areas.search');
+        Route::get('areas/nearest', [DirectoryController::class, 'nearestArea'])->name('areas.nearest');
+    });
     Route::get('providers', [DirectoryController::class, 'providers'])->name('providers.index');
     Route::get('providers/{id}', [DirectoryController::class, 'provider'])->whereNumber('id')->name('providers.show');
     Route::get('reviews/recent', [DirectoryController::class, 'recentReviews'])->name('reviews.recent');

@@ -28,16 +28,13 @@
       </div>
     </fieldset>
 
-    <FormField
+    <PlacePicker
       :model-value="modelValue.area"
-      type="select"
-      label="Area"
+      label="Near"
+      any-label="All areas"
       :id="`${idPrefix}-area`"
       @update:model-value="set('area', $event)"
-    >
-      <option value="">All of Kampala</option>
-      <option v-for="area in kampalaAreas" :key="area" :value="area">{{ area }}</option>
-    </FormField>
+    />
 
     <fieldset>
       <legend class="wm-label">Provider type</legend>
@@ -100,7 +97,7 @@
 
 <script setup>
 import FormField from './FormField.vue';
-import { kampalaAreas } from '@/stores/catalog.js';
+import PlacePicker from './PlacePicker.vue';
 
 const props = defineProps({
   /** { available, verified, area, type, rating, sort } — all strings, '' means "any" */

@@ -3,7 +3,7 @@
     <BackLink to="/">Home</BackLink>
     <h1 class="wm-h1 mt-2">Top-rated providers</h1>
     <p class="wm-lead mt-1.5">
-      <template v-if="selectedArea">Providers in {{ selectedArea }} first, then the highest rated across Kampala.</template>
+      <template v-if="selectedArea">Providers near {{ areaLabel(selectedArea) }} first, then the highest rated.</template>
       <template v-else>The highest rated providers across Kampala.</template>
     </p>
 
@@ -25,7 +25,7 @@
 import { computed } from 'vue';
 import BackLink from '@/components/BackLink.vue';
 import ProviderCard from '@/components/ProviderCard.vue';
-import { providers } from '@/stores/catalog.js';
+import { providers, areaLabel } from '@/stores/catalog.js';
 import { selectedArea } from '@/stores/location.js';
 import { recommendProviders } from '@/utils/recommend.js';
 

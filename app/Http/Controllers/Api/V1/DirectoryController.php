@@ -9,8 +9,10 @@ use App\Http\Resources\ReviewResource;
 use App\Models\Area;
 use App\Models\ProviderProfile;
 use App\Models\Review;
+use App\Models\ServiceRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /** Public listings: areas, providers and reviews. */
 class DirectoryController extends Controller
@@ -34,9 +36,98 @@ class DirectoryController extends Controller
         }, $data)]);
     }
 
+    /**
+     * The quick-pick areas, plus every place a listed provider or an open
+     * job uses, so pages can place them on the map. Other places are found
+     * by searching (see search below).
+     */
     public function areas()
     {
-        return AreaResource::collection(Area::active()->orderBy('sort_order')->orderBy('name')->get());
+        $listed = ProviderProfile::publiclyListed()->select('id');
+        $used = Area::query()
+            ->whereIn('id', ProviderProfile::publiclyListed()->whereNotNull('base_area_id')->select('base_area_id'))
+            ->orWhereIn('id', DB::table('provider_service_areas')->whereIn('provider_profile_id', $listed)->select('area_id'))
+            ->orWhereIn('id', ServiceRequest::openJobs()->whereNotNull('area_id')->select('area_id'))
+            ->pluck('id');
+
+        $areas = Area::active()
+            ->where(function ($query) use ($used) {
+                $query->where('is_featured', true)->orWhereIn('id', $used);
+            })
+            ->orderByDesc('is_featured')->orderBy('sort_order')->orderBy('name')
+            ->get();
+
+        return AreaResource::collection($areas);
+    }
+
+    /**
+     * Type-to-search over every place in Uganda. Given where the person is
+     * searching from (near), closer places come first.
+     */
+    public function searchAreas(Request $request)
+    {
+        $data = $request->validate([
+            'q' => ['required', 'string', 'min:2', 'max:60'],
+            'near_latitude' => ['nullable', 'numeric', 'between:-2,5', 'required_with:near_longitude'],
+            'near_longitude' => ['nullable', 'numeric', 'between:29,36', 'required_with:near_latitude'],
+        ]);
+        $q = trim(preg_replace('/\s+/', ' ', $data['q']));
+        // Letters only: % and _ would act as wildcards
+        $like = str_replace(['\\', '%', '_'], ['\\\\', '\%', '\_'], $q);
+
+        $query = Area::active()
+            ->where(function ($query) use ($like) {
+                $query->where('name', 'like', $like.'%')
+                    ->orWhere('name', 'like', '% '.$like.'%')
+                    ->orWhere('district', 'like', $like.'%');
+            })
+            // Names that start with the text, then quick picks
+            ->orderByRaw('CASE WHEN name LIKE ? THEN 0 ELSE 1 END', [$like.'%'])
+            ->orderByRaw('is_featured DESC');
+
+        if (isset($data['near_latitude'])) {
+            // Squared degrees are enough to sort by; towns count as about 30 km closer
+            $query->orderByRaw(
+                "POW(latitude - ?, 2) + POW(longitude - ?, 2) - CASE WHEN kind = 'town' THEN 0.08 ELSE 0 END",
+                [(float) $data['near_latitude'], (float) $data['near_longitude']]
+            );
+        } else {
+            $query->orderByRaw("CASE kind WHEN 'town' THEN 0 WHEN 'suburb' THEN 1 ELSE 2 END");
+        }
+
+        return AreaResource::collection($query->orderByRaw('CHAR_LENGTH(name)')->orderBy('name')->limit(12)->get());
+    }
+
+    /**
+     * The listed place nearest to a position, to name where someone is. The
+     * position is used for this lookup only and isn't stored.
+     */
+    public function nearestArea(Request $request)
+    {
+        $data = $request->validate([
+            'latitude' => ['required', 'numeric', 'between:-2,5'],
+            'longitude' => ['required', 'numeric', 'between:29,36'],
+        ]);
+        $lat = (float) $data['latitude'];
+        $lng = (float) $data['longitude'];
+
+        // Look close by first, then further out
+        foreach ([0.05, 0.2, 1.0] as $box) {
+            $candidates = Area::active()->where('is_whole_town', false)
+                ->whereBetween('latitude', [$lat - $box, $lat + $box])
+                ->whereBetween('longitude', [$lng - $box, $lng + $box])
+                ->get();
+            if ($candidates->isNotEmpty()) {
+                $nearest = $candidates->sortBy(function (Area $a) use ($lat, $lng) {
+                    // Quick picks win when about as close
+                    return Area::distanceKm($lat, $lng, $a->latitude, $a->longitude) - ($a->is_featured ? 1.5 : 0);
+                })->first();
+
+                return new AreaResource($nearest);
+            }
+        }
+
+        return response()->json(['data' => null]);
     }
 
     /**

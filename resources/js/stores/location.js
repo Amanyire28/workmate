@@ -1,10 +1,11 @@
 import { ref, reactive, watch } from 'vue';
-import { kampalaAreas, catalog } from '@/stores/catalog.js';
+import { catalog, searchLocations, nearestPlace } from '@/stores/catalog.js';
 import { getSearchLocation, findSearchLocationByName } from '@/data/searchLocations.js';
 
 /**
- * The user's chosen Kampala area, shared between pages and remembered
- * in this browser. Empty string means "All areas".
+ * The user's chosen place (its id, e.g. "ntinda" or "kyebando-kampala"),
+ * shared between pages and remembered in this browser. Empty string means
+ * "All areas".
  */
 const KEY = 'workmate.area';
 
@@ -21,21 +22,27 @@ watch(selectedArea, (value) => write(KEY, value));
 
 /**
  * Where nearby searches start from:
- *   { kind: 'area', areaId }                                  a sample area the user picked
- *   { kind: 'gps', latitude, longitude, accuracy, timestamp } a position the user chose to share
- * Only area choices are remembered; device coordinates stay in memory for this visit.
+ *   { kind: 'area', areaId }                                           a place the user picked
+ *   { kind: 'gps', latitude, longitude, accuracy, timestamp, areaId }  a position the user chose to share,
+ *                                                                      with the nearest place's id
+ * Only place choices are remembered; device coordinates stay in memory for this visit.
  */
 const ORIGIN_KEY = 'workmate.searchArea';
 
-// Areas load from the API after start-up, so the saved choice is trusted
+// Places load from the API after start-up, so the saved choice is trusted
 // here and checked once they arrive
 let lastAreaId = read(ORIGIN_KEY) || 'kampala';
 export const searchOrigin = ref({ kind: 'area', areaId: lastAreaId });
 
 watch(() => catalog.status, (status) => {
-    if (status !== 'ready' || searchOrigin.value.kind !== 'area') return;
+    if (status !== 'ready') return;
+    // Earlier versions saved the area's name; use its id now
+    if (selectedArea.value && !getSearchLocation(selectedArea.value)) {
+        selectedArea.value = findSearchLocationByName(selectedArea.value)?.id || '';
+    }
+    if (searchOrigin.value.kind !== 'area') return;
     if (getSearchLocation(searchOrigin.value.areaId) && read(ORIGIN_KEY)) return;
-    lastAreaId = findSearchLocationByName(selectedArea.value)?.id || 'kampala';
+    lastAreaId = getSearchLocation(selectedArea.value)?.id || 'kampala';
     searchOrigin.value = { kind: 'area', areaId: lastAreaId };
 }, { immediate: true });
 
@@ -46,18 +53,16 @@ export function chooseSearchArea(areaId) {
     lastAreaId = areaId;
     searchOrigin.value = { kind: 'area', areaId };
     write(ORIGIN_KEY, areaId);
-    // Keep the browse pages' area in step when the area is one of theirs
-    const name = getSearchLocation(areaId)?.name;
-    selectedArea.value = kampalaAreas.includes(name) ? name : '';
+    // The browse pages use the same place, unless it stands for a whole town
+    selectedArea.value = getSearchLocation(areaId)?.wholeTown ? '' : areaId;
 }
 
-// An area picked elsewhere (e.g. on the account page) becomes the search area too
-watch(selectedArea, (name) => {
-    const loc = findSearchLocationByName(name);
-    if (loc && searchOrigin.value.kind === 'area' && searchOrigin.value.areaId !== loc.id) {
-        lastAreaId = loc.id;
-        searchOrigin.value = { kind: 'area', areaId: loc.id };
-        write(ORIGIN_KEY, loc.id);
+// A place picked elsewhere (e.g. on the account page) becomes the search place too
+watch(selectedArea, (id) => {
+    if (id && getSearchLocation(id) && searchOrigin.value.kind === 'area' && searchOrigin.value.areaId !== id) {
+        lastAreaId = id;
+        searchOrigin.value = { kind: 'area', areaId: id };
+        write(ORIGIN_KEY, id);
     }
 });
 
@@ -117,6 +122,12 @@ export function requestDeviceLocation() {
                 searchOrigin.value = origin;
                 gps.status = 'ready';
                 resolve(origin);
+                // Name the nearest place ("near Kisaasi"); searching works without it
+                nearestPlace(origin.latitude, origin.longitude)
+                    .then((area) => {
+                        if (area && searchOrigin.value === origin) searchOrigin.value = { ...origin, areaId: area.id };
+                    })
+                    .catch(() => {});
             },
             (error) => reject(fail(codes[error.code] || 'unavailable')),
             { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },

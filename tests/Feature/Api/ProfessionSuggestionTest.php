@@ -12,7 +12,7 @@ class ProfessionSuggestionTest extends ApiTestCase
 {
     private function details(array $professions): array
     {
-        return ['type' => 'individual', 'display_name' => 'Aluminium Works', 'professions' => $professions];
+        return ['type' => 'individual', 'display_name' => 'Aluminium Works', 'base_area' => 'ntinda', 'professions' => $professions];
     }
 
     /** An applicant whose main skill is typed under "Other" */

@@ -125,9 +125,7 @@
               <option value="en">English</option>
               <option value="lg">Luganda</option>
             </FormField>
-            <FormField v-model="profile.area" type="select" label="Your area" placeholder="Choose an area" hint="Saved on this device.">
-              <option v-for="area in kampalaAreas" :key="area" :value="area">{{ area }}</option>
-            </FormField>
+            <PlacePicker v-model="profile.area" id="profile-area" label="Your area" hint="Saved on this device." />
             <p v-if="profileError" class="wm-notice wm-notice-error" role="alert">
               <i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>{{ profileError }}</span>
             </p>
@@ -251,7 +249,7 @@ import FormField from '@/components/FormField.vue';
 import PrimaryButton from '@/components/PrimaryButton.vue';
 import ProviderApplicationPanel from '@/components/ProviderApplicationPanel.vue';
 import PushNotificationSetting from '@/components/PushNotificationSetting.vue';
-import { kampalaAreas } from '@/stores/catalog.js';
+import PlacePicker from '@/components/PlacePicker.vue';
 import { selectedArea } from '@/stores/location.js';
 import { focusFirstError } from '@/utils/forms.js';
 import { VERIFICATION_STATUS } from '@/utils/verificationStatus.js';

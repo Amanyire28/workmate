@@ -22,6 +22,7 @@ use App\Models\User;
 use App\Models\VerificationDocument;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -71,7 +72,16 @@ class AdminSnapshot
 
         $marketplace = $can('marketplace.view');
         $categories = Category::orderBy('sort_order')->get();
-        $areas = Area::active()->orderBy('sort_order')->get();
+        // The quick-pick places and any place in use, not every place in Uganda
+        $areas = Area::active()
+            ->where(function ($query) {
+                $query->where('is_featured', true)
+                    ->orWhereIn('id', ProviderProfile::whereNotNull('base_area_id')->select('base_area_id'))
+                    ->orWhereIn('id', DB::table('provider_service_areas')->select('area_id'))
+                    ->orWhereIn('id', ServiceRequest::withTrashed()->whereNotNull('area_id')->select('area_id'));
+            })
+            ->orderBy('sort_order')->orderBy('name')
+            ->get();
 
         $customers = $marketplace ? $this->customers() : collect();
         $providers = $marketplace ? $this->providers() : collect();

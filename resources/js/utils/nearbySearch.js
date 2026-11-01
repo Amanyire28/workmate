@@ -4,7 +4,7 @@
  * the same inputs (query + origin) and return the same grouped shape.
  */
 import { providers, categories } from '@/stores/catalog.js';
-import { getSearchLocation, findSearchLocationByName, searchLocations, locationLabel } from '@/data/searchLocations.js';
+import { getSearchLocation, searchLocations, locationLabel } from '@/data/searchLocations.js';
 import { categoriesMatching } from './search.js';
 import { displayName, tradeLabel } from './ui.js';
 import { preferMainSkill } from './recommend.js';
@@ -18,7 +18,8 @@ export const SEARCH_CONFIG = {
     gpsAreaMatchKm: 6,     // a GPS fix within this of a sample area counts as being in it
 };
 
-// Plural "people" wording per category, for headings like "Plumbers near Ntinda"
+// Plural "people" wording per category, for headings like "Plumbers near Ntinda".
+// Categories not listed use their first profession's plural name.
 const peopleLabels = {
     plumbing:     'plumbers',
     electrical:   'electricians',
@@ -63,15 +64,18 @@ export function formatKm(km) {
  */
 export function resolveOrigin(state) {
     if (state?.kind === 'gps') {
-        // Nearest sample area, so "serves your area" can still be checked
-        let area = null;
-        let best = Infinity;
-        for (const loc of searchLocations) {
-            if (loc.wholeTown) continue;
-            const d = haversineKm(state, loc);
-            if (d < best) { best = d; area = loc; }
+        // The nearest place the server named, else the nearest known one,
+        // so "serves your area" can still be checked
+        let area = getSearchLocation(state.areaId);
+        if (!area) {
+            let best = Infinity;
+            for (const loc of searchLocations) {
+                if (loc.wholeTown) continue;
+                const d = haversineKm(state, loc);
+                if (d < best) { best = d; area = loc; }
+            }
+            if (best > SEARCH_CONFIG.gpsAreaMatchKm) area = null;
         }
-        if (best > SEARCH_CONFIG.gpsAreaMatchKm) area = null;
         return {
             kind: 'gps',
             latitude: state.latitude,
@@ -79,7 +83,7 @@ export function resolveOrigin(state) {
             area,
             town: area?.town || null,
             name: 'you',
-            label: 'your location',
+            label: area ? `near ${area.name}` : 'your location',
         };
     }
     const area = getSearchLocation(state?.areaId) || getSearchLocation('kampala');
@@ -107,6 +111,14 @@ export function servesOrigin(provider, origin) {
     });
 }
 
+/** Based at or within extendedKm of the place, or lists it among the places they travel to */
+export function isNearPlace(provider, place, km = SEARCH_CONFIG.extendedKm) {
+    if (!place) return false;
+    if (provider.areaSlug === place.id) return true;
+    if (hasCoords(provider) && hasCoords(place) && haversineKm(place, provider) <= km) return true;
+    return servesOrigin(provider, { area: place });
+}
+
 /** Providers offering the requested service, by category keywords or profile text */
 export function matchService(query) {
     const q = query.trim().toLowerCase();
@@ -132,7 +144,7 @@ export function searchNearby(query, origin, config = SEARCH_CONFIG) {
     for (const provider of matches) {
         const distanceKm = hasCoords(provider) ? haversineKm(origin, provider) : null;
         const serves = servesOrigin(provider, origin);
-        const baseTown = findSearchLocationByName(provider.area)?.town || null;
+        const baseTown = getSearchLocation(provider.areaSlug)?.town || null;
         const sameTown = !!origin.town && baseTown === origin.town;
 
         let tier = null;
@@ -149,7 +161,9 @@ export function searchNearby(query, origin, config = SEARCH_CONFIG) {
     groups.extended.sort((a, b) => (b.serves - a.serves) || byDistance(a, b));
     groups.serving.sort(byDistance);
 
-    const people = serviceIds.length === 1 ? peopleLabels[serviceIds[0]] : 'professionals';
+    const people = serviceIds.length === 1
+        ? peopleLabels[serviceIds[0]] || categories.find(c => c.id === serviceIds[0])?.professions[0]?.plural_name || 'professionals'
+        : 'professionals';
     const widerCount = groups.extended.length + groups.serving.length;
 
     return {

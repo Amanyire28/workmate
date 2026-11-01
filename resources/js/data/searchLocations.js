@@ -1,5 +1,5 @@
 /**
- * Areas people search from, loaded from the API (see stores/catalog.js).
+ * Places people search from, loaded from the API (see stores/catalog.js).
  * Coordinates are approximate area centres used to estimate distances.
  *
  * `town` groups neighbourhoods for the "More professionals around …" step.
@@ -20,5 +20,6 @@ export function findSearchLocationByName(name) {
 /** "Ntinda, Kampala" — or just "Kampala" when the area is the whole town */
 export function locationLabel(location) {
     if (!location) return '';
-    return location.name === location.town ? location.name : `${location.name}, ${location.town}`;
+    const district = location.district || location.town;
+    return location.name === district ? location.name : `${location.name}, ${district}`;
 }

@@ -52,7 +52,7 @@
           <p id="results-count" class="wm-meta" aria-live="polite">
             {{ results.length }} {{ results.length === 1 ? 'provider' : 'providers' }}
             <template v-if="filters.category"> for {{ categoryLabel(filters.category) }}</template>
-            <template v-if="filters.area"> in {{ filters.area }}</template>
+            <template v-if="filters.area"> near {{ areaLabel(filters.area) || filters.area }}</template>
           </p>
           <button
             type="button"
@@ -107,12 +107,14 @@ import ProviderCard from '@/components/ProviderCard.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import BottomSheet from '@/components/BottomSheet.vue';
 import BrowseFilters from '@/components/BrowseFilters.vue';
-import { categories, providers } from '@/stores/catalog.js';
+import { categories, providers, areaLabel } from '@/stores/catalog.js';
 import { categoryIcon, categoryLabel, displayName, tradeLabel } from '@/utils/ui.js';
 import { recommendProviders, preferMainSkill } from '@/utils/recommend.js';
 import { categoriesMatching } from '@/utils/search.js';
 import { tickInfo } from '@/utils/trust.js';
 import { selectedArea } from '@/stores/location.js';
+import { isNearPlace } from '@/utils/nearbySearch.js';
+import { getSearchLocation, findSearchLocationByName } from '@/data/searchLocations.js';
 
 const route = useRoute();
 const router = useRouter();
@@ -170,7 +172,8 @@ const results = computed(() => {
   if (f.category)  list = list.filter(p => p.services.includes(f.category));
   if (f.available) list = list.filter(p => p.availabilityStatus === 'available');
   if (f.verified)  list = list.filter(p => tickInfo(p));
-  if (f.area)     list = list.filter(p => p.area === f.area);
+  // Near the place: based within 10 km of it, or they travel there
+  if (f.area)     list = list.filter(p => isNearPlace(p, getSearchLocation(f.area) || findSearchLocationByName(f.area)));
   if (f.type)     list = list.filter(p => p.type === f.type);
   if (f.rating)   list = list.filter(p => (p.rating || 0) >= Number(f.rating));
 

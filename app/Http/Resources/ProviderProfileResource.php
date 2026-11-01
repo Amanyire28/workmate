@@ -62,6 +62,8 @@ class ProviderProfileResource extends JsonResource
                 })->values(),
             'base_area' => optional($this->baseArea)->slug,
             'service_areas' => $this->serviceAreas->pluck('slug')->values(),
+            // Details of those places, for showing their names
+            'places' => AreaResource::collection(collect([$this->baseArea])->filter()->concat($this->serviceAreas)->unique('id')->values()),
             'skills' => $this->skills ?: [],
             'price_from' => $this->price_from,
             'price_basis' => $this->price_basis,

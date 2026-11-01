@@ -30,19 +30,17 @@
 
     <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
       <p class="wm-meta" aria-live="polite">
-        {{ results.length }} open {{ results.length === 1 ? 'job' : 'jobs' }}<template v-if="filters.area"> in {{ filters.area }}</template>
+        {{ results.length }} open {{ results.length === 1 ? 'job' : 'jobs' }}<template v-if="filters.area"> near {{ areaLabel(filters.area) || filters.area }}</template>
       </p>
       <div class="flex items-center gap-2">
-        <label for="find-work-area" class="sr-only">Area</label>
-        <select
+        <PlacePicker
+          class="w-full sm:w-64"
           id="find-work-area"
-          class="wm-input !h-11 !w-auto !text-sm !pl-3 font-medium"
-          :value="filters.area"
-          @change="setQuery({ area: $event.target.value })"
-        >
-          <option value="">All areas</option>
-          <option v-for="area in kampalaAreas" :key="area" :value="area">{{ area }}</option>
-        </select>
+          :model-value="filters.area"
+          any-label="All areas"
+          placeholder="Near a place"
+          @update:model-value="setQuery({ area: $event })"
+        />
       </div>
     </div>
 
@@ -69,7 +67,10 @@ import { useRoute, useRouter } from 'vue-router';
 import SearchBar from '@/components/SearchBar.vue';
 import JobCard from '@/components/JobCard.vue';
 import EmptyState from '@/components/EmptyState.vue';
-import { categories, jobs, kampalaAreas } from '@/stores/catalog.js';
+import { categories, jobs, areaLabel } from '@/stores/catalog.js';
+import PlacePicker from '@/components/PlacePicker.vue';
+import { getSearchLocation, findSearchLocationByName } from '@/data/searchLocations.js';
+import { haversineKm, SEARCH_CONFIG } from '@/utils/nearbySearch.js';
 import { categoryIcon } from '@/utils/ui.js';
 
 const route = useRoute();
@@ -96,7 +97,14 @@ const results = computed(() => {
   const f = filters.value;
   let list = jobs.filter(j => j.status === 'open');
   if (f.category) list = list.filter(j => j.category === f.category);
-  if (f.area)     list = list.filter(j => j.area === f.area);
+  if (f.area) {
+    // Jobs at the place or within 10 km of it
+    const place = getSearchLocation(f.area) || findSearchLocationByName(f.area);
+    list = list.filter((j) => {
+      const at = getSearchLocation(j.areaSlug);
+      return j.areaSlug === place?.id || (at && place && at.latitude != null && place.latitude != null && haversineKm(at, place) <= SEARCH_CONFIG.extendedKm);
+    });
+  }
   const q = f.q.trim().toLowerCase();
   if (q) list = list.filter(j => `${j.title} ${j.description} ${j.area}`.toLowerCase().includes(q));
   return list;

@@ -28,21 +28,25 @@
     </p>
 
     <div class="mt-5">
-      <label for="area-filter" class="wm-label">Or choose an area</label>
+      <label for="area-filter" class="wm-label">Or choose a place</label>
       <input
         id="area-filter"
         v-model="filter"
         type="search"
         class="wm-input"
-        placeholder="Search areas, e.g. Ntinda"
+        placeholder="Type a place, e.g. Kyebando"
         autocomplete="off"
+        autocapitalize="words"
         enterkeyhint="search"
         aria-describedby="area-filter-hint"
+        @input="search"
       />
-      <p id="area-filter-hint" class="wm-field-hint">Sample areas for the WorkMate preview, not a full list of places.</p>
+      <p id="area-filter-hint" class="wm-field-hint">Any town, trading centre or village in Uganda.</p>
     </div>
 
-    <ul v-if="visible.length" class="mt-3 flex flex-col gap-1" aria-label="Sample areas">
+    <p v-if="!query" class="mt-4 px-1 text-[12px] font-medium uppercase tracking-wide text-muted">Popular</p>
+    <p v-if="query && loading && !visible.length" class="mt-4 text-sm text-muted" role="status">Searching…</p>
+    <ul v-else-if="visible.length" class="mt-3 flex flex-col gap-1" :aria-label="query ? 'Matching places' : 'Popular places'">
       <li v-for="loc in visible" :key="loc.id">
         <button
           type="button"
@@ -54,15 +58,16 @@
           <i class="bi bi-geo-alt text-[17px]" :class="isSelected(loc) ? 'text-primary' : 'text-muted'" aria-hidden="true"></i>
           <span class="flex-1 min-w-0">
             <span class="block text-[15px] font-medium text-ink">{{ loc.wholeTown ? `All of ${loc.name}` : loc.name }}</span>
-            <span v-if="loc.town !== loc.name" class="block text-[13px] text-muted">{{ loc.town }}</span>
+            <span v-if="(loc.district || loc.town) !== loc.name" class="block text-[13px] text-muted">{{ loc.district || loc.town }}</span>
           </span>
           <i v-if="isSelected(loc)" class="bi bi-check-lg text-primary text-lg" aria-hidden="true"></i>
         </button>
       </li>
     </ul>
-    <p v-else class="mt-4 text-sm text-muted" role="status">
-      No sample area matches “{{ filter.trim() }}”. Try a nearby area or town.
+    <p v-else-if="query" class="mt-4 text-sm text-muted" role="status">
+      {{ failed ? 'Couldn’t search places. Check your connection and try again.' : `No place called “${query}”. Try a nearby town or trading centre.` }}
     </p>
+    <p class="mt-5 text-[11.5px] text-muted">Place names: <a href="https://www.geonames.org/" target="_blank" rel="noopener" class="underline">GeoNames</a> (CC BY 4.0)</p>
   </BottomSheet>
 </template>
 
@@ -70,19 +75,42 @@
 import { ref, computed, watch } from 'vue';
 import BottomSheet from './BottomSheet.vue';
 import { searchLocations } from '@/data/searchLocations.js';
+import { searchPlaces, areaById } from '@/stores/catalog.js';
+import { resolveOrigin } from '@/utils/nearbySearch.js';
 import {
   searchOrigin, locationSheetOpen, chooseSearchArea,
   gps, gpsMessages, requestDeviceLocation,
 } from '@/stores/location.js';
 
 const filter = ref('');
-watch(locationSheetOpen, (open) => { if (open) filter.value = ''; });
+const results = ref([]);
+const loading = ref(false);
+const failed = ref(false);
+watch(locationSheetOpen, (open) => { if (open) { filter.value = ''; results.value = []; } });
 
-const visible = computed(() => {
-  const q = filter.value.trim().toLowerCase();
-  if (!q) return searchLocations;
-  return searchLocations.filter(l => `${l.name} ${l.town}`.toLowerCase().includes(q));
-});
+const query = computed(() => (filter.value.trim().length >= 2 ? filter.value.trim() : ''));
+const visible = computed(() => (query.value ? results.value : searchLocations.filter(l => l.featured)));
+
+// Every place in Uganda, searched as the letters come in; closest to the current search first
+let timer = null;
+let latest = 0;
+function search() {
+  clearTimeout(timer);
+  if (!query.value) { results.value = []; return; }
+  loading.value = true;
+  timer = setTimeout(async () => {
+    const mine = ++latest;
+    try {
+      const origin = resolveOrigin(searchOrigin.value);
+      const found = await searchPlaces(query.value, origin);
+      if (mine === latest) { results.value = found; failed.value = false; }
+    } catch {
+      if (mine === latest) { results.value = []; failed.value = true; }
+    } finally {
+      if (mine === latest) loading.value = false;
+    }
+  }, 220);
+}
 
 const usingGps = computed(() => searchOrigin.value.kind === 'gps');
 const isSelected = loc => searchOrigin.value.kind === 'area' && searchOrigin.value.areaId === loc.id;
@@ -90,6 +118,7 @@ const isSelected = loc => searchOrigin.value.kind === 'area' && searchOrigin.val
 function close() { locationSheetOpen.value = false; }
 
 function choose(loc) {
+  if (!areaById(loc.id)) searchLocations.push(loc);
   chooseSearchArea(loc.id);
   close();
 }

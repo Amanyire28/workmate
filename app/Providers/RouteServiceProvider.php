@@ -79,6 +79,11 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(10)->by($request->ip());
         });
 
+        // Typing in a location box asks the server as the letters come in
+        RateLimiter::for('place-search', function (Request $request) {
+            return Limit::perMinute(120)->by($request->ip());
+        });
+
         // Registration and anything that sends an email
         RateLimiter::for('account-email', function (Request $request) {
             return Limit::perMinute(6)->by(optional($request->user())->id ?: $request->ip());

@@ -68,16 +68,14 @@
           </div>
 
           <div class="flex flex-col gap-4">
-            <FormField
+            <PlacePicker
               v-model="form.area"
-              type="select"
+              id="request-area"
               label="Where is the job?"
-              placeholder="Choose an area"
               required
+              :clearable="false"
               :error-message="errors.area"
-            >
-              <option v-for="area in kampalaAreas" :key="area" :value="area">{{ area }}</option>
-            </FormField>
+            />
 
             <FormField
               v-model="form.when"
@@ -131,7 +129,8 @@ import UserAvatar from '@/components/UserAvatar.vue';
 import FormField from '@/components/FormField.vue';
 import PhotoPicker from '@/components/PhotoPicker.vue';
 import PrimaryButton from '@/components/PrimaryButton.vue';
-import { providers, kampalaAreas, areaSlugFor } from '@/stores/catalog.js';
+import { providers } from '@/stores/catalog.js';
+import PlacePicker from '@/components/PlacePicker.vue';
 import { displayName, tradeLabel, categoryLabel } from '@/utils/ui.js';
 import { selectedArea } from '@/stores/location.js';
 import { api, fieldErrors } from '@/api/client.js';
@@ -177,7 +176,7 @@ async function submit() {
     await api(`/providers/${provider.value.id}/requests`, { method: 'POST', body: {
       category: form.service,
       description: form.details.trim(),
-      area: areaSlugFor(form.area),
+      area: form.area,
       preferred_time: form.when,
       budget: form.budget === '' ? null : Number(form.budget),
     } });

@@ -1,13 +1,17 @@
 import { availabilityInfo, trustRank } from './trust.js';
+import { getSearchLocation } from '@/data/searchLocations.js';
+import { isNearPlace } from './nearbySearch.js';
 
 /**
- * Mock "recommended" ordering: providers in the chosen area first, then
+ * "Recommended" ordering: providers near the chosen place (id) first, then
  * those available soonest, then blue tick and WorkMate Verified providers, then by rating.
  * Replace with the API's ranking once it exists.
  */
-export function recommendProviders(list, area = '') {
+export function recommendProviders(list, areaId = '') {
+    const place = getSearchLocation(areaId);
+    const near = new Map(list.map(p => [p.id, isNearPlace(p, place)]));
     return [...list].sort((a, b) =>
-        (b.area === area) - (a.area === area) ||
+        near.get(b.id) - near.get(a.id) ||
         availabilityInfo(a).rank - availabilityInfo(b).rank ||
         trustRank(b) - trustRank(a) ||
         (b.rating || 0) - (a.rating || 0)
