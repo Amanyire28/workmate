@@ -50,6 +50,6 @@ class ProviderApplicationController extends Controller
 
     private function present(ProviderProfile $profile): ProviderProfileResource
     {
-        return new ProviderProfileResource($profile->fresh()->load('professions', 'latestApplication'));
+        return new ProviderProfileResource($profile->fresh()->load('professions', 'professionSuggestions.category', 'latestApplication'));
     }
 }

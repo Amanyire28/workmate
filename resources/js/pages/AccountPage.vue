@@ -81,7 +81,7 @@
     <router-link to="/account/verification" class="wm-card wm-card-link mt-3 flex items-center gap-4">
       <span class="wm-icon-tile !bg-[#F1F5F9] !text-[#94A3B8]" aria-hidden="true"><i class="bi bi-patch-check-fill"></i></span>
       <span class="min-w-0 flex-1">
-        <span class="block text-[15px] font-semibold text-ink">{{ latestApplication ? 'Your verification' : 'Get verified' }}</span>
+        <span class="block text-[15px] font-semibold text-ink">{{ myVerification && myVerification.status !== 'draft' ? 'Your verification' : 'Get verified' }}</span>
         <span class="block wm-meta">{{ verificationSummary }}</span>
       </span>
       <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
@@ -214,6 +214,8 @@
       <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
     </router-link>
 
+    <PushNotificationSetting v-if="user" />
+
     <!-- Shortcuts -->
     <nav class="mt-6" aria-labelledby="account-shortcuts-heading">
       <h2 id="account-shortcuts-heading" class="wm-meta font-medium uppercase tracking-wide mb-2 px-1">Shortcuts</h2>
@@ -248,10 +250,10 @@ import ProfilePhotoEditor from '@/components/ProfilePhotoEditor.vue';
 import FormField from '@/components/FormField.vue';
 import PrimaryButton from '@/components/PrimaryButton.vue';
 import ProviderApplicationPanel from '@/components/ProviderApplicationPanel.vue';
+import PushNotificationSetting from '@/components/PushNotificationSetting.vue';
 import { kampalaAreas } from '@/stores/catalog.js';
 import { selectedArea } from '@/stores/location.js';
 import { focusFirstError } from '@/utils/forms.js';
-import { verification } from '@/stores/verification.js';
 import { VERIFICATION_STATUS } from '@/utils/verificationStatus.js';
 import { auth, loadSession, updateProfile, signOut } from '@/stores/auth.js';
 import { api, fieldErrors } from '@/api/client.js';
@@ -263,10 +265,14 @@ const user = computed(() => auth.user);
 
 loadSession();
 
-const latestApplication = computed(() => verification.submissions[0] || null);
-const verificationSummary = computed(() => (latestApplication.value
-  ? `${latestApplication.value.id}: ${VERIFICATION_STATUS[latestApplication.value.status]?.label || latestApplication.value.status}`
-  : 'Upload the documents for your profession'));
+// The provider's document check, if they've started one
+const myVerification = ref(null);
+const verificationSummary = computed(() => (myVerification.value && myVerification.value.status !== 'draft'
+  ? VERIFICATION_STATUS[myVerification.value.status]?.label || myVerification.value.status
+  : 'Your National ID and supporting documents'));
+watch(user, (u) => {
+  if (u) api('/me/verification').then(r => { myVerification.value = r.data; }).catch(() => {});
+}, { immediate: true });
 
 const VERIFICATION_RESULTS = {
   success: { tone: 'success', icon: 'bi-check-circle', text: 'Your email address is confirmed.' },

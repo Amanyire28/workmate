@@ -61,7 +61,7 @@ It is built so it can grow beyond Kampala to the rest of Uganda.
 
 WorkMate is **in active development**. It started as a Vue frontend prototype running on mock data and is moving, phase by phase, to a Laravel-powered marketplace.
 
-The customer website and the admin area now read from and write to the database. Sample providers, reviews and jobs exist only for development. Bookings, payments, notifications and document verification are not built yet.
+The customer website and the admin area now read from and write to the database. Sample providers, reviews and jobs exist only for development. Bookings, payments and most notifications are not built yet.
 
 Throughout this README:
 
@@ -86,7 +86,9 @@ Throughout this README:
 
 **Becoming a provider (same account)**
 - Apply as an **individual**, **group** or **company**
-- Choose up to **5 professions**; the first is the main one
+- Choose up to **5 skills** from 22 categories; the first is the main one
+- A skill that isn't listed can be typed under **Other**. Customers can't find anyone by it until an administrator adds it to the list, matches it to an existing profession or declines it (Marketplace → Typed Professions)
+- **Main skill first:** in an area, someone with a skill as one of their other skills is shown only when nobody based there has it as their main skill
 - Public listing details: base area, areas served, starting price, price basis, availability, usual hours
 - Application lifecycle with administrator review (see [statuses](#service-providers))
 
@@ -119,9 +121,10 @@ Throughout this README:
 | Location matching | Distance ranking and widening run in the browser | Server-side matching. The search still uses fixed radii (5 km / 10 km) in `resources/js/utils/nearbySearch.js` rather than the admin-editable settings. |
 | Quotations | Providers can apply to posted jobs with a price | Customers can't yet view or accept applications; providers have no inbox for direct requests |
 | Reviews | Display, rating calculation and admin moderation | Customers can't write reviews yet (they will follow completed bookings) |
-| Document verification | Customer "Get verified" flow and admin review and requirements screens | Nothing is uploaded or stored on the server yet; those screens keep changes in the browser only |
+| Document verification | National ID (front and back) plus up to 5 supporting documents, stored privately; admin review, per-document accept or send back, requests for extra documents, approval gives the grey tick | The per-profession Document Requirements screen is still a browser-only prototype |
 | Performance tick | Tick display and admin rules screen | Automatic evaluation isn't running; only sample providers carry a tick |
 | Email | WorkMate-branded confirmation (link valid 24 hours) and reset emails are generated | Delivery needs mail settings in `.env`; check them with `php artisan workmate:mail-test` |
+| Push notifications | People turn them on per device on the Account page; administrators with `comms.send` send announcements from Communications → Push Announcements | Announcements only, no automatic notifications for messages or requests yet. Needs VAPID keys in `.env` (`php artisan workmate:push-keys`). iPhones receive them only when WorkMate is installed on the home screen (iOS 16.4+) |
 | Languages | Language preference is stored | The interface is English only; no translations yet |
 | Provider teams | `provider_members` table with an owner row | Adding and managing group or company members |
 | Photos on requests | A photo picker on the request form | Photos aren't uploaded (the form says so) |
@@ -133,7 +136,7 @@ Throughout this README:
 - Saved providers and saved locations
 - Admin management of categories, professions and areas
 - Payments with Ugandan mobile money (MTN MoMo, Airtel Money), commission, refunds, payouts and reconciliation
-- In-app, email and browser push notifications
+- In-app and email notifications, and automatic push notifications for messages, requests and decisions
 - Real-time messaging (currently the chat checks for new messages every few seconds)
 - Progressive Web App (installable app and offline shell)
 - "WorkMate in Action" short provider videos with moderation
@@ -209,19 +212,17 @@ The intended matching order is:
 
 Providers show **one tick**. It is grey once their documents are approved, and turns blue when WorkMate's rules qualify them for strong performance. A provider never shows two badges, and the site doesn't explain the tick to customers.
 
-### Standard verification (document checks) 🟡
+### Standard verification (document checks) ✅
 
-Designed workflow:
+1. The provider adds their **National ID** (front and back, required) and up to **5 supporting documents** of their choice (Account → Get verified). Files are JPG, PNG or PDF, up to 8 MB, up to 4 pages each.
+2. They send them for review (email must be confirmed).
+3. A reviewer (`documents.review`) accepts each document or sends it back with a reason, and can **ask for further documents** for this applicant, for example a permit their profession needs.
+4. The provider replaces or adds what was asked and sends again.
+5. The reviewer approves (every document accepted, nothing outstanding) or rejects. Approval sets `document_verified_at`, which shows the grey tick.
 
-1. The provider views the documents required for their profession.
-2. They upload them (front and back, several pages, or expiry dates where required).
-3. They submit for review.
-4. An administrator reviews each document.
-5. The administrator approves, rejects, or asks for more information or a replacement document.
+Files are stored on the private `local` disk under `storage/app/verification`. Photos are re-drawn as JPEG (hidden data such as GPS removed); PDFs are kept as uploaded. Files are served only to their owner and to administrators with `documents.view`, with `no-store` caching, and every administrator opening is written to the audit log. Replaced documents are kept as a record. Reopening a decision needs `verification.configure`.
 
-Administrators set document requirements per profession, with versions: an application keeps the requirements it was submitted under.
-
-**Current state:** the provider flow and the admin review and requirements screens exist in the frontend, but **no document is uploaded or stored on the server yet**. When this is built, documents must go to **private storage** and be viewable only by authorised reviewers, with each view logged.
+**Still a prototype:** the per-profession Document Requirements screen in the admin keeps its changes in the browser only.
 
 ### Performance tick ⬜
 
@@ -313,7 +314,7 @@ The Vue app is mounted by a single Blade view (`resources/views/app.blade.php`).
 **Accessibility.** Includes skip links, visible focus rings, labelled form errors that receive focus, live regions for status messages, reduced-motion support, and data tables behind charts.
 
 **Remaining frontend-only data.** Only these still use local frontend data:
-- `resources/js/data/verificationRequirements.js` and `stores/verification.js` (the document verification prototype)
+- `resources/js/data/verificationRequirements.js` and `stores/verification.js` (the Document Requirements prototype)
 - `admin/stores/blueTickRules.js` (the blue tick rules prototype)
 
 ---
@@ -380,7 +381,7 @@ Migrations are in `database/migrations/`; all of them can be rolled back. Deleti
 | Seeder | Adds | When |
 |---|---|---|
 | `RolesAndPermissionsSeeder` | 23 permissions and 9 roles from `config/permissions.php` | Always (safe to re-run) |
-| `CatalogueSeeder` | 10 categories, one profession each | Always (keeps administrator edits) |
+| `CatalogueSeeder` | The original 10 categories (the full list of 22 categories and about 80 professions is added by a migration) | Always (keeps administrator edits) |
 | `AreaSeeder` | 20 areas (`database/seeders/data/areas.json`) | Always |
 | `SampleMarketplaceSeeder` | 14 invented providers, 24 reviews and 7 open jobs (`data/sample-marketplace.json`), all marked `is_sample` | **Only when `APP_ENV=local`**, and only once |
 
@@ -388,7 +389,7 @@ Sample accounts use the reserved `@workmate.invalid` domain and random unknown p
 
 ### Planned data architecture ⬜
 
-Not yet in the schema: bookings and booking event history; verification requirements and versions, provider documents and document reviews; performance-tick rules, evaluations and award history; payments, ledger entries, commissions, refunds and payouts; notifications, notification preferences and push subscriptions; provider videos and moderation; devices, installations and usage sessions; saved providers and saved locations.
+Not yet in the schema: bookings and booking event history; verification requirements and versions, performance-tick rules, evaluations and award history; payments, ledger entries, commissions, refunds and payouts; notifications and notification preferences; provider videos and moderation; devices, installations and usage sessions; saved providers and saved locations.
 
 ---
 
@@ -539,6 +540,7 @@ The admin area is at <http://127.0.0.1:8000/admin>.
 | `php artisan workmate:role {email} {role}` | Grants an admin role to an existing account |
 | `php artisan workmate:role {email} {role} --revoke` | Removes it (the last active Super Administrator can't be removed) |
 | `php artisan workmate:mail-test {email}` | Sends a test email to check the mail settings (shows the mailer and sender, never the password) |
+| `php artisan workmate:push-keys` | Creates the VAPID keys for push notifications and prints them for `.env` (asks before replacing existing keys) |
 | `php artisan route:list --path=api` | Lists the API routes |
 | `php artisan test` | Runs the test suite on `workmate_test` |
 
@@ -616,7 +618,8 @@ SESSION_DRIVER=file
 **Notes**
 - Until mail is configured, people can register but can't confirm their email, and a confirmed email is required before sending a provider application.
 - `.env.example` also contains Laravel's default Redis, AWS and Pusher keys; WorkMate doesn't use them yet.
-- Payment, SMS and push-notification keys will be added when those integrations are built. Keep every secret in `.env` or the server's secret store, never in Git.
+- Push notifications need `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`. Create them once with `php artisan workmate:push-keys` (it prints them; nothing is saved) and keep the same keys afterwards: new keys turn notifications off on every device. On Windows, push messages can only be encrypted when PHP starts with `OPENSSL_CONF` set to PHP's bundled config (for XAMPP, `C:/xampp/php/extras/ssl/openssl.cnf`); Linux servers need nothing extra.
+- Payment and SMS keys will be added when those integrations are built. Keep every secret in `.env` or the server's secret store, never in Git.
 
 ---
 
@@ -795,7 +798,8 @@ Token sign-in endpoints for apps are not built yet; the website uses cookie sess
 ### Notifications
 - [ ] In-app notifications
 - [ ] Email notifications
-- [ ] Browser push (Web Push)
+- [x] Browser push (Web Push): admin announcements
+- [ ] Automatic push for messages, requests and application decisions
 
 ### Administration
 - [x] Sign-in protected, permission-based admin area on live data

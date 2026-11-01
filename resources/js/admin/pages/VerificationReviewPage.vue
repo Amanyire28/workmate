@@ -15,23 +15,21 @@
     </div>
 
     <template v-else>
-      <AdminPageHeader :title="`${app.id} · ${app.providerName}`" :description="`${categoryLabel(app.profession)} · ${app.area} · submitted ${formatDateTime(app.submittedAt)}`" :demo="!isSession">
+      <AdminPageHeader :title="`${app.id} · ${app.providerName}`" :description="`${app.professionName || categoryLabel(app.profession)} · ${app.area} · submitted ${formatDateTime(app.submittedAt)}`">
         <template #actions>
           <AdminStatusBadge :status="app.status" />
-          <span v-if="isSession" class="rounded-md bg-[#EFF6FF] px-2 py-1 text-[12px] font-medium text-primary">Submitted in this session</span>
         </template>
       </AdminPageHeader>
 
-      <p v-if="snapshot && current && snapshot.version !== current.version" class="wm-notice wm-notice-info">
-        <i class="bi bi-clock-history" aria-hidden="true"></i>
-        <span>Submitted under requirements <strong>v{{ snapshot.version }}</strong>. The current version is v{{ current.version }} ({{ current.note }}). This application is reviewed against v{{ snapshot.version }}, the rules that applied when it was submitted.</span>
+      <p v-if="actionError" class="wm-notice wm-notice-error" role="alert">
+        <i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>{{ actionError }}</span>
       </p>
 
       <div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
         <!-- ============ Documents ============ -->
         <section aria-labelledby="docs-heading" class="flex flex-col gap-3">
           <div class="flex items-baseline justify-between gap-3">
-            <h2 id="docs-heading" class="text-[15px] font-semibold text-ink">Required document checklist</h2>
+            <h2 id="docs-heading" class="text-[15px] font-semibold text-ink">Documents</h2>
             <p class="text-[12.5px] text-[#64748B]">{{ acceptedRequired }} of {{ requiredDocs.length }} required accepted</p>
           </div>
 
@@ -48,7 +46,7 @@
               <dt class="text-[#64748B]">Files</dt>
               <dd class="text-ink">
                 <template v-if="d.files.length">
-                  <span v-for="f in d.files" :key="f.name" class="block">
+                  <span v-for="f in d.files" :key="f.index" class="block">
                     {{ f.side ? `${f.side[0].toUpperCase()}${f.side.slice(1)}: ` : '' }}{{ f.name }}
                     <span class="text-[#64748B]">· {{ f.sizeKb }} KB<template v-if="f.pages > 1"> · {{ f.pages }} pages</template></span>
                   </span>
@@ -81,27 +79,25 @@
               <p v-else class="flex items-center gap-1.5 text-[12.5px] text-[#64748B]"><i class="bi bi-lock" aria-hidden="true"></i>Your role can’t open verification documents.</p>
 
               <div v-if="previewOpen === d.reqId" class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <figure v-for="f in d.files" :key="f.name" class="overflow-hidden rounded-lg border border-[#E2E8F0] bg-[#0F172A]">
-                  <img v-if="f.url && f.type?.startsWith('image/') && f.type !== 'image/heic'" :src="f.url" :alt="`${d.name}${f.side ? ` (${f.side})` : ''}`" class="max-h-64 w-full object-contain" />
+                <figure v-for="f in d.files" :key="f.index" class="overflow-hidden rounded-lg border border-[#E2E8F0] bg-[#0F172A]">
+                  <img v-if="f.type?.startsWith('image/')" :src="fileUrl(d, f)" :alt="`${d.name}${f.side ? ` (${f.side})` : ''}`" class="max-h-64 w-full object-contain" />
                   <div v-else class="flex aspect-[4/3] flex-col items-center justify-center gap-2 p-4 text-center text-white/80">
-                    <i class="bi bi-file-earmark-lock text-3xl" aria-hidden="true"></i>
-                    <p class="text-[12px]">{{ f.url ? 'PDF file' : 'Sample placeholder: no document is stored in the prototype.' }}</p>
-                    <a v-if="f.url" :href="f.url" target="_blank" rel="noopener" class="text-[12px] text-[#93C5FD] underline">Open file</a>
+                    <i class="bi bi-file-earmark-pdf text-3xl" aria-hidden="true"></i>
+                    <p class="text-[12px]">PDF file</p>
+                    <a :href="fileUrl(d, f)" target="_blank" rel="noopener" class="text-[12px] text-[#93C5FD] underline">Open file</a>
                   </div>
-                  <figcaption class="bg-white px-2.5 py-1.5 text-[11.5px] text-[#64748B]">{{ f.name }}</figcaption>
+                  <figcaption class="bg-white px-2.5 py-1.5 text-[11.5px] text-[#64748B]">{{ f.side ? `${f.side[0].toUpperCase()}${f.side.slice(1)} · ` : '' }}{{ f.name }}</figcaption>
                 </figure>
-                <p class="sm:col-span-2 text-[11.5px] text-[#64748B]">
-                  In production this opens a short-lived signed link from private storage, watermarked with your name. This view was recorded in the audit log.
-                </p>
+                <p class="sm:col-span-2 text-[11.5px] text-[#64748B]">Files come from private storage. Each opening is recorded in the audit log with your name.</p>
               </div>
             </div>
 
             <div v-if="canReviewDocs && d.files.length && ['awaiting_review', 'accepted', 'replacement_required'].includes(d.status)" class="mt-3 flex flex-wrap gap-2 border-t border-[#F1F5F9] pt-3">
-              <button v-if="d.status !== 'accepted'" type="button" class="wm-btn wm-btn-primary !min-h-9 !rounded-lg !px-3 !text-[13px]" :disabled="d.status === 'replacement_required'" @click="acceptDoc(d)">
+              <button v-if="d.status !== 'accepted'" type="button" class="wm-btn wm-btn-primary !min-h-9 !rounded-lg !px-3 !text-[13px]" :disabled="d.status === 'replacement_required' || busy" @click="acceptDoc(d)">
                 <i class="bi bi-check2" aria-hidden="true"></i>Accept
               </button>
               <button type="button" class="wm-btn !min-h-9 !rounded-lg !px-3 !text-[13px] border-[#FCA5A5] bg-white text-[#B91C1C] hover:bg-[#FEF2F2]" @click="rejectDoc(d)">
-                <i class="bi bi-x-lg" aria-hidden="true"></i>{{ d.status === 'accepted' ? 'Withdraw acceptance' : 'Reject and ask for replacement' }}
+                <i class="bi bi-x-lg" aria-hidden="true"></i>{{ d.status === 'accepted' ? 'Withdraw acceptance' : 'Send back for a replacement' }}
               </button>
             </div>
           </article>
@@ -114,15 +110,28 @@
             <dl class="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5 text-[13px]">
               <dt class="text-[#64748B]">Name</dt><dd class="text-ink">{{ app.providerName }}</dd>
               <dt class="text-[#64748B]">Provider ID</dt><dd class="text-ink">{{ app.providerId }}</dd>
-              <dt class="text-[#64748B]">Profession</dt><dd class="text-ink">{{ categoryLabel(app.profession) }}</dd>
+              <dt class="text-[#64748B]">Main skill</dt><dd class="text-ink">{{ app.professionName || categoryLabel(app.profession) }}</dd>
               <template v-if="app.services"><dt class="text-[#64748B]">Services</dt><dd class="text-ink">{{ app.services.map(categoryLabel).join(', ') }}</dd></template>
               <dt class="text-[#64748B]">Registered area</dt><dd class="text-ink">{{ app.area }}</dd>
               <template v-if="app.phoneMasked"><dt class="text-[#64748B]">Phone</dt><dd class="text-ink">{{ app.phoneMasked }}</dd></template>
-              <template v-for="(v, k) in app.answers" :key="k">
-                <dt class="text-[#64748B]">{{ CONDITIONS[k]?.label || k }}</dt><dd class="text-ink">{{ v ? 'Yes' : 'No' }}</dd>
-              </template>
               <dt class="text-[#64748B]">Reviewer</dt><dd class="text-ink">{{ app.reviewer || 'Unassigned' }}</dd>
             </dl>
+          </section>
+
+          <section class="rounded-xl wm-surface p-4" aria-labelledby="requests-heading">
+            <h2 id="requests-heading" class="text-[14px] font-semibold text-ink">Requested documents</h2>
+            <ul v-if="app.requests.length" class="mt-2 flex flex-col gap-2 text-[13px]">
+              <li v-for="r in app.requests" :key="r.id">
+                <span class="font-medium text-ink">{{ r.label }}</span>
+                <AdminStatusBadge class="ml-1.5" :status="r.status === 'open' ? 'info_requested' : 'accepted'" />
+                <span v-if="r.instructions" class="block text-[#475569]">{{ r.instructions }}</span>
+                <span class="block text-[12px] text-[#64748B]">{{ r.requestedBy || 'A reviewer' }} · {{ formatDateTime(r.requestedAt) }}</span>
+              </li>
+            </ul>
+            <p v-else class="mt-1 text-[13px] text-[#64748B]">None. Ask for one when this profession or this applicant needs more checks.</p>
+            <button v-if="canReview && isOpen" type="button" class="mt-2 inline-flex items-center gap-1.5 min-h-9 text-[13px] font-medium text-primary hover:underline" @click="requestDocument">
+              <i class="bi bi-file-earmark-plus" aria-hidden="true"></i>Ask for another document
+            </button>
           </section>
 
           <section class="rounded-xl wm-surface p-4" aria-labelledby="decision-heading">
@@ -165,12 +174,12 @@
             <h2 id="history-heading" class="text-[14px] font-semibold text-ink">History</h2>
             <ol class="mt-2 flex flex-col gap-2.5">
               <li v-for="(h, i) in [...app.history].reverse()" :key="i" class="flex gap-2.5 text-[13px]">
-                <span class="mt-1.5 h-2 w-2 shrink-0 rounded-full" :class="h.session ? 'bg-[#F59E0B]' : 'bg-[#CBD5E1]'" aria-hidden="true"></span>
+                <span class="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#CBD5E1]" aria-hidden="true"></span>
                 <span class="min-w-0">
                   <span class="font-medium text-ink">{{ h.label }}</span>
                   <span v-if="h.reason" class="text-[#475569]"> — {{ h.reason }}</span>
                   <span v-if="h.detail" class="block text-[#475569]">{{ h.detail }}</span>
-                  <span class="block text-[12px] text-[#64748B]">{{ formatDateTime(h.at) }} · {{ h.actor }}<template v-if="h.session"> · <span class="text-[#92400E]">this browser session</span></template></span>
+                  <span class="block text-[12px] text-[#64748B]">{{ formatDateTime(h.at) }} · {{ h.actor }}</span>
                 </span>
               </li>
             </ol>
@@ -187,7 +196,7 @@
       :tone="dialog?.tone || 'primary'"
       :fields="dialog?.fields || []"
       @close="dialog = null"
-      @confirm="v => { dialog.run(v); dialog = null; }"
+      @confirm="v => { const run = dialog.run; dialog = null; run(v); }"
     />
   </div>
 </template>
@@ -196,38 +205,33 @@
 import { ref, computed, onMounted, useId } from 'vue';
 import { useRoute } from 'vue-router';
 import { auth } from '@/stores/auth.js';
+import { api } from '@/api/client.js';
 import AdminPageHeader from '../components/AdminPageHeader.vue';
 import AdminStatusBadge from '../components/AdminStatusBadge.vue';
 import StateBlock from '../components/StateBlock.vue';
 import ActionDialog from '../components/ActionDialog.vue';
-import { getVerificationApplication } from '../data/adminApi.js';
+import { getVerificationApplication, reloadAdminData } from '../data/adminApi.js';
 import { can } from '../permissions.js';
-import { recordChange, recordAudit, actorName, toast } from '../stores/prototypeChanges.js';
-import { verification as sharedVerification } from '@/stores/verification.js';
-import { CONDITIONS } from '@/data/verificationRequirements.js';
-import { categoryLabel } from '@/utils/ui.js';
+import { toast } from '../stores/prototypeChanges.js';
+import { categoryLabel } from '../modules/helpers.js';
 import { formatDateTime } from '../utils/format.js';
 
 const route = useRoute();
 const uid = useId();
-// Plain deep copy (structuredClone can't copy Vue's reactive proxies)
-const copy = (x) => JSON.parse(JSON.stringify(x));
 const me = auth.user?.name || 'Administrator';
 
 const app = ref(null);
-const snapshot = ref(null);
-const current = ref(null);
 const loading = ref(true);
 const error = ref('');
+const busy = ref(false);
+const actionError = ref('');
 
 async function load() {
-  loading.value = true;
+  loading.value = !app.value;
   error.value = '';
   try {
     const res = await getVerificationApplication(route.params.id);
-    app.value = res.application ? copy(res.application) : null;
-    snapshot.value = res.snapshot;
-    current.value = res.current;
+    app.value = res.application ? JSON.parse(JSON.stringify(res.application)) : null;
   } catch (e) {
     error.value = e.message;
   } finally {
@@ -236,7 +240,9 @@ async function load() {
 }
 onMounted(load);
 
-const isSession = computed(() => app.value?.source === 'provider_session');
+const base = computed(() => `/admin/verifications/${app.value.verificationId}`);
+const fileUrl = (d, f) => `/api/v1${base.value}/documents/${d.reqId}/files/${f.index}`;
+
 const isOpen = computed(() => ['pending_review', 'under_review', 'info_requested'].includes(app.value?.status));
 const canReview = computed(() => can('documents.review'));
 const canReviewDocs = computed(() => canReview.value && isOpen.value);
@@ -259,100 +265,102 @@ function expiryNote(d) {
 }
 const expiryClass = (d) => (expiryNote(d) === 'expired' ? 'text-[#B91C1C]' : expiryNote(d) ? 'text-[#B45309]' : 'text-ink');
 
-// Approval needs a completed review, never just a complete upload
+// The same checks the server makes before approving
 const approvable = computed(() => {
-  const reviewed = app.value.documents.filter(d => d.files.length).every(d => d.status !== 'awaiting_review');
+  const nationalId = app.value.documents.find(d => d.kind === 'national_id');
   const checks = [
-    { label: 'A reviewer is assigned', ok: !!app.value.reviewer },
-    { label: `Every required document accepted (${acceptedRequired.value}/${requiredDocs.value.length})`, ok: acceptedRequired.value === requiredDocs.value.length },
-    { label: 'Every submitted document reviewed', ok: reviewed },
-    { label: 'No required document expired', ok: !requiredDocs.value.some(d => docStatus(d) === 'expired') },
+    { label: 'National ID accepted', ok: nationalId?.status === 'accepted' },
+    { label: `Every document accepted (${app.value.documents.filter(d => d.status === 'accepted').length}/${app.value.documents.length})`, ok: app.value.documents.every(d => d.status === 'accepted') },
+    { label: 'Every requested document added', ok: !app.value.requests.some(r => r.status === 'open') },
+    { label: 'Waiting for a decision (not with the provider)', ok: app.value.status !== 'info_requested' },
   ];
   return { ok: checks.every(c => c.ok), checks };
 });
 
 const decidedText = computed(() => ({
-  approved: 'Approved: the provider holds the WorkMate Verified badge.',
+  approved: 'Approved: the provider has the grey tick.',
   rejected: `Rejected${app.value.decisionReason ? `: ${app.value.decisionReason}` : '.'}`,
-  expired: 'Expired: a required document passed its expiry date.',
 })[app.value.status] || '');
 
-/* ---------------- Changes ----------------
- * Demo applications: recorded as prototype changes (shown here and in the audit log).
- * Applications submitted in this session: written to the shared store too, so the
- * provider's "Your verification" page shows the decision. Nothing reaches a server.
- */
-function commit(patch, label, reason, detail) {
-  const at = new Date().toISOString();
-  const next = { ...patch, lastActionAt: at };
-  if (isSession.value) {
-    const sub = sharedVerification.submissions.find(s => s.id === app.value.id);
-    Object.assign(sub, copy(next));
-    sub.history.push({ at, actor: actorName(), label, reason: reason || null, detail: detail || null, session: true });
-    recordAudit(`verification.${label.toLowerCase().replace(/\W+/g, '_')}`, `${label}: ${app.value.id} (${app.value.providerName})`, app.value.id, reason);
-    app.value = copy(sub);
-  } else {
-    recordChange('verification-applications', app.value, { patch: next, label, reason, detail });
-    const history = [...app.value.history, { at, actor: actorName(), label, reason: reason || null, detail: detail || null, session: true }];
-    app.value = { ...app.value, ...copy(next), history };
+/* ---------------- Changes: saved on the server, then reloaded ---------------- */
+async function send(path, body, done) {
+  busy.value = true;
+  actionError.value = '';
+  try {
+    await api(`${base.value}${path}`, { method: 'POST', body: body || {} });
+    await reloadAdminData();
+    await load();
+    toast(`${done}. Saved and recorded in the audit log.`);
+  } catch (e) {
+    const first = Object.values(e?.errors || {})[0];
+    actionError.value = (first && first[0]) || e.message;
+  } finally {
+    busy.value = false;
   }
-  toast(`${label}. Not saved: document verification isn’t connected yet.`);
-}
-
-const withDoc = (reqId, change) => app.value.documents.map(d => (d.reqId === reqId ? { ...d, ...change, reviewedBy: me, reviewedAt: new Date().toISOString() } : d));
-
-function acceptDoc(d) {
-  commit({ documents: withDoc(d.reqId, { status: 'accepted', note: null }), status: app.value.status === 'pending_review' ? 'under_review' : app.value.status, reviewer: app.value.reviewer || me },
-    `Document accepted: ${d.name}`);
-}
-
-function rejectDoc(d) {
-  dialog.value = {
-    title: `Reject “${d.name}”?`, message: 'The provider is asked to upload a replacement. Explain exactly what is wrong.',
-    confirmLabel: 'Reject document', tone: 'danger',
-    fields: [{ key: 'reason', label: 'What’s wrong with it?', type: 'textarea', required: true, minLength: 5 }],
-    run: ({ reason }) => commit({ documents: withDoc(d.reqId, { status: 'replacement_required', note: reason }), status: app.value.status === 'pending_review' ? 'under_review' : app.value.status, reviewer: app.value.reviewer || me },
-      `Document rejected: ${d.name}`, reason),
-  };
 }
 
 const dialog = ref(null);
 
+function acceptDoc(d) {
+  send(`/documents/${d.reqId}/accept`, null, `Accepted ${d.name}`);
+}
+
+function rejectDoc(d) {
+  dialog.value = {
+    title: `Send back “${d.name}”?`, message: 'The provider is asked to upload a replacement and sees your reason. Explain exactly what is wrong.',
+    confirmLabel: 'Send back', tone: 'danger',
+    fields: [{ key: 'reason', label: 'What’s wrong with it?', type: 'textarea', required: true, minLength: 5 }],
+    run: ({ reason }) => send(`/documents/${d.reqId}/send-back`, { reason }, `Sent back ${d.name}`),
+  };
+}
+
+function requestDocument() {
+  dialog.value = {
+    title: 'Ask for another document', message: 'The provider sees this on their Get verified page and can’t resend until they add it.',
+    confirmLabel: 'Ask for it',
+    fields: [
+      { key: 'label', label: 'Document', type: 'text', required: true, maxLength: 80, help: 'e.g. “Driving permit” or “Letter from your local council (LC1)”.' },
+      { key: 'instructions', label: 'What it should show (optional)', type: 'textarea', maxLength: 500 },
+    ],
+    run: ({ label, instructions }) => send('/request-document', { label, instructions: instructions || null }, 'Document requested'),
+  };
+}
+
 function assign() {
-  commit({ reviewer: me, status: app.value.status === 'pending_review' ? 'under_review' : app.value.status }, `Assigned to ${me}`);
+  send('/assign', null, `Assigned to ${me}`);
 }
 
 function approve() {
   dialog.value = {
     title: `Approve ${app.value.providerName}?`,
-    message: 'They get the WorkMate Verified badge for their profession. It confirms these documents were checked, not every aspect of their work.',
+    message: 'They get the grey tick. It confirms these documents were checked, not every aspect of their work.',
     confirmLabel: 'Approve', fields: [{ key: 'reason', label: 'Note for the record (optional)', type: 'text' }],
-    run: ({ reason }) => commit({ status: 'approved', decisionReason: null }, 'Application approved: WorkMate Verified granted', reason),
+    run: ({ reason }) => send('/approve', { note: reason || null }, 'Approved'),
   };
 }
 
 function requestInfo() {
   dialog.value = {
-    title: 'Request more information', message: 'The provider will be notified through the notification system once it is connected; for now the request is recorded.',
+    title: 'Request more information', message: 'The provider sees your message on their Get verified page.',
     confirmLabel: 'Send request',
     fields: [{ key: 'reason', label: 'What is missing or needed?', type: 'textarea', required: true, minLength: 5 }],
-    run: ({ reason }) => commit({ status: 'info_requested', reviewer: app.value.reviewer || me }, 'More information requested', reason),
+    run: ({ reason }) => send('/request-information', { reason }, 'More information requested'),
   };
 }
 
 function rejectApp() {
   dialog.value = {
-    title: 'Reject this application?', message: 'The provider is told the reason and can apply again.', confirmLabel: 'Reject application', tone: 'danger',
+    title: 'Reject this application?', message: 'The provider is told the reason and can change their documents and send them again.', confirmLabel: 'Reject application', tone: 'danger',
     fields: [{ key: 'reason', label: 'Reason (shared with the provider)', type: 'textarea', required: true, minLength: 5 }],
-    run: ({ reason }) => commit({ status: 'rejected', decisionReason: reason }, 'Application rejected', reason),
+    run: ({ reason }) => send('/reject', { reason }, 'Rejected'),
   };
 }
 
 function reopen() {
   dialog.value = {
-    title: 'Reopen this application?', message: 'It returns to review. Any badge stays as it is until a new decision is made.', confirmLabel: 'Reopen',
+    title: 'Reopen this application?', message: 'It returns to review. The tick stays as it is until a new decision is made.', confirmLabel: 'Reopen',
     fields: [{ key: 'reason', label: 'Why is it being reopened?', type: 'textarea', required: true, minLength: 5 }],
-    run: ({ reason }) => commit({ status: 'under_review' }, 'Application reopened', reason),
+    run: ({ reason }) => send('/reopen', { reason }, 'Reopened'),
   };
 }
 
@@ -360,16 +368,13 @@ function addNote() {
   dialog.value = {
     title: 'Add reviewer note', message: 'Visible to reviewers only.', confirmLabel: 'Add note',
     fields: [{ key: 'reason', label: 'Note', type: 'textarea', required: true, minLength: 3 }],
-    run: ({ reason }) => commit({}, 'Reviewer note', reason),
+    run: ({ reason }) => send('/note', { note: reason }, 'Note added'),
   };
 }
 
-/* ---------------- Secure preview ---------------- */
+/* ---------------- Secure preview: each file opened is logged by the server ---------------- */
 const previewOpen = ref(null);
 function togglePreview(d) {
-  if (previewOpen.value === d.reqId) { previewOpen.value = null; return; }
-  previewOpen.value = d.reqId;
-  // Every opening of a private document is logged
-  recordAudit('document.viewed', `Opened ${d.name} for ${app.value.id}`, `${app.value.id}:${d.reqId}`, 'Verification review');
+  previewOpen.value = previewOpen.value === d.reqId ? null : d.reqId;
 }
 </script>

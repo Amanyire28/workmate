@@ -76,6 +76,17 @@ class ProviderProfile extends Model
             ->withTimestamps();
     }
 
+    /** Professions typed under "Other" */
+    public function professionSuggestions()
+    {
+        return $this->hasMany(ProfessionSuggestion::class);
+    }
+
+    public function documentVerification()
+    {
+        return $this->hasOne(DocumentVerification::class);
+    }
+
     public function baseArea()
     {
         return $this->belongsTo(Area::class, 'base_area_id');

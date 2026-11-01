@@ -134,6 +134,7 @@ function submit() {
     const blank = v == null || String(v).trim() === '';
     if (f.required && blank) errors[f.key] = `${f.label} is required.`;
     else if (f.minLength && String(v).trim().length < f.minLength) errors[f.key] = `Please write at least ${f.minLength} characters.`;
+    else if (f.maxLength && !blank && String(v).trim().length > f.maxLength) errors[f.key] = `Keep it to ${f.maxLength} characters or fewer.`;
     else if (f.type === 'number' && !blank && Number.isNaN(Number(v))) errors[f.key] = 'Enter a number.';
   }
   const firstError = props.fields.find(f => errors[f.key]);

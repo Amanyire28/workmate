@@ -48,9 +48,11 @@ class ProviderApplicationTest extends ApiTestCase
 
         $categories = $this->getJson('/api/v1/categories')->assertOk()->json('data');
 
-        $this->assertCount(9, $categories);
+        $this->assertCount(Category::where('is_active', true)->count(), $categories);
+        $this->assertGreaterThan(20, count($categories));
         $this->assertSame('construction', $categories[0]['slug']);
-        $this->assertSame([['slug' => 'builder', 'name' => 'Builder', 'plural_name' => 'builders']], $categories[0]['professions']);
+        $this->assertSame(['slug' => 'builder', 'name' => 'Builder', 'plural_name' => 'builders'], $categories[0]['professions'][0]);
+        $this->assertContains('mason', array_column($categories[0]['professions'], 'slug'));
         $this->assertNotContains('driving', array_column($categories, 'slug'));
     }
 

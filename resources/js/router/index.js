@@ -31,7 +31,7 @@ const routes = [
     { path: '/job/:id/apply',        component: ApplyJobPage,           meta: { title: 'Apply for a Job – WorkMate', requiresAuth: true } },
     { path: '/activity',             component: MyActivityPage,         meta: { title: 'My Work – WorkMate', requiresAuth: true } },
     { path: '/account',              component: AccountPage,            meta: { title: 'My Account – WorkMate' } },
-    { path: '/account/verification', component: () => import('@/pages/GetVerifiedPage.vue'), meta: { title: 'Get Verified – WorkMate' } },
+    { path: '/account/verification', component: () => import('@/pages/GetVerifiedPage.vue'), meta: { title: 'Get Verified – WorkMate', requiresAuth: true } },
     { path: '/messages',             component: MessagesPage,           meta: { title: 'Messages – WorkMate', requiresAuth: true } },
     { path: '/messages/:id',         component: ChatPage,               meta: { title: 'Chat – WorkMate', requiresAuth: true } },
     // A chat opened from the provider side (customers reach chats by provider id)

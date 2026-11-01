@@ -21,6 +21,7 @@ export const PERMISSIONS = {
     'finance.view':       'Work transactions, refunds, payouts and reconciliation',
     'content.view':       'Moderate videos and manage content and translations',
     'comms.view':         'Manage notifications, templates and campaigns',
+    'comms.send':         'Send push announcements to everyone who turned them on',
     'analytics.view':     'View analytics and build reports',
     'system.view':        'View system health, jobs and integrations',
     'security.view':      'View audit logs and security events',

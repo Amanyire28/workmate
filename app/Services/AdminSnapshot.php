@@ -6,15 +6,20 @@ use App\Models\AppInstallEvent;
 use App\Models\Area;
 use App\Models\AuditLog;
 use App\Models\Category;
+use App\Models\DocumentVerification;
 use App\Models\PlatformSetting;
 use App\Models\Profession;
+use App\Models\ProfessionSuggestion;
 use App\Models\ProviderApplication;
 use App\Models\ProviderProfile;
 use App\Models\ProviderReport;
+use App\Models\PushAnnouncement;
+use App\Models\PushSubscription;
 use App\Models\Quotation;
 use App\Models\Review;
 use App\Models\ServiceRequest;
 use App\Models\User;
+use App\Models\VerificationDocument;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -78,11 +83,15 @@ class AdminSnapshot
             'categories' => $categories->map(function ($c) {
                 return ['id' => $c->slug, 'label' => $c->name, 'description' => $c->description, 'visible' => $c->is_active];
             })->values(),
+            'professions' => Profession::active()->with('category')->orderBy('name')->get()->map(function ($p) {
+                return ['id' => $p->slug, 'label' => $p->name, 'category' => $p->category->slug];
+            })->values(),
             'areas' => $areas->map(function ($a) {
                 return ['name' => $a->name, 'town' => $a->town];
             })->values(),
             'daily' => $can('dashboard.view', 'analytics.view') ? $this->daily() : [],
             'installs' => $can('usage.view') ? $this->installs() : null,
+            'push' => $can('comms.view') ? $this->pushStatus() : null,
             'core' => [
                 'customers' => $customers->values(),
                 'providers' => $providers->values(),
@@ -100,6 +109,9 @@ class AdminSnapshot
                 'audit' => $can('security.view') ? $this->audit()->values() : [],
                 'adminUsers' => $can('admin.manage') ? $this->adminUsers()->values() : [],
                 'events' => $can('activity.view') ? $this->events($can('security.view'))->values() : [],
+                'pushAnnouncements' => $can('comms.view') ? $this->pushAnnouncements()->values() : [],
+                'professionSuggestions' => $can('providers.review') ? $this->professionSuggestions()->values() : [],
+                'verifications' => $can('documents.review') ? $this->verifications()->values() : [],
             ],
         ];
     }
@@ -186,10 +198,14 @@ class AdminSnapshot
                 'id' => 'A-'.$a->id, 'applicationId' => $a->id, 'profileId' => $a->provider_profile_id,
                 'name' => $snapshot['display_name'] ?? $a->profile->display_name, 'contactName' => $owner->name,
                 'type' => self::PROVIDER_TYPES[$snapshot['type'] ?? 'individual'] ?? 'individual',
-                'services' => collect($snapshot['professions'] ?? [])->map(function ($p) use ($categoryOf) {
+                'services' => collect($snapshot['professions'] ?? [])->filter(function ($p) {
+                    return ! empty($p['profession']);
+                })->map(function ($p) use ($categoryOf) {
                     return $categoryOf[$p['profession']] ?? $p['profession'];
                 })->unique()->values(),
-                'professions' => collect($snapshot['professions'] ?? [])->pluck('name')->implode(', '),
+                'professions' => collect($snapshot['professions'] ?? [])->map(function ($p) {
+                    return empty($p['profession']) ? $p['name'].' (typed, not in the list yet)' : $p['name'];
+                })->implode(', '),
                 'area' => null, 'status' => $statuses[$a->status] ?? $a->status,
                 'submittedAt' => $a->submitted_at->toIso8601String(), 'decidedAt' => optional($a->decided_at)->toIso8601String(),
                 'decidedBy' => optional($a->decider)->name, 'decisionReason' => $a->decision_reason, 'internalNote' => $a->internal_note,
@@ -199,6 +215,77 @@ class AdminSnapshot
                 'checks' => ['identity' => 'not_checked', 'phone' => 'not_checked', 'tradeCertificate' => 'not_provided', 'references' => 'not_checked'],
                 'documents' => 'Not collected yet (document verification comes later)',
                 'history' => $this->historyFor(ProviderApplication::class, $a->id),
+            ];
+        });
+    }
+
+    /** Submitted document verifications, without file paths */
+    private function verifications(): Collection
+    {
+        return DocumentVerification::with(['profile.owner', 'profile.professions.category', 'profile.baseArea', 'reviewer', 'documents.reviewer', 'requests.requester'])
+            ->whereNotNull('submitted_at')
+            ->latest('submitted_at')
+            ->get()
+            ->map(function (DocumentVerification $v) {
+                $profile = $v->profile;
+                $main = $profile->professions->first(function ($p) {
+                    return (bool) $p->pivot->is_primary;
+                }) ?: $profile->professions->first();
+                $documents = $v->documents->whereNotIn('status', [VerificationDocument::STATUS_REPLACED, VerificationDocument::STATUS_REMOVED]);
+
+                return [
+                    'id' => 'VA-'.$v->id, 'verificationId' => $v->id, 'providerId' => 'P-'.$profile->id,
+                    'providerName' => $this->label($profile->display_name, $profile->is_sample),
+                    'profession' => $main ? $main->category->slug : null, 'professionName' => $main ? $main->name : null,
+                    'services' => $profile->professions->pluck('category.slug')->unique()->values(),
+                    'area' => optional($profile->baseArea)->name ?: '—',
+                    'phoneMasked' => $this->maskPhone($profile->owner->phone),
+                    'status' => $v->status, 'reviewer' => optional($v->reviewer)->name,
+                    'submittedAt' => $v->submitted_at->toIso8601String(), 'lastActionAt' => $v->updated_at->toIso8601String(),
+                    'decisionReason' => $v->decision_reason,
+                    'documents' => $documents->sortBy(function ($d) {
+                        return [$d->kind === VerificationDocument::KIND_NATIONAL_ID ? 0 : 1, $d->id];
+                    })->map(function (VerificationDocument $d) {
+                        return [
+                            'reqId' => $d->uuid, 'kind' => $d->kind, 'name' => $d->label,
+                            'requirement' => $d->kind === VerificationDocument::KIND_SUPPORTING ? 'optional' : 'required',
+                            'instructions' => $d->kind === VerificationDocument::KIND_NATIONAL_ID ? 'Front and back of the National ID'
+                                : ($d->kind === VerificationDocument::KIND_REQUESTED ? 'Requested by a reviewer' : 'Added by the provider'),
+                            'expiryRequired' => $d->expires_on !== null, 'expiresAt' => optional($d->expires_on)->toDateString(),
+                            'files' => array_map(function ($f) {
+                                return ['index' => $f['index'], 'side' => $f['side'], 'name' => $f['name'], 'type' => $f['type'], 'sizeKb' => $f['size_kb']];
+                            }, $d->publicFiles()),
+                            'status' => $d->status, 'note' => $d->review_note,
+                            'reviewedBy' => optional($d->reviewer)->name, 'reviewedAt' => optional($d->reviewed_at)->toIso8601String(),
+                        ];
+                    })->values(),
+                    'requests' => $v->requests->map(function ($r) {
+                        return ['id' => $r->id, 'label' => $r->label, 'instructions' => $r->instructions, 'status' => $r->status,
+                            'requestedBy' => optional($r->requester)->name, 'requestedAt' => $r->created_at->toIso8601String(), 'fulfilledAt' => optional($r->fulfilled_at)->toIso8601String()];
+                    })->values(),
+                    // The application's own events and those of every document in it, in order
+                    'history' => collect($this->historyFor(DocumentVerification::class, $v->id))
+                        ->concat($v->documents->flatMap(function ($d) {
+                            return $this->historyFor(VerificationDocument::class, $d->id);
+                        }))
+                        ->sortBy('at')->values()->all(),
+                ];
+            });
+    }
+
+    /** Professions applicants typed under "Other" */
+    private function professionSuggestions(): Collection
+    {
+        return ProfessionSuggestion::with(['profile.owner', 'category', 'profession', 'decider'])->latest()->get()->map(function (ProfessionSuggestion $s) {
+            return [
+                'id' => 'PS-'.$s->id, 'suggestionId' => $s->id, 'name' => $s->name,
+                'suggestedCategory' => optional($s->category)->slug, 'main' => $s->position === 0,
+                'providerId' => 'P-'.$s->provider_profile_id, 'providerName' => $this->label($s->profile->display_name, $s->profile->is_sample),
+                'providerStatus' => $s->profile->status, 'yearsExperience' => $s->years_experience,
+                'status' => $s->status, 'profession' => optional($s->profession)->name,
+                'decisionReason' => $s->decision_reason, 'decidedBy' => optional($s->decider)->name,
+                'createdAt' => $s->created_at->toIso8601String(), 'decidedAt' => optional($s->decided_at)->toIso8601String(),
+                'history' => $this->historyFor(ProfessionSuggestion::class, $s->id),
             ];
         });
     }
@@ -353,6 +440,33 @@ class AdminSnapshot
             });
     }
 
+    /** Whether push is set up, and how many devices turned it on (no addresses) */
+    private function pushStatus(): array
+    {
+        return [
+            'configured' => PushNotifications::configured(),
+            'subscribers' => PushSubscription::count(),
+            'byPlatform' => PushSubscription::selectRaw("COALESCE(platform, 'other') as platform, COUNT(*) as total")
+                ->groupBy('platform')->pluck('total', 'platform')->map(function ($n) {
+                    return (int) $n;
+                }),
+        ];
+    }
+
+    private function pushAnnouncements(): Collection
+    {
+        return PushAnnouncement::with('sender:id,name')->latest('id')->limit(200)->get()->map(function (PushAnnouncement $a) {
+            return [
+                'id' => 'PA-'.$a->id, 'title' => $a->title, 'body' => $a->body, 'url' => $a->url, 'status' => $a->status,
+                'recipients' => $a->recipients, 'delivered' => $a->delivered, 'failed' => $a->failed, 'expired' => $a->expired,
+                'sentBy' => $a->sender ? $a->sender->name : 'Former administrator',
+                'sentAt' => $a->created_at->toIso8601String(),
+                'completedAt' => optional($a->completed_at)->toIso8601String(),
+                'history' => $this->historyFor(PushAnnouncement::class, $a->id),
+            ];
+        });
+    }
+
     /**
      * Web app install figures per day. A device "has the app" from the first
      * day it confirmed an install or opened WorkMate from its home-screen icon,
@@ -440,11 +554,11 @@ class AdminSnapshot
 
     private function eventCategory(string $action): string
     {
-        if (Str::startsWith($action, ['account.password', 'roles.'])) {
+        if (Str::startsWith($action, ['account.password', 'roles.', 'document.viewed'])) {
             return 'security';
         }
 
-        $map = ['account' => 'accounts', 'provider' => 'providers', 'marketplace' => 'marketplace', 'trust' => 'trust', 'settings' => 'admin'];
+        $map = ['account' => 'accounts', 'provider' => 'providers', 'marketplace' => 'marketplace', 'trust' => 'trust', 'settings' => 'admin', 'comms' => 'notifications', 'verification' => 'providers', 'profession' => 'providers'];
 
         return $map[Str::before($action, '.')] ?? 'system';
     }
@@ -454,11 +568,13 @@ class AdminSnapshot
         if (! $log->actor) {
             return 'System';
         }
-        if (Str::startsWith($log->action, ['provider.application_', 'provider.suspended', 'provider.reinstated', 'settings.', 'roles.', 'admin.'])) {
+        if (Str::startsWith($log->action, ['provider.application_', 'provider.suspended', 'provider.reinstated', 'settings.', 'roles.', 'admin.', 'profession.', 'document.viewed',
+            'verification.assigned', 'verification.document_accepted', 'verification.document_sent_back', 'verification.document_requested', 'verification.info_requested',
+            'verification.approved', 'verification.rejected', 'verification.reopened', 'verification.note_added'])) {
             return 'Admin';
         }
 
-        return Str::startsWith($log->action, ['provider.', 'marketplace.applied']) ? 'Provider' : 'Customer';
+        return Str::startsWith($log->action, ['provider.', 'marketplace.applied', 'verification.']) ? 'Provider' : 'Customer';
     }
 
     /** @return array{type: string, id: string, label: string} */
@@ -480,6 +596,16 @@ class AdminSnapshot
                 return ['type' => 'quotation', 'id' => 'Q-'.$id, 'label' => 'Application for a job'];
             case ProviderReport::class:
                 return ['type' => 'report', 'id' => 'RP-'.$id, 'label' => 'Report about a provider'];
+            case PushAnnouncement::class:
+                return ['type' => 'announcement', 'id' => 'PA-'.$id, 'label' => $s ? '“'.$s->title.'”' : 'Announcement'];
+            case DocumentVerification::class:
+                return ['type' => 'verification', 'id' => 'VA-'.$id, 'label' => 'Document verification'];
+            case VerificationDocument::class:
+                return ['type' => 'verification', 'id' => $s ? 'VA-'.$s->document_verification_id : '—', 'label' => $s ? '“'.$s->label.'”' : 'A document'];
+            case ProfessionSuggestion::class:
+                return ['type' => 'suggestion', 'id' => 'PS-'.$id, 'label' => $s ? '“'.$s->name.'”' : 'A typed profession'];
+            case Profession::class:
+                return ['type' => 'profession', 'id' => $s ? $s->slug : '—', 'label' => $s ? '“'.$s->name.'”' : 'A profession'];
             case PlatformSetting::class:
                 return ['type' => 'setting', 'id' => 'setting:'.($s ? $s->key : $id), 'label' => $s ? $s->key : 'Setting'];
             default:
@@ -520,6 +646,26 @@ class AdminSnapshot
             'admin.account_reactivated' => "{$who} reactivated {$what}",
             'admin.review_status_changed' => "{$who} changed a review’s visibility",
             'admin.report_status_changed' => "{$who} updated a report",
+            'comms.push_announcement_sent' => "{$who} sent a push announcement: {$what}",
+            'verification.document_added' => "{$who} added a document: {$what}",
+            'verification.document_replaced' => "{$who} replaced a document: {$what}",
+            'verification.document_removed' => "{$who} removed a document: {$what}",
+            'verification.submitted' => "{$who} sent their documents for verification",
+            'verification.resubmitted' => "{$who} resent their documents for verification",
+            'verification.assigned' => "{$who} took the verification for review",
+            'verification.document_accepted' => "{$who} accepted {$what}",
+            'verification.document_sent_back' => "{$who} sent back {$what} for a replacement",
+            'verification.document_requested' => "{$who} asked for another document",
+            'verification.info_requested' => "{$who} asked for more information",
+            'verification.approved' => "{$who} approved the documents",
+            'verification.rejected' => "{$who} rejected the documents",
+            'verification.reopened' => "{$who} reopened the verification",
+            'verification.note_added' => "{$who} added a reviewer note",
+            'document.viewed' => "{$who} opened {$what}",
+            'profession.created' => "{$who} added the profession {$what}",
+            'profession.suggestion_added' => "{$who} added a typed profession to the list",
+            'profession.suggestion_matched' => "{$who} matched a typed profession to the list",
+            'profession.suggestion_declined' => "{$who} declined a typed profession",
         ];
 
         return $phrases[$log->action] ?? Str::headline(str_replace('.', ' ', $log->action));

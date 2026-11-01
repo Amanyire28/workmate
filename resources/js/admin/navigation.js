@@ -30,6 +30,8 @@ export const navGroups = [
               summary: 'Quotation requests, submitted quotes, expiry, acceptance and related bookings.' },
             { id: 'bookings', label: 'Bookings', path: '/admin/marketplace/bookings', permission: 'marketplace.view',
               summary: 'Booking lifecycle, timeline, payment state, disputes and recorded interventions.' },
+            { id: 'profession-suggestions', label: 'Typed Professions', path: '/admin/marketplace/typed-professions', permission: 'providers.review',
+              summary: 'Professions applicants typed under “Other”: add them to the list, match them to an existing one or decline them.' },
             { id: 'categories', label: 'Service Categories', path: '/admin/marketplace/categories', permission: 'marketplace.view',
               summary: 'Service categories, keywords and display order.' },
             { id: 'portfolios', label: 'Provider Portfolios', path: '/admin/marketplace/portfolios', permission: 'content.view',
@@ -125,6 +127,8 @@ export const navGroups = [
         items: [
             { id: 'notifications', label: 'Notification Centre', path: '/admin/comms/notifications', permission: 'comms.view',
               summary: 'In-app, email, SMS and push notifications by channel.' },
+            { id: 'push', label: 'Push Announcements', path: '/admin/comms/push', permission: 'comms.view',
+              summary: 'Send a push notification to every device that turned notifications on.' },
             { id: 'templates', label: 'Message Templates', path: '/admin/comms/templates', permission: 'comms.view',
               summary: 'Templates with English and Luganda variants.' },
             { id: 'campaigns', label: 'Campaigns', path: '/admin/comms/campaigns', permission: 'comms.view',

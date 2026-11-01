@@ -61,6 +61,9 @@ function isStandalone() {
 
 export const isMobile = () => pwa.platform !== 'desktop';
 
+/** android | ios | desktop, as the server records it */
+export const platformGroup = () => (pwa.platform.startsWith('ios') ? 'ios' : pwa.platform.startsWith('android') ? 'android' : 'desktop');
+
 /* ---------- Install figures for the admin area ---------- */
 
 /** A random ID for this browser, so a device is counted once. Nothing personal. */
@@ -84,8 +87,7 @@ export async function reportInstallEvent(event, source = null) {
         const reported = JSON.parse(localStorage.getItem(REPORTED_KEY) || '{}');
         if (event === 'prompt_shown' ? reported[event] === today : reported[event]) return;
 
-        const platform = pwa.platform.startsWith('ios') ? 'ios' : pwa.platform.startsWith('android') ? 'android' : 'desktop';
-        await api('/app-events', { method: 'POST', body: { device_id: deviceId(), event, platform, source } });
+        await api('/app-events', { method: 'POST', body: { device_id: deviceId(), event, platform: platformGroup(), source } });
 
         localStorage.setItem(REPORTED_KEY, JSON.stringify({ ...reported, [event]: today }));
     } catch { /* offline, private mode or rate limited: never get in the way */ }

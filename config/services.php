@@ -30,4 +30,12 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // Web push (VAPID). Create the keys once with: php artisan workmate:push-keys
+    'webpush' => [
+        'public_key' => env('VAPID_PUBLIC_KEY'),
+        'private_key' => env('VAPID_PRIVATE_KEY'),
+        // Who push services contact about problems: a mailto: or https address
+        'subject' => env('VAPID_SUBJECT', env('APP_URL')),
+    ],
+
 ];

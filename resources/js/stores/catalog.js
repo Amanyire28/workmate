@@ -51,6 +51,8 @@ export function toProvider(p) {
         avatarUrl: p.avatar_url,
         type: PROVIDER_TYPES[p.type] || p.type,
         services: p.categories,
+        mainService: p.main_category,
+        professions: p.professions || [],
         area: p.base_area?.name || '',
         areaSlug: p.base_area?.slug || null,
         latitude: p.latitude,

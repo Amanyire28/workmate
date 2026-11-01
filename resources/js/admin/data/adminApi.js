@@ -104,9 +104,9 @@ export function snapshot() {
 
 /* ---------------- Verification ---------------- */
 
-/** Document verification isn't connected yet (it needs secure private file storage) */
+/** Providers' submitted document verifications (no file paths; files open through the API) */
 function verificationApplications() {
-    return [];
+    return ops().verifications;
 }
 
 function verificationSnapshot() {
@@ -557,6 +557,8 @@ const DATASETS = {
     'video-moderation': () => ops().videos.filter(v => v.status === 'pending_moderation' || v.reports > 0),
     homepage: () => ops().homepageSections,
     announcements: () => ops().announcements,
+    push: () => ops().pushAnnouncements,
+    'profession-suggestions': () => ops().professionSuggestions,
     help: () => ops().help,
     translations: () => ops().translations,
     notifications: () => ops().notificationTypes,

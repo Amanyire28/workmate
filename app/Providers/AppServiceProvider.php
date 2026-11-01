@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Blade;
+use Minishlink\WebPush\WebPush;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -14,7 +15,18 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        //
+        // Web push client, signed with the server's VAPID keys. On Windows, PHP
+        // must start with OPENSSL_CONF set to encrypt messages (see the README).
+        $this->app->bind(WebPush::class, function () {
+            $client = new WebPush(['VAPID' => [
+                'subject' => config('services.webpush.subject'),
+                'publicKey' => config('services.webpush.public_key'),
+                'privateKey' => config('services.webpush.private_key'),
+            ]], [], 20);
+            $client->setReuseVAPIDHeaders(true);
+
+            return $client;
+        });
     }
 
     /**

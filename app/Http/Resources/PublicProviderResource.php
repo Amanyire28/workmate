@@ -22,6 +22,9 @@ class PublicProviderResource extends JsonResource
         })->values();
 
         $reviewCount = (int) ($this->published_reviews_count ?? 0);
+        $main = $professions->first(function ($profession) {
+            return (bool) $profession->pivot->is_primary;
+        });
 
         return [
             'id' => $this->id,
@@ -33,8 +36,11 @@ class PublicProviderResource extends JsonResource
                 return $profession->category->slug;
             })->unique()->values(),
             'professions' => $professions->map(function ($profession) {
-                return ['slug' => $profession->slug, 'name' => $profession->name];
+                return ['slug' => $profession->slug, 'name' => $profession->name, 'is_primary' => (bool) $profession->pivot->is_primary];
             }),
+            // Customers nearby find a provider first for their main profession
+            'main_profession' => $main ? $main->slug : null,
+            'main_category' => $main ? $main->category->slug : null,
             'base_area' => $this->baseArea ? ['slug' => $this->baseArea->slug, 'name' => $this->baseArea->name] : null,
             'latitude' => $this->latitude === null ? null : round($this->latitude, 2),
             'longitude' => $this->longitude === null ? null : round($this->longitude, 2),

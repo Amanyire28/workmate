@@ -12,7 +12,7 @@ export default {
     /* ================= Verification applications ================= */
     'verification-applications': {
         type: 'records', entity: 'Verification application',
-        description: 'Document verification for the WorkMate Verified badge. Each application opens in a review workspace; nothing is approved automatically.',
+        description: 'Each provider’s National ID and supporting documents. Approval gives the grey tick. Each application opens in a review workspace; nothing is approved automatically.',
         rowLink: r => `/admin/verification/applications/${r.id}`,
         search: { keys: ['id', 'providerName', 'providerId', 'area'], placeholder: 'Search reference, provider name or ID, area' },
         tabs: [
@@ -23,7 +23,6 @@ export default {
         filters: [
             { key: 'profession', label: 'Profession', options: categoryOptions },
             { key: 'reviewer', label: 'Reviewer', options: [['none', 'Unassigned'], ['me', 'Assigned to me']], match: (r, v) => (v === 'none' ? !r.reviewer : r.reviewer === me()) },
-            { key: 'source', label: 'Source', options: [['provider_session', 'Submitted in this session']], match: (r, v) => r.source === v },
         ],
         period: { key: 'submittedAt', label: 'Submitted' },
         defaultSort: { key: 'submittedAt', dir: 'asc' },
@@ -34,7 +33,7 @@ export default {
             kpiCount('Verified providers', count(rows, r => r.status === 'approved'), { context: `${count(rows, r => r.status === 'approved' && within(r.lastActionAt, 30))} approved in 30 days` }),
         ],
         columns: [
-            { key: 'id', label: 'Reference', sortable: true, sub: r => (r.source === 'provider_session' ? 'Submitted in this session' : `Requirements v${r.snapshot.version}`) },
+            { key: 'id', label: 'Reference', sortable: true, sub: r => r.professionName || '' },
             { key: 'providerName', label: 'Provider', sortable: true, sub: r => r.area },
             { key: 'profession', label: 'Profession', format: 'category', sortable: true },
             { key: 'status', label: 'Status', format: 'status', sortable: true },

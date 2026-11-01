@@ -238,7 +238,7 @@ class MarketplaceTest extends ApiTestCase
         $data = $this->getJson('/api/v1/catalog')->assertOk()->json('data');
 
         $this->assertSame(['categories', 'areas', 'providers', 'reviews', 'jobs'], array_keys($data));
-        $this->assertCount(10, $data['categories']);
+        $this->assertCount(\App\Models\Category::where('is_active', true)->count(), $data['categories']);
         $this->assertSame($provider->id, $data['providers'][0]['id']);
     }
 
@@ -260,5 +260,16 @@ class MarketplaceTest extends ApiTestCase
         // Sample accounts can't be signed into
         $this->fromWebsite()->postJson('/api/v1/auth/login', ['email' => 'sample+provider-1@workmate.invalid', 'password' => 'password'])
             ->assertStatus(422);
+    }
+
+    public function test_the_directory_says_which_profession_is_each_providers_main_one()
+    {
+        $provider = $this->provider(['professions' => [['profession' => 'electrician'], ['profession' => 'plumber']]]);
+
+        $listed = collect($this->getJson('/api/v1/providers')->assertOk()->json('data'))->firstWhere('id', $provider->id);
+        $this->assertSame('electrician', $listed['main_profession']);
+        $this->assertSame('electrical', $listed['main_category']);
+        $this->assertEqualsCanonicalizing(['electrical', 'plumbing'], $listed['categories']);
+        $this->assertTrue(collect($listed['professions'])->firstWhere('slug', 'electrician')['is_primary']);
     }
 }

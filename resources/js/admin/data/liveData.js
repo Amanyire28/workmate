@@ -26,11 +26,14 @@ export const live = reactive({ status: 'idle', error: '', generatedAt: null, tra
 export const daily = reactive([]);
 export const categories = reactive([]);          // [{ id, label, description, visible }]
 export const categoryLabels = reactive({});      // id → label
+export const professions = reactive([]);         // [{ id: slug, label, category }] active professions
 export const categoryWeights = reactive({});     // id → 1 (kept for code that lists every category)
 export const AREAS = reactive([]);               // [[name, weight, town]] as the demo shaped it
 export const townOf = reactive({});              // area name → town
 // Web app install figures, for administrators with usage.view
 export const installs = reactive({ available: false, trackingSince: null, devicesWithApp: 0, daily: [] });
+// Push notification set-up and subscribed devices, for administrators with comms.view
+export const push = reactive({ configured: false, subscribers: 0, byPlatform: {} });
 
 const emptyCore = () => ({
     customers: [], providers: [], applicants: [], jobs: [], quotations: [], reviews: [],
@@ -39,7 +42,7 @@ const emptyCore = () => ({
 const OPS_KEYS = ['reports', 'videos', 'portfolio', 'deliveries', 'templates', 'campaigns', 'notificationTypes',
     'homepageSections', 'announcements', 'help', 'translations', 'areas', 'coverage', 'unmatched', 'alerts',
     'health', 'errors', 'integrations', 'failedJobs', 'scheduled', 'audit', 'security', 'adminUsers', 'flags',
-    'dataRequests', 'events', 'searchLocations'];
+    'dataRequests', 'events', 'searchLocations', 'pushAnnouncements', 'professionSuggestions', 'verifications'];
 const emptyOps = () => Object.fromEntries(OPS_KEYS.map(k => [k, []]));
 
 let coreData = emptyCore();
@@ -76,6 +79,7 @@ export function loadAdminData({ force = false } = {}) {
             opsData = { ...emptyOps(), ...data.ops };
             fill(daily, data.daily);
             fill(categories, data.categories);
+            fill(professions, data.professions || []);
             for (const k of Object.keys(categoryLabels)) delete categoryLabels[k];
             for (const k of Object.keys(categoryWeights)) delete categoryWeights[k];
             for (const c of data.categories) { categoryLabels[c.id] = c.label; categoryWeights[c.id] = 1; }
@@ -85,6 +89,9 @@ export function loadAdminData({ force = false } = {}) {
             installs.trackingSince = data.installs?.trackingSince || null;
             installs.devicesWithApp = data.installs?.devicesWithApp || 0;
             fill(installs.daily, data.installs?.daily || []);
+            push.configured = !!data.push?.configured;
+            push.subscribers = data.push?.subscribers || 0;
+            push.byPlatform = data.push?.byPlatform || {};
             live.trackedSeries = data.trackedSeries;
             live.generatedAt = data.generatedAt;
             live.status = 'ready';

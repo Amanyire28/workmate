@@ -3,6 +3,7 @@ import {
     categoryOptions, areaOptions, categoryLabel,
 } from './helpers.js';
 import { ranking } from '../components/charts/builders.js';
+import { professions } from '../data/liveData.js';
 
 const newest = (list) => [...list].reverse();
 const bookingCols = [
@@ -420,6 +421,66 @@ export default {
                 message: () => 'Both the customer and provider will be told once messaging is connected. Any payment needs a separate refund.',
                 extra: (r, v) => ({ cancelReason: `Admin: ${v.reason}` }),
             }),
+        ],
+    },
+
+    /* ================= Typed professions ================= */
+    'profession-suggestions': {
+        type: 'records', entity: 'Typed profession',
+        description: 'Professions applicants typed under “Other”. Customers can’t find anyone by them until you add them to the list or match them to an existing profession.',
+        search: { keys: ['id', 'name', 'providerName', 'providerId'], placeholder: 'Search profession or applicant' },
+        tabs: [
+            { id: 'pending', label: 'Waiting', filter: r => r.status === 'pending' },
+            ...statusTabs(['added', 'matched', 'declined']).slice(1),
+            { id: 'all', label: 'All' },
+        ],
+        defaultSort: { key: 'createdAt', dir: 'asc' },
+        kpis: (rows) => [
+            kpiCount('Waiting for a decision', count(rows, r => r.status === 'pending')),
+            kpiCount('Typed as a main profession', count(rows, r => r.status === 'pending' && r.main)),
+            kpiCount('Added to the list', count(rows, r => r.status === 'added')),
+            kpiCount('Matched to an existing one', count(rows, r => r.status === 'matched')),
+        ],
+        columns: [
+            { key: 'name', label: 'Typed profession', sortable: true, sub: r => (r.main ? 'Main profession' : 'Other profession') },
+            { key: 'providerName', label: 'Applicant', sortable: true, sub: r => r.providerId },
+            { key: 'suggestedCategory', label: 'Their category', format: 'category' },
+            { key: 'status', label: 'Status', format: 'status', sortable: true },
+            { key: 'createdAt', label: 'Typed', format: 'relative', sortable: true },
+        ],
+        detail: {
+            sections: (r) => [
+                { title: 'Typed profession', fields: [['Name', r.name], ['Main profession', r.main, 'bool'], ['Years of experience', r.yearsExperience, 'number'],
+                    ['Their category', r.suggestedCategory, 'category'], ['Applicant', `${r.providerName} (${r.providerId})`], ['Typed', r.createdAt, 'date']] },
+                { title: 'Decision', fields: [['Status', r.status, 'status'], ['Profession given', r.profession], ['Reason', r.decisionReason], ['Decided by', r.decidedBy], ['Decided', r.decidedAt, 'date']] },
+                historySection,
+            ],
+        },
+        actions: [
+            {
+                id: 'add', label: 'Add to the list', done: 'Added', tone: 'primary', permission: 'providers.review', icon: 'bi-plus-circle',
+                when: r => r.status === 'pending',
+                message: () => 'Customers can find this profession straight away. Anyone else who typed the same name gets it too.',
+                fields: (r) => [
+                    { key: 'name', label: 'Profession name', type: 'text', required: true, maxLength: 60, initial: r.name, help: 'Singular, e.g. “Tiler”.' },
+                    { key: 'plural_name', label: 'Plural for headings', type: 'text', required: true, maxLength: 80, initial: `${r.name.toLowerCase()}s`, help: 'As in “Tilers near Ntinda”.' },
+                    { key: 'category', label: 'Category', type: 'select', required: true, options: categoryOptions, initial: r.suggestedCategory || undefined },
+                ],
+            },
+            {
+                id: 'match', label: 'Match to an existing profession', done: 'Matched', permission: 'providers.review', icon: 'bi-arrow-left-right',
+                when: r => r.status === 'pending',
+                message: () => 'Use this when they meant a profession that’s already in the list.',
+                fields: () => [
+                    { key: 'profession', label: 'Profession', type: 'select', required: true, options: professions.map(p => [p.id, `${p.label} (${categoryLabel(p.category)})`]) },
+                    { key: 'reason', label: 'Note (optional)', type: 'text' },
+                ],
+            },
+            {
+                id: 'decline', label: 'Decline', done: 'Declined', tone: 'danger', permission: 'providers.review', icon: 'bi-x-circle',
+                when: r => r.status === 'pending', reason: 'required', reasonLabel: 'Reason (shown to the applicant)',
+                message: () => 'The applicant sees the reason. Their other professions aren’t affected.',
+            },
         ],
     },
 

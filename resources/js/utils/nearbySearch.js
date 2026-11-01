@@ -7,6 +7,7 @@ import { providers, categories } from '@/stores/catalog.js';
 import { getSearchLocation, findSearchLocationByName, searchLocations, locationLabel } from '@/data/searchLocations.js';
 import { categoriesMatching } from './search.js';
 import { displayName, tradeLabel } from './ui.js';
+import { preferMainSkill } from './recommend.js';
 
 /** Demonstration thresholds: change them here, not in components. */
 export const SEARCH_CONFIG = {
@@ -110,10 +111,10 @@ export function servesOrigin(provider, origin) {
 export function matchService(query) {
     const q = query.trim().toLowerCase();
     const serviceIds = categoriesMatching(q, categories);
-    const matches = providers.filter(p =>
+    const matches = preferMainSkill(providers.filter(p =>
         p.services.some(s => serviceIds.includes(s)) ||
         [displayName(p), p.name, tradeLabel(p, 99), p.skills.join(' ')].join(' ').toLowerCase().includes(q)
-    );
+    ), serviceIds);
     return { serviceIds, matches };
 }
 

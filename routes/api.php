@@ -3,8 +3,11 @@
 use App\Http\Controllers\Api\V1\Admin\AdminActionController;
 use App\Http\Controllers\Api\V1\Admin\AdminDataController;
 use App\Http\Controllers\Api\V1\Admin\AuditLogController;
+use App\Http\Controllers\Api\V1\Admin\DocumentVerificationController;
+use App\Http\Controllers\Api\V1\Admin\ProfessionSuggestionController;
 use App\Http\Controllers\Api\V1\Admin\ProviderApplicationController as AdminProviderApplicationController;
 use App\Http\Controllers\Api\V1\Admin\ProviderStandingController;
+use App\Http\Controllers\Api\V1\Admin\PushAnnouncementController;
 use App\Http\Controllers\Api\V1\Admin\RoleController;
 use App\Http\Controllers\Api\V1\Admin\SettingController;
 use App\Http\Controllers\Api\V1\Admin\UserRoleController;
@@ -20,8 +23,10 @@ use App\Http\Controllers\Api\V1\MyActivityController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\ProviderApplicationController;
+use App\Http\Controllers\Api\V1\VerificationController;
 use App\Http\Controllers\Api\V1\ProfilePhotoController;
 use App\Http\Controllers\Api\V1\ProviderReportController;
+use App\Http\Controllers\Api\V1\PushSubscriptionController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -59,6 +64,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('jobs', [JobController::class, 'index'])->name('jobs.index');
     Route::get('jobs/{id}', [JobController::class, 'show'])->whereNumber('id')->name('jobs.show');
     Route::post('app-events', [AppEventController::class, 'store'])->middleware('throttle:app-events')->name('app-events.store');
+    Route::get('push/config', [PushSubscriptionController::class, 'config'])->name('push.config');
 
     // Signing in and out (cookie sessions; call GET /sanctum/csrf-cookie first)
     Route::prefix('auth')->name('auth.')->group(function () {
@@ -88,6 +94,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::post('providers/{id}/requests', [JobController::class, 'requestProvider'])->whereNumber('id')->name('providers.request');
             Route::post('providers/{id}/reports', [ProviderReportController::class, 'store'])->whereNumber('id')->name('providers.report');
         });
+        Route::middleware('throttle:marketplace-write')->group(function () {
+            Route::post('me/push-subscriptions', [PushSubscriptionController::class, 'store'])->name('me.push.store');
+            Route::delete('me/push-subscriptions', [PushSubscriptionController::class, 'destroy'])->name('me.push.destroy');
+        });
         Route::get('me/requests', [MyActivityController::class, 'requests'])->name('me.requests');
         Route::get('me/applications', [MyActivityController::class, 'applications'])->name('me.applications');
 
@@ -105,6 +115,16 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::put('me/provider', [ProviderApplicationController::class, 'save'])->name('me.provider.save');
         Route::post('me/provider/submit', [ProviderApplicationController::class, 'submit'])->name('me.provider.submit');
         Route::post('me/provider/reopen', [ProviderApplicationController::class, 'reopen'])->name('me.provider.reopen');
+
+        // The provider's own verification documents (private files)
+        Route::get('me/verification', [VerificationController::class, 'show'])->name('me.verification');
+        Route::get('me/verification/documents/{document}/files/{index}', [VerificationController::class, 'file'])->whereNumber('index')->name('me.verification.file');
+        Route::middleware('throttle:marketplace-write')->group(function () {
+            Route::post('me/verification/documents', [VerificationController::class, 'store'])->name('me.verification.store');
+            Route::post('me/verification/documents/{document}/replace', [VerificationController::class, 'replace'])->name('me.verification.replace');
+            Route::delete('me/verification/documents/{document}', [VerificationController::class, 'destroy'])->name('me.verification.destroy');
+            Route::post('me/verification/submit', [VerificationController::class, 'submit'])->name('me.verification.submit');
+        });
 
         Route::prefix('admin')->name('admin.')->group(function () {
             // Any administrator; each section inside is limited by permission
@@ -132,13 +152,37 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::post('provider-applications/{application}/approve', [AdminProviderApplicationController::class, 'approve'])->name('provider-applications.approve');
                 Route::post('provider-applications/{application}/reject', [AdminProviderApplicationController::class, 'reject'])->name('provider-applications.reject');
                 Route::post('provider-applications/{application}/request-information', [AdminProviderApplicationController::class, 'requestInformation'])->name('provider-applications.request-information');
+
+                // Professions typed under "Other"
+                Route::post('profession-suggestions/{suggestion}/add', [ProfessionSuggestionController::class, 'add'])->name('profession-suggestions.add');
+                Route::post('profession-suggestions/{suggestion}/match', [ProfessionSuggestionController::class, 'match'])->name('profession-suggestions.match');
+                Route::post('profession-suggestions/{suggestion}/decline', [ProfessionSuggestionController::class, 'decline'])->name('profession-suggestions.decline');
             });
+
+            // Document verification (the grey tick)
+            Route::middleware('can:documents.review')->prefix('verifications/{verification}')->name('verifications.')->group(function () {
+                Route::post('assign', [DocumentVerificationController::class, 'assign'])->name('assign');
+                Route::post('documents/{document}/accept', [DocumentVerificationController::class, 'acceptDocument'])->name('documents.accept');
+                Route::post('documents/{document}/send-back', [DocumentVerificationController::class, 'sendBackDocument'])->name('documents.send-back');
+                Route::post('request-document', [DocumentVerificationController::class, 'requestDocument'])->name('request-document');
+                Route::post('request-information', [DocumentVerificationController::class, 'requestInformation'])->name('request-information');
+                Route::post('approve', [DocumentVerificationController::class, 'approve'])->name('approve');
+                Route::post('reject', [DocumentVerificationController::class, 'reject'])->name('reject');
+                Route::post('note', [DocumentVerificationController::class, 'note'])->name('note');
+                Route::post('reopen', [DocumentVerificationController::class, 'reopen'])->middleware('can:verification.configure')->name('reopen');
+            });
+            Route::get('verifications/{verification}/documents/{document}/files/{index}', [DocumentVerificationController::class, 'file'])
+                ->middleware('can:documents.view')->whereNumber('index')->name('verifications.file');
 
             // Suspending a provider is a trust and safety action
             Route::middleware('can:trust.view')->group(function () {
                 Route::post('providers/{provider}/suspend', [ProviderStandingController::class, 'suspend'])->name('providers.suspend');
                 Route::post('providers/{provider}/reinstate', [ProviderStandingController::class, 'reinstate'])->name('providers.reinstate');
             });
+
+            Route::post('push-announcements', [PushAnnouncementController::class, 'store'])
+                ->middleware(['can:comms.send', 'throttle:account-email'])
+                ->name('push-announcements.store');
 
             Route::get('audit-logs', [AuditLogController::class, 'index'])
                 ->middleware('can:security.view')

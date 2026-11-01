@@ -1,4 +1,8 @@
 import { count, within, share, kpiCount, kpiRate, statusTabs, setStatus, historySection } from './helpers.js';
+import { api } from '@/api/client.js';
+import { push } from '../data/liveData.js';
+
+const PUSH_PLATFORMS = [['android', 'Android'], ['ios', 'iPhone'], ['desktop', 'Desktop']];
 
 const NOT_CONNECTED = 'No SMS, email or push service is connected yet, so nothing is sent from the admin and no records exist.';
 
@@ -27,6 +31,50 @@ export default {
             setStatus('disable', 'Turn off', 'inactive', { tone: 'danger', reason: 'required', permission: 'comms.view', done: 'Turned off', when: r => r.status === 'active' && r.kind !== 'Transactional' }),
             setStatus('enable', 'Turn on', 'active', { tone: 'primary', permission: 'comms.view', done: 'Turned on', when: r => r.status !== 'active' }),
         ],
+    },
+
+    /* ================= Push announcements ================= */
+    push: {
+        type: 'records', entity: 'Push announcement',
+        notice: 'Goes to every phone and computer where someone turned on notifications in WorkMate (Account page). iPhones receive them only when WorkMate is installed on the home screen. Delivered means the push service accepted it; it can’t tell whether the person read it.',
+        search: { keys: ['id', 'title', 'body', 'sentBy'], placeholder: 'Search announcements' },
+        period: { key: 'sentAt', label: 'Sent' },
+        defaultSort: { key: 'sentAt', dir: 'desc' },
+        kpis: (rows) => [
+            push.configured
+                ? kpiCount('Devices with notifications on', push.subscribers, { context: PUSH_PLATFORMS.map(([k, l]) => `${l} ${push.byPlatform[k] || 0}`).join(' · ') })
+                : { label: 'Devices with notifications on', value: '', available: false, unavailableReason: 'Push isn’t set up on the server yet: add the VAPID keys to .env (php artisan workmate:push-keys).' },
+            kpiCount('Announcements sent', rows.length),
+            kpiCount('Sent in the last 30 days', count(rows, r => within(r.sentAt, 30))),
+            kpiRate('Accepted by push services', share(rows.reduce((s, r) => s + r.delivered, 0), rows.reduce((s, r) => s + r.recipients, 0)), { hint: 'Across all announcements. Phones that were switched off receive them when they reconnect, within a day.' }),
+        ],
+        columns: [
+            { key: 'title', label: 'Announcement', sortable: true, sub: r => r.body },
+            { key: 'recipients', label: 'Devices', format: 'number', align: 'right', sortable: true },
+            { key: 'delivered', label: 'Delivered', format: 'number', align: 'right' },
+            { key: 'status', label: 'Status', format: 'status' },
+            { key: 'sentAt', label: 'Sent', format: 'relative', sortable: true },
+        ],
+        detail: {
+            sections: (r) => [
+                { title: 'Message', fields: [['Title', r.title], ['Text', r.body], ['Opens', r.url || 'Home page'], ['Sent by', r.sentBy], ['Sent', r.sentAt, 'date']] },
+                { title: 'Delivery', fields: [['Devices', r.recipients, 'number'], ['Delivered', r.delivered, 'number'], ['Failed', r.failed, 'number'],
+                    ['No longer subscribed (removed)', r.expired, 'number'], ['Status', r.status, 'status'], ['Finished', r.completedAt, 'date']] },
+                historySection,
+            ],
+        },
+        actions: [],
+        create: {
+            label: 'Send announcement', done: 'Announcement sent', permission: 'comms.send', confirmLabel: 'Send now',
+            message: () => `This goes to ${push.subscribers} device${push.subscribers === 1 ? '' : 's'} straight away and can’t be taken back.`,
+            fields: [
+                { key: 'title', label: 'Title', type: 'text', required: true, maxLength: 60, help: 'Up to 60 characters, e.g. “New plumbers in Ntinda”.' },
+                { key: 'body', label: 'Message', type: 'textarea', required: true, maxLength: 200, help: 'Up to 200 characters. Phones show about the first 100.' },
+                { key: 'url', label: 'Page to open (optional)', type: 'text', help: 'A WorkMate page starting with /, such as /browse. Leave empty for the home page.' },
+                { key: 'reason', label: 'Reason (for the audit log)', type: 'text', required: true },
+            ],
+            run: (v) => api('/admin/push-announcements', { method: 'POST', body: { title: v.title, body: v.body, url: v.url || null, reason: v.reason } }),
+        },
     },
 
     /* ================= Message templates ================= */

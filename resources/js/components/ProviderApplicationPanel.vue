@@ -59,40 +59,67 @@
 
         <fieldset>
           <legend class="wm-label">
-            Professions <span class="text-error" aria-hidden="true">*</span>
-            <span class="font-normal text-muted">(up to 5; the first is your main one)</span>
+            Your skills <span class="text-error" aria-hidden="true">*</span>
+            <span class="font-normal text-muted">(up to 5)</span>
           </legend>
-          <div class="flex flex-wrap gap-2">
-            <button
-              v-for="p in professionOptions"
-              :key="p.slug"
-              type="button"
-              class="wm-chip"
-              :aria-pressed="chosenIndex(p.slug) !== -1"
-              :disabled="chosenIndex(p.slug) === -1 && form.professions.length >= 5"
-              @click="toggleProfession(p.slug)"
-            >
-              <i :class="['bi', p.icon]" aria-hidden="true"></i>{{ p.name }}
-              <span v-if="chosenIndex(p.slug) === 0" class="wm-pill wm-pill-info !py-0 !text-[11px]">Main</span>
-            </button>
+          <p class="wm-meta -mt-1 mb-2">The first is your main skill. Customers nearby find you first for it, and for your other skills when nobody near them has those as a main skill.</p>
+
+          <ol v-if="form.professions.length" class="flex flex-col gap-2">
+            <li v-for="(entry, i) in form.professions" :key="entryKey(entry)" class="wm-card !p-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <p class="flex flex-wrap items-center gap-2 text-[15px] font-semibold text-ink">
+                  <span class="text-muted font-normal">{{ i + 1 }}.</span>{{ entryName(entry) }}
+                  <span v-if="i === 0" class="wm-pill wm-pill-info !py-0 !text-[11px]">Main</span>
+                  <span v-if="entry.other" class="wm-pill wm-pill-warning !py-0 !text-[11px]">Waiting for WorkMate to add it</span>
+                </p>
+                <span class="flex gap-1">
+                  <button v-if="i > 0" type="button" class="wm-link min-h-11 px-2 text-sm" @click="makeMain(i)">Make main</button>
+                  <button type="button" class="wm-link min-h-11 px-2 text-sm text-error" :aria-label="`Remove ${entryName(entry)}`" @click="removeEntry(i)">Remove</button>
+                </span>
+              </div>
+              <FormField
+                v-model="entry.years_experience"
+                class="mt-2"
+                type="number"
+                inputmode="numeric"
+                min="0"
+                max="60"
+                label="Years of experience"
+                optional
+                :error-message="errors[`professions.${i}.years_experience`] || errors[`professions.${i}.profession`] || errors[`professions.${i}.other`]"
+              />
+            </li>
+          </ol>
+
+          <div v-if="form.professions.length < 5" class="mt-3 flex flex-col gap-2">
+            <FormField :model-value="picker.choice" type="select" :label="form.professions.length ? 'Add another skill' : 'Choose your main skill'" placeholder="Choose a skill" @update:model-value="pick">
+              <optgroup v-for="c in categories" :key="c.slug" :label="c.name">
+                <option v-for="p in c.professions" :key="p.slug" :value="p.slug" :disabled="chosenIndex(p.slug) !== -1">{{ p.name }}</option>
+              </optgroup>
+              <option value="__other">Other: my skill isn’t listed</option>
+            </FormField>
+            <div v-if="picker.choice === '__other'" class="wm-card !p-3 flex flex-col gap-3">
+              <FormField v-model="picker.other" label="Your skill" placeholder="e.g. Aluminium fabricator" maxlength="60" :error-message="picker.error" />
+              <FormField v-model="picker.category" type="select" label="Closest category" optional>
+                <option value="">Not sure</option>
+                <option v-for="c in categories" :key="c.slug" :value="c.slug">{{ c.name }}</option>
+              </FormField>
+              <p class="wm-meta">WorkMate checks new skills before customers can find you by them.</p>
+              <div class="flex gap-2">
+                <PrimaryButton variant="secondary" @click="resetPicker">Cancel</PrimaryButton>
+                <PrimaryButton @click="addOther">Add skill</PrimaryButton>
+              </div>
+            </div>
           </div>
           <p v-if="errors.professions" class="wm-field-error" role="alert">{{ errors.professions }}</p>
-        </fieldset>
 
-        <div v-if="form.professions.length" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <FormField
-            v-for="(entry, i) in form.professions"
-            :key="entry.profession"
-            v-model="entry.years_experience"
-            type="number"
-            inputmode="numeric"
-            min="0"
-            max="60"
-            :label="`Years as a ${nameOf(entry.profession).toLowerCase()}`"
-            optional
-            :error-message="errors[`professions.${i}.years_experience`] || errors[`professions.${i}.profession`]"
-          />
-        </div>
+          <ul v-if="profile?.declined_professions?.length" class="mt-3 flex flex-col gap-2">
+            <li v-for="d in profile.declined_professions" :key="d.name" class="wm-notice wm-notice-warning">
+              <i class="bi bi-info-circle" aria-hidden="true"></i>
+              <span>“{{ d.name }}” wasn’t added to WorkMate<template v-if="d.reason">: {{ d.reason }}</template></span>
+            </li>
+          </ul>
+        </fieldset>
 
         <FormField
           v-model="form.bio"
@@ -214,20 +241,48 @@ const emailVerified = computed(() => !!auth.user?.email_verified);
 const editable = computed(() => !profile.value || profile.value.can_edit);
 const canSubmit = computed(() => !profile.value || profile.value.can_submit);
 
-const professionOptions = computed(() => categories.value.flatMap(c =>
-  (c.professions || []).map(p => ({ ...p, icon: c.icon || 'bi-briefcase' }))));
+const professionOptions = computed(() => categories.value.flatMap(c => c.professions || []));
 
 function nameOf(slug) {
   return professionOptions.value.find(p => p.slug === slug)?.name || slug;
 }
+const entryName = (entry) => entry.other || nameOf(entry.profession);
+const entryKey = (entry) => (entry.other ? `other:${entry.other.toLowerCase()}` : entry.profession);
 function chosenIndex(slug) {
   return form.professions.findIndex(p => p.profession === slug);
 }
-function toggleProfession(slug) {
-  const i = chosenIndex(slug);
-  if (i === -1) form.professions.push({ profession: slug, years_experience: '' });
-  else form.professions.splice(i, 1);
+
+/* Adding skills: from the list, or typed under "Other" */
+const picker = reactive({ choice: '', other: '', category: '', error: '' });
+function resetPicker() {
+  Object.assign(picker, { choice: '', other: '', category: '', error: '' });
+}
+function pick(value) {
+  picker.choice = value;
+  if (!value || value === '__other') return;
+  if (chosenIndex(value) === -1 && form.professions.length < 5) form.professions.push({ profession: value, years_experience: '' });
   errors.value.professions = '';
+  resetPicker();
+}
+function addOther() {
+  const name = picker.other.trim().replace(/\s+/g, ' ');
+  const lower = name.toLowerCase();
+  const listed = professionOptions.value.find(p => p.name.toLowerCase() === lower);
+  picker.error = name.length < 3 ? 'Type at least 3 letters.'
+    : listed ? `“${listed.name}” is already in the list. Choose it from there.`
+    : form.professions.some(p => p.other && p.other.toLowerCase() === lower) ? 'You’ve already added this skill.'
+    : '';
+  if (picker.error) return;
+  form.professions.push({ profession: null, other: name, category: picker.category || null, years_experience: '' });
+  errors.value.professions = '';
+  resetPicker();
+}
+function makeMain(i) {
+  const [entry] = form.professions.splice(i, 1);
+  form.professions.unshift(entry);
+}
+function removeEntry(i) {
+  form.professions.splice(i, 1);
 }
 
 const BANNERS = {
@@ -259,7 +314,7 @@ function fill(p) {
     display_name: p.display_name,
     business_registration_number: p.business_registration_number || '',
     bio: p.bio || '',
-    professions: p.professions.map(x => ({ profession: x.profession, years_experience: x.years_experience ?? '' })),
+    professions: p.professions.map(x => ({ profession: x.profession, other: x.other || null, category: x.category || null, years_experience: x.years_experience ?? '' })),
     base_area: p.base_area || '',
     service_areas: [...(p.service_areas || [])],
     price_from: p.price_from ?? '',
@@ -290,7 +345,7 @@ function payload() {
     bio: form.bio.trim() || null,
     business_registration_number: form.type === 'individual' ? null : (form.business_registration_number.trim() || null),
     professions: form.professions.map(p => ({
-      profession: p.profession,
+      ...(p.other ? { other: p.other, category: p.category || null } : { profession: p.profession }),
       years_experience: p.years_experience === '' || p.years_experience === null ? null : Number(p.years_experience),
     })),
     base_area: form.base_area || null,
@@ -305,7 +360,7 @@ function payload() {
 async function save(andSubmit) {
   errors.value = {
     display_name: form.display_name.trim() ? '' : 'Enter the name customers will see.',
-    professions: form.professions.length ? '' : 'Choose at least one profession.',
+    professions: form.professions.length ? '' : 'Choose at least one skill.',
   };
   saveError.value = '';
   saved.value = '';

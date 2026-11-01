@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Exceptions\BusinessRuleException;
 use App\Models\Area;
+use App\Models\Category;
 use App\Models\Profession;
+use App\Models\ProfessionSuggestion;
 use App\Models\ProviderApplication;
 use App\Models\ProviderMember;
 use App\Models\ProviderProfile;
@@ -33,7 +35,7 @@ class ProviderApplications
     /**
      * Create or update the applicant's own provider details.
      *
-     * @param  array{type: string, display_name: string, bio: ?string, business_registration_number: ?string, professions: array<int, array{profession: string, years_experience: ?int}>}  $data
+     * @param  array{type: string, display_name: string, bio: ?string, business_registration_number: ?string, professions: array<int, array{profession: ?string, other: ?string, category: ?string, years_experience: ?int}>}  $data
      */
     public function saveDetails(User $user, array $data): ProviderProfile
     {
@@ -80,7 +82,7 @@ class ProviderApplications
             }
 
             $this->syncProfessions($profile, $data['professions']);
-            $profile->load('professions');
+            $profile->load('professions', 'professionSuggestions');
 
             $this->audit->record(
                 $creating ? 'provider.started' : 'provider.details_updated',
@@ -105,9 +107,9 @@ class ProviderApplications
                 throw new BusinessRuleException('provider_not_submittable', $this->lockedMessage($profile->status), 409);
             }
 
-            $profile->load('professions');
+            $profile->load('professions', 'professionSuggestions');
 
-            if ($profile->professions->isEmpty()) {
+            if ($profile->professions->isEmpty() && $profile->professionSuggestions->where('status', ProfessionSuggestion::STATUS_PENDING)->isEmpty()) {
                 throw new BusinessRuleException('provider_incomplete', 'Choose at least one profession before sending your application.');
             }
 
@@ -191,6 +193,10 @@ class ProviderApplications
                 throw new BusinessRuleException('application_already_decided', 'This application is not waiting for review.', 409);
             }
 
+            if ($outcome === ProviderApplication::STATUS_APPROVED) {
+                $this->guardProfessionsSettled($profile);
+            }
+
             $application->forceFill([
                 'status' => $outcome,
                 'decided_at' => now(),
@@ -251,21 +257,59 @@ class ProviderApplications
         $profile->save();
     }
 
-    /** @param array<int, array{profession: string, years_experience: ?int}> $entries */
+    /**
+     * Professions from the list go on the profile; typed ones wait as
+     * suggestions. The first entry is the main one, whichever kind it is.
+     *
+     * @param array<int, array{profession: ?string, other: ?string, category: ?string, years_experience: ?int}> $entries
+     */
     private function syncProfessions(ProviderProfile $profile, array $entries): void
     {
-        $ids = Profession::active()->whereIn('slug', array_column($entries, 'profession'))->pluck('id', 'slug');
+        $entries = array_values($entries);
+        $ids = Profession::active()->whereIn('slug', array_filter(array_column($entries, 'profession')))->pluck('id', 'slug');
+        $categories = Category::active()->whereIn('slug', array_filter(array_column($entries, 'category')))->pluck('id', 'slug');
         $sync = [];
+        $typed = [];
 
-        foreach (array_values($entries) as $index => $entry) {
-            $sync[$ids[$entry['profession']]] = [
-                'years_experience' => $entry['years_experience'] ?? null,
-                // The first profession listed is the main one
-                'is_primary' => $index === 0,
-            ];
+        foreach ($entries as $index => $entry) {
+            $years = $entry['years_experience'] ?? null;
+
+            if (! empty($entry['profession'])) {
+                $sync[$ids[$entry['profession']]] = ['years_experience' => $years, 'is_primary' => $index === 0];
+            } else {
+                $name = trim(preg_replace('/\s+/', ' ', $entry['other']));
+                $typed[mb_strtolower($name)] = [
+                    'name' => $name,
+                    'category_id' => isset($entry['category']) ? ($categories[$entry['category']] ?? null) : null,
+                    'position' => $index,
+                    'years_experience' => $years,
+                ];
+            }
         }
 
         $profile->professions()->sync($sync);
+
+        // Waiting suggestions follow the list; decided ones stay as a record
+        $pending = $profile->professionSuggestions()->pending()->get()->keyBy(function ($suggestion) {
+            return mb_strtolower($suggestion->name);
+        });
+        foreach ($typed as $key => $values) {
+            $suggestion = $pending->pull($key) ?: new ProfessionSuggestion();
+            $suggestion->forceFill($values + ['provider_profile_id' => $profile->getKey(), 'status' => ProfessionSuggestion::STATUS_PENDING])->save();
+        }
+        foreach ($pending as $removed) {
+            $removed->delete();
+        }
+    }
+
+    private function guardProfessionsSettled(ProviderProfile $profile): void
+    {
+        if ($profile->professionSuggestions()->pending()->exists()) {
+            throw new BusinessRuleException('professions_unsettled', 'This applicant typed a profession that isn’t in the list. Add it, match it to an existing one or decline it first.', 409);
+        }
+        if (! $profile->professions()->exists()) {
+            throw new BusinessRuleException('provider_incomplete', 'This applicant has no profession from the list, so customers couldn’t find them.', 409);
+        }
     }
 
     private function ownProfileForUpdate(User $user): ProviderProfile
@@ -289,21 +333,34 @@ class ProviderApplications
     private function details(ProviderProfile $profile): array
     {
         $professions = $profile->relationLoaded('professions') ? $profile->professions : $profile->professions()->get();
+        $suggestions = ($profile->relationLoaded('professionSuggestions') ? $profile->professionSuggestions : $profile->professionSuggestions()->get())
+            ->where('status', ProfessionSuggestion::STATUS_PENDING);
+
+        $listed = $professions->map(function ($profession) {
+            return [
+                'profession' => $profession->slug,
+                'name' => $profession->name,
+                'years_experience' => $profession->pivot->years_experience === null ? null : (int) $profession->pivot->years_experience,
+                'is_primary' => (bool) $profession->pivot->is_primary,
+            ];
+        });
+        $typed = $suggestions->map(function ($suggestion) {
+            return [
+                'profession' => null,
+                'other' => $suggestion->name,
+                'name' => $suggestion->name,
+                'years_experience' => $suggestion->years_experience,
+                'is_primary' => $suggestion->position === 0,
+            ];
+        });
 
         return [
             'type' => $profile->type,
             'display_name' => $profile->display_name,
             'bio' => $profile->bio,
             'business_registration_number' => $profile->business_registration_number,
-            'professions' => $professions->sortBy(function ($profession) {
-                return [$profession->pivot->is_primary ? 0 : 1, $profession->name];
-            })->map(function ($profession) {
-                return [
-                    'profession' => $profession->slug,
-                    'name' => $profession->name,
-                    'years_experience' => $profession->pivot->years_experience === null ? null : (int) $profession->pivot->years_experience,
-                    'is_primary' => (bool) $profession->pivot->is_primary,
-                ];
+            'professions' => $listed->concat($typed)->sortBy(function ($entry) {
+                return [$entry['is_primary'] ? 0 : 1, $entry['name']];
             })->values()->all(),
         ];
     }

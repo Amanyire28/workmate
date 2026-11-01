@@ -13,3 +13,22 @@ export function recommendProviders(list, area = '') {
         (b.rating || 0) - (a.rating || 0)
     );
 }
+
+/**
+ * The main-skill rule. Someone who offers a service as one of their other
+ * skills is shown only when nobody based in the same area offers it as their
+ * main skill. Providers that matched for other reasons (their name or profile
+ * text) are left alone.
+ */
+export function preferMainSkill(list, serviceIds) {
+    if (!serviceIds?.length) return list;
+    const areaKey = (p) => p.area || `provider-${p.id}`;
+    // "service|area" pairs where someone has the service as their main skill
+    const mainHere = new Set(list.filter(p => serviceIds.includes(p.mainService)).map(p => `${p.mainService}|${areaKey(p)}`));
+    return list.filter(p => {
+        if (serviceIds.includes(p.mainService)) return true;
+        const offered = p.services.filter(s => serviceIds.includes(s));
+        // Kept if any service they offer has no main-skill provider in their area
+        return !offered.length || offered.some(s => !mainHere.has(`${s}|${areaKey(p)}`));
+    });
+}

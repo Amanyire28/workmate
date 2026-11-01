@@ -390,7 +390,8 @@ function startAction(a) {
 
 function openCreate() {
   dialog.value = {
-    kind: 'create', title: def.create.label, message: def.create.message || '',
+    kind: 'create', title: def.create.label,
+    message: (typeof def.create.message === 'function' ? def.create.message() : def.create.message) || '',
     confirmLabel: def.create.confirmLabel || 'Create', tone: 'primary', fields: def.create.fields,
   };
 }

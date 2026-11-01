@@ -109,7 +109,7 @@ import BottomSheet from '@/components/BottomSheet.vue';
 import BrowseFilters from '@/components/BrowseFilters.vue';
 import { categories, providers } from '@/stores/catalog.js';
 import { categoryIcon, categoryLabel, displayName, tradeLabel } from '@/utils/ui.js';
-import { recommendProviders } from '@/utils/recommend.js';
+import { recommendProviders, preferMainSkill } from '@/utils/recommend.js';
 import { categoriesMatching } from '@/utils/search.js';
 import { tickInfo } from '@/utils/trust.js';
 import { selectedArea } from '@/stores/location.js';
@@ -175,6 +175,7 @@ const results = computed(() => {
   if (f.rating)   list = list.filter(p => (p.rating || 0) >= Number(f.rating));
 
   const q = f.q.trim().toLowerCase();
+  let wanted = f.category ? [f.category] : [];
   if (q) {
     // "plumber" should find Plumbing providers, not just profiles containing the word
     const matchedCategories = categoriesMatching(q, categories);
@@ -183,7 +184,10 @@ const results = computed(() => {
       [displayName(p), p.name, tradeLabel(p, 99), p.skills.join(' '), p.description, p.area]
         .join(' ').toLowerCase().includes(q)
     );
+    if (!wanted.length) wanted = matchedCategories;
   }
+  // Main skills first: other-skill providers only where nobody has it as their main one
+  list = preferMainSkill(list, wanted);
 
   if (f.sort === 'rating') return [...list].sort((a, b) => (b.rating || 0) - (a.rating || 0));
   if (f.sort === 'price')  return [...list].sort((a, b) => (a.priceFrom ?? Infinity) - (b.priceFrom ?? Infinity));

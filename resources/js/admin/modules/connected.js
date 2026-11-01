@@ -33,6 +33,11 @@ export const CONNECTED = {
         'request-info': (r, v) => post(`/admin/provider-applications/${num(r.id)}/request-information`, { reason: v.reason }),
         reject: (r, v) => post(`/admin/provider-applications/${num(r.id)}/reject`, { reason: v.reason }),
     },
+    'profession-suggestions': {
+        add: (r, v) => post(`/admin/profession-suggestions/${num(r.id)}/add`, { name: v.name, plural_name: v.plural_name, category: v.category }),
+        match: (r, v) => post(`/admin/profession-suggestions/${num(r.id)}/match`, { profession: v.profession, reason: v.reason || null }),
+        decline: (r, v) => post(`/admin/profession-suggestions/${num(r.id)}/decline`, { reason: v.reason }),
+    },
     reviews: {
         dismiss: review('published'),
         hide: review('hidden'),

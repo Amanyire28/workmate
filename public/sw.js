@@ -10,6 +10,8 @@
  *   up front, and files from older releases are removed. Other screens aren't
  *   downloaded in advance, to save people's mobile data.
  * - API calls and sign-in (/api, /sanctum) are never stored here.
+ * - Push notifications: shown as they arrive; tapping one opens the WorkMate
+ *   page it names (never another site).
  *
  * Change CACHE_VERSION only when this file's caching rules change.
  */
@@ -123,6 +125,40 @@ async function syncBuild(keep, save) {
         } catch (e) { /* offline or slow: picked up on the next sync */ }
     }
 }
+
+/* ---------- Push notifications ---------- */
+
+self.addEventListener('push', (event) => {
+    let data = {};
+    try { data = event.data ? event.data.json() : {}; } catch (e) { data = { body: event.data && event.data.text() }; }
+
+    // Only WorkMate pages open from a notification
+    const url = typeof data.url === 'string' && data.url.startsWith('/') && !data.url.startsWith('//') ? data.url : '/';
+    event.waitUntil(self.registration.showNotification(data.title || 'WorkMate', {
+        body: data.body || '',
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        tag: data.tag,
+        data: { url },
+    }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const target = new URL((event.notification.data && event.notification.data.url) || '/', self.location.origin).href;
+
+    event.waitUntil((async () => {
+        // Reuse an open WorkMate window when there is one
+        const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        for (const client of windows) {
+            if (new URL(client.url).origin !== self.location.origin) continue;
+            await client.focus();
+            if ('navigate' in client) await client.navigate(target).catch(() => {});
+            return;
+        }
+        await self.clients.openWindow(target);
+    })());
+});
 
 function offlinePage() {
     const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">

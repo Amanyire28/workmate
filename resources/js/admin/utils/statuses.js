@@ -9,6 +9,7 @@ export const STATUS = {
     // provider applications and checks
     submitted: ['Application submitted', 'info'], pending_review: ['Pending review', 'warning'],
     info_requested: ['More info requested', 'warning'], approved: ['Approved', 'success'], rejected: ['Rejected', 'error'],
+    added: ['Added', 'success'], declined: ['Declined', 'neutral'],
     verified: ['Verified', 'success'], not_provided: ['Not provided', 'neutral'], not_checked: ['Not checked', 'neutral'], failed_check: ['Failed', 'error'],
     // jobs, quotes and bookings
     open: ['Open', 'info'], booked: ['Booked', 'success'], expired: ['Expired', 'neutral'], searching: ['Searching', 'info'],
@@ -30,7 +31,7 @@ export const STATUS = {
     missing: ['Missing', 'warning'], needs_review: ['Needs review', 'info'],
     gap: ['Coverage gap', 'error'], thin: ['Thin coverage', 'warning'], covered: ['Covered', 'success'], no_demand: ['No demand yet', 'neutral'],
     sample_ok: ['Sample: OK', 'neutral'], degraded: ['Sample: degraded', 'warning'], not_connected: ['Not connected', 'neutral'],
-    sent: ['Sent', 'success'], delivered: ['Delivered', 'success'], undelivered: ['Undelivered', 'error'], unknown: ['Unknown', 'neutral'], not_sent: ['Not sent', 'error'],
+    sent: ['Sent', 'success'], sending: ['Sending', 'info'], delivered: ['Delivered', 'success'], undelivered: ['Undelivered', 'error'], unknown: ['Unknown', 'neutral'], not_sent: ['Not sent', 'error'],
     // document verification
     none: ['Not applied', 'neutral'], awaiting_review: ['Awaiting review', 'warning'],
     replacement_required: ['Replacement required', 'warning'], not_uploaded: ['Not uploaded', 'neutral'], uploaded: ['Uploaded', 'info'],
