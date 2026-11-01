@@ -29,6 +29,7 @@
     <div class="wm-bottom-nav-spacer" aria-hidden="true"></div>
     <MobileBottomNav />
     <AppStatusLayer />
+    <RateProviderDialog />
   </template>
 </template>
 
@@ -38,6 +39,7 @@ import { useRoute } from 'vue-router';
 import AppHeader from '@/components/AppHeader.vue';
 import MobileBottomNav from '@/components/MobileBottomNav.vue';
 import AppStatusLayer from '@/components/AppStatusLayer.vue';
+import RateProviderDialog from '@/components/RateProviderDialog.vue';
 import { catalog, loadCatalog } from '@/stores/catalog.js';
 
 const route = useRoute();

@@ -145,10 +145,19 @@
               <span class="inline-flex items-center gap-1"><i class="bi bi-calendar3" aria-hidden="true"></i>{{ req.when }}</span>
               <span>Sent {{ sentLabel(req.sentAt) }}</span>
             </p>
-            <div class="mt-auto pt-3 border-t border-line">
+            <p v-if="req.review" class="text-sm text-ink flex flex-wrap items-center gap-x-2">
+              <span class="text-[#F59E0B]" :aria-label="`You gave ${req.review.rating} out of 5 stars`">
+                <i v-for="n in 5" :key="n" :class="['bi', n <= req.review.rating ? 'bi-star-fill' : 'bi-star']" aria-hidden="true"></i>
+              </span>
+              <span class="text-muted">Your rating</span>
+            </p>
+            <div class="mt-auto pt-3 border-t border-line flex flex-wrap items-center justify-between gap-2">
               <router-link :to="`/provider/${req.providerId}`" class="wm-link inline-flex items-center gap-1 min-h-11">
                 View provider <i class="bi bi-chevron-right text-[11px]" aria-hidden="true"></i>
               </router-link>
+              <button v-if="req.status === 'completed' && !req.review" type="button" class="wm-btn wm-btn-primary !min-h-11" @click="rate(req)">
+                <i class="bi bi-star" aria-hidden="true"></i>Rate this job
+              </button>
             </div>
           </li>
         </ul>
@@ -232,9 +241,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import FormField from '@/components/FormField.vue';
 import { auth } from '@/stores/auth.js';
+import { openRating } from '@/stores/reviews.js';
 import { useRoute, useRouter } from 'vue-router';
 import StatusBadge from '@/components/StatusBadge.vue';
 import EmptyState from '@/components/EmptyState.vue';
@@ -319,6 +329,8 @@ async function load() {
       // A cancelled request with a note was declined by the provider
       status: r.status === 'cancelled' && !r.provider_note ? 'cancelled' : (REQUEST_STATUS[r.status] || r.status),
       providerNote: r.provider_note || '',
+      category: r.category,
+      review: r.review || null,
     }));
 
     postedJobs.value = mine.data.filter(r => r.kind === 'posted').map(j => ({
@@ -349,6 +361,20 @@ async function load() {
 }
 
 onMounted(load);
+
+/* ---------------- Rating finished jobs ---------------- */
+function rate(req) {
+  openRating({
+    request_id: req.id, category: req.category,
+    provider: { id: req.providerId, display_name: req.providerName, avatar_url: providerPhoto(req.providerId) },
+  });
+}
+// A rating posted from the pop-up shows on the card straight away
+function onRated(e) {
+  requests.value = requests.value.map(r => (r.id === e.detail.requestId ? { ...r, review: e.detail.review } : r));
+}
+onMounted(() => window.addEventListener('workmate:rated', onRated));
+onBeforeUnmount(() => window.removeEventListener('workmate:rated', onRated));
 
 /* ---------------- Answering received requests ---------------- */
 const busy = ref(null);

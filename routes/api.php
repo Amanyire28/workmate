@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\ProviderApplicationController;
 use App\Http\Controllers\Api\V1\ReceivedRequestController;
+use App\Http\Controllers\Api\V1\ReviewController;
 use App\Http\Controllers\Api\V1\VerificationController;
 use App\Http\Controllers\Api\V1\ProfilePhotoController;
 use App\Http\Controllers\Api\V1\ProviderReportController;
@@ -105,6 +106,13 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         });
         Route::get('me/requests', [MyActivityController::class, 'requests'])->name('me.requests');
         Route::get('me/applications', [MyActivityController::class, 'applications'])->name('me.applications');
+
+        // Rating providers who finished work for the customer
+        Route::get('me/reviews/waiting', [ReviewController::class, 'waiting'])->name('me.reviews.waiting');
+        Route::middleware('throttle:marketplace-write')->group(function () {
+            Route::post('me/requests/{id}/review', [ReviewController::class, 'store'])->whereNumber('id')->name('me.requests.review');
+            Route::post('me/requests/{id}/review/later', [ReviewController::class, 'later'])->whereNumber('id')->name('me.requests.review-later');
+        });
 
         // Requests customers sent to the provider business the account belongs to
         Route::get('me/received-requests', [ReceivedRequestController::class, 'index'])->name('me.received-requests');

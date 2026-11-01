@@ -39,6 +39,7 @@ class ServiceRequest extends Model
         'budget' => 'integer',
         'is_sample' => 'boolean',
         'responded_at' => 'datetime',
+        'review_prompted_at' => 'datetime',
     ];
 
     public function customer()
@@ -59,6 +60,12 @@ class ServiceRequest extends Model
     public function provider()
     {
         return $this->belongsTo(ProviderProfile::class, 'provider_profile_id');
+    }
+
+    /** The customer's rating of the provider, once the work is done */
+    public function review()
+    {
+        return $this->hasOne(Review::class);
     }
 
     public function quotations()

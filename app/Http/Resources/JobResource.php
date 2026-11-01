@@ -45,6 +45,10 @@ class JobResource extends JsonResource
             // The provider's reason for declining, for the customer who sent it
             'provider_note' => $this->when(! $this->isPostedJob() && $user !== null && $this->customer_id === (int) $user->getKey(), $this->provider_note),
             'responded_at' => $this->when(! $this->isPostedJob(), optional($this->responded_at)->toIso8601String()),
+            // The customer's own rating of a finished request
+            'review' => $this->when(! $this->isPostedJob() && $user !== null && $this->customer_id === (int) $user->getKey(), function () {
+                return $this->review ? ['rating' => $this->review->rating, 'comment' => $this->review->comment] : null;
+            }),
         ];
     }
 }

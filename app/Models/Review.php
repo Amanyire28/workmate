@@ -17,6 +17,7 @@ class Review extends Model
     protected $casts = [
         'provider_profile_id' => 'integer',
         'reviewer_id' => 'integer',
+        'service_request_id' => 'integer',
         'rating' => 'integer',
         'would_hire_again' => 'boolean',
         'is_sample' => 'boolean',

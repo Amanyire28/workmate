@@ -616,6 +616,8 @@ class AdminSnapshot
                 return ['type' => 'suggestion', 'id' => 'PS-'.$id, 'label' => $s ? '“'.$s->name.'”' : 'A typed profession'];
             case Profession::class:
                 return ['type' => 'profession', 'id' => $s ? $s->slug : '—', 'label' => $s ? '“'.$s->name.'”' : 'A profession'];
+            case Review::class:
+                return ['type' => 'review', 'id' => 'R-'.$id, 'label' => $s ? $s->rating.'-star review' : 'A review'];
             case PlatformSetting::class:
                 return ['type' => 'setting', 'id' => 'setting:'.($s ? $s->key : $id), 'label' => $s ? $s->key : 'Setting'];
             default:
@@ -651,6 +653,7 @@ class AdminSnapshot
             'marketplace.request_accepted' => "{$who} accepted a request: {$what}",
             'marketplace.request_declined' => "{$who} declined a request: {$what}",
             'marketplace.request_completed' => "{$who} marked a request as done: {$what}",
+            'marketplace.review_posted' => "{$who} rated a provider",
             'trust.report_received' => 'A provider was reported',
             'roles.granted' => "{$who} gave {$what} an admin role",
             'roles.revoked' => "{$who} removed an admin role from {$what}",
