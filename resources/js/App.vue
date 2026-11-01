@@ -30,6 +30,7 @@
     <MobileBottomNav />
     <AppStatusLayer />
     <RateProviderDialog />
+    <PushReminder />
   </template>
 </template>
 
@@ -40,6 +41,7 @@ import AppHeader from '@/components/AppHeader.vue';
 import MobileBottomNav from '@/components/MobileBottomNav.vue';
 import AppStatusLayer from '@/components/AppStatusLayer.vue';
 import RateProviderDialog from '@/components/RateProviderDialog.vue';
+import PushReminder from '@/components/PushReminder.vue';
 import { catalog, loadCatalog } from '@/stores/catalog.js';
 
 const route = useRoute();

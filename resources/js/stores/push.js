@@ -126,9 +126,42 @@ export async function disablePush() {
         }
         syncedEndpoint = null;
         push.state = 'off';
+        // They chose this: don't remind them for a month
+        snoozeReminder(30);
     } catch {
         push.error = 'Notifications couldn’t be turned off. Please try again.';
     } finally {
         push.busy = false;
     }
+}
+
+/* ---------------- Reminder to turn notifications on ---------------- */
+
+const REMINDER_KEY = 'wm-push-reminder';
+const DAY = 86400000;
+const MAX_REMINDERS = 3;
+
+function reminderRecord() {
+    try { return JSON.parse(localStorage.getItem(REMINDER_KEY)) || { shown: 0, until: 0 }; } catch { return { shown: 0, until: 0 }; }
+}
+
+function saveReminder(record) {
+    try { localStorage.setItem(REMINDER_KEY, JSON.stringify(record)); } catch { /* storage unavailable: it may show again */ }
+}
+
+/** Whether this device may be reminded now: at most once a week, three times in all */
+export function reminderDue() {
+    const r = reminderRecord();
+    return r.shown < MAX_REMINDERS && Date.now() >= r.until;
+}
+
+/** Counts a reminder shown and waits a week before the next */
+export function reminderShown() {
+    const r = reminderRecord();
+    saveReminder({ shown: r.shown + 1, until: Date.now() + 7 * DAY });
+}
+
+export function snoozeReminder(days) {
+    const r = reminderRecord();
+    saveReminder({ ...r, until: Date.now() + days * DAY });
 }
