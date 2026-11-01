@@ -15,6 +15,14 @@ use Illuminate\Support\Facades\DB;
  */
 class Messaging
 {
+    /** @var EventNotifications */
+    private $notify;
+
+    public function __construct(EventNotifications $notify)
+    {
+        $this->notify = $notify;
+    }
+
     /** The customer's chat with a provider, created on first use. */
     public function conversationWith(User $customer, ProviderProfile $provider): Conversation
     {
@@ -45,6 +53,7 @@ class Messaging
             ])->save();
 
             $conversation->forceFill(['last_message_at' => $message->created_at])->save();
+            $this->notify->messageSent($conversation, $message, $sender);
 
             return $message;
         });

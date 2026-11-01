@@ -5,7 +5,7 @@
       <span class="w-14 h-14 rounded-full bg-[#DCFCE7] text-[#15803D] flex items-center justify-center text-2xl" aria-hidden="true">
         <i class="bi bi-bell-fill"></i>
       </span>
-      <p class="text-[15px] text-ink">You’ll get WorkMate updates on this device. You can turn them off any time on your Account page.</p>
+      <p class="text-[15px] text-ink">You’ll hear about requests, replies and messages on this device. You can turn them off any time on your Account page.</p>
     </div>
 
     <!-- Blocked in the browser after all -->
@@ -20,7 +20,7 @@
           <i class="bi bi-bell"></i>
         </span>
         <p class="text-[15px] text-ink leading-relaxed">
-          Notifications are off on this device, so you could miss news and updates from WorkMate. Turn them on to get them even when the app is closed.
+          Notifications are off on this device, so you could miss new requests, replies and messages. Turn them on to hear about them even when the app is closed.
         </p>
       </div>
       <p class="text-[13px] text-muted">Your browser will ask you to allow them. You can turn them off any time on your Account page.</p>

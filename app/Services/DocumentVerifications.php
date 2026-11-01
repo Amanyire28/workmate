@@ -34,9 +34,13 @@ class DocumentVerifications
     /** @var AuditLogger */
     private $audit;
 
-    public function __construct(AuditLogger $audit)
+    /** @var EventNotifications */
+    private $notify;
+
+    public function __construct(AuditLogger $audit, EventNotifications $notify)
     {
         $this->audit = $audit;
+        $this->notify = $notify;
     }
 
     public function forProfile(ProviderProfile $profile): DocumentVerification
@@ -229,6 +233,8 @@ class DocumentVerifications
             ])->save();
             $v->forceFill(['status' => DocumentVerification::STATUS_INFO_REQUESTED, 'reviewer_id' => $v->reviewer_id ?: $admin->getKey()])->save();
 
+            $this->notify->verificationChanged($v, 'requested');
+
             return ['verification.document_requested', $v, $label.($instructions ? ': '.$instructions : '')];
         });
     }
@@ -238,6 +244,8 @@ class DocumentVerifications
         return $this->change($verification, $admin, function (DocumentVerification $v) use ($admin, $reason) {
             $this->guardOpen($v);
             $v->forceFill(['status' => DocumentVerification::STATUS_INFO_REQUESTED, 'decision_reason' => $reason, 'reviewer_id' => $v->reviewer_id ?: $admin->getKey()])->save();
+
+            $this->notify->verificationChanged($v, 'info_requested');
 
             return ['verification.info_requested', $v, $reason];
         });
@@ -264,6 +272,8 @@ class DocumentVerifications
             $v->forceFill(['status' => DocumentVerification::STATUS_APPROVED, 'decided_at' => now(), 'decided_by' => $admin->getKey(), 'decision_reason' => null])->save();
             $v->profile->forceFill(['document_verified_at' => now()])->save();
 
+            $this->notify->verificationChanged($v, 'approved');
+
             return ['verification.approved', $v, $note];
         });
     }
@@ -274,6 +284,8 @@ class DocumentVerifications
             $this->guardOpen($v);
             $v->forceFill(['status' => DocumentVerification::STATUS_REJECTED, 'decided_at' => now(), 'decided_by' => $admin->getKey(), 'decision_reason' => $reason])->save();
             $v->profile->forceFill(['document_verified_at' => null])->save();
+
+            $this->notify->verificationChanged($v, 'rejected');
 
             return ['verification.rejected', $v, $reason];
         });
@@ -318,6 +330,9 @@ class DocumentVerifications
             $document->forceFill(['status' => $status, 'review_note' => $reason, 'reviewed_by' => $admin->getKey(), 'reviewed_at' => now()])->save();
             $v->forceFill(['status' => $this->underReview($v), 'reviewer_id' => $v->reviewer_id ?: $admin->getKey()])->save();
 
+            if ($status === VerificationDocument::STATUS_REPLACEMENT_REQUIRED) {
+                $this->notify->verificationChanged($v, 'sent_back');
+            }
             $this->audit->record($status === VerificationDocument::STATUS_ACCEPTED ? 'verification.document_accepted' : 'verification.document_sent_back',
                 $document, [], ['label' => $document->label, 'status' => $status], $reason, $admin);
 

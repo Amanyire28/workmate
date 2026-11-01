@@ -65,7 +65,7 @@
 
 WorkMate is **live and in active development**. It started as a Vue prototype on mock data and has moved, phase by phase, to a Laravel-powered marketplace on a production server.
 
-The customer website, the installable app and the admin area all read from and write to the database. Sample providers, reviews and jobs exist only on local development databases. **Bookings, payments and automatic notifications are not built yet.**
+The customer website, the installable app and the admin area all read from and write to the database. Sample providers, reviews and jobs exist only on local development databases. **Bookings and payments are not built yet.**
 
 Throughout this README:
 
@@ -140,7 +140,7 @@ Throughout this README:
 | Quotations | Providers can apply to posted jobs with a price | Customers can't yet view or accept applications, so posted jobs can't be completed or rated |
 | Document requirements | Real document checks (ID + supporting + requested documents) | The per-profession Document Requirements admin screen is still a browser-only prototype |
 | Performance tick | Tick display and admin rules screen | Automatic evaluation isn't running; only sample providers carry a blue tick |
-| Push notifications | Per-device opt-in and administrator announcements | No automatic notifications yet (new request, message, decision). Needs VAPID keys in the server's `.env` |
+| Push notifications | Per-device opt-in, a reminder pop-up, administrator announcements, and automatic notifications for requests, replies, messages and decisions | No in-app notification list yet, and no per-type choices (one switch covers all) |
 | Email | Branded confirmation and reset emails | Delivery depends on the mail settings in `.env`; check with `php artisan workmate:mail-test` |
 | Languages | Language preference is stored | The interface is English only |
 | Provider teams | `provider_members` table; every rule already checks membership, not only ownership | Adding and managing group or company members |
@@ -150,7 +150,7 @@ Throughout this README:
 
 - Bookings: accepting an application, booking status tracking, booking history, rating posted jobs
 - Payments with Ugandan mobile money (MTN MoMo, Airtel Money), commission, refunds, payouts and reconciliation
-- In-app and email notifications, and automatic push notifications for requests, messages and decisions
+- In-app and email notifications
 - Saved providers and saved locations
 - Admin management of categories, professions and places
 - Real-time messaging (the chat currently checks for new messages every few seconds)
@@ -283,10 +283,10 @@ The blue tick is separate from document checks and is awarded **automatically**.
 - Anonymous install tracking (prompt shown, installed, first launch per device) feeds **Usage → Downloads and Installs** in the admin.
 
 **Push notifications ✅ / 🟡**
-- People turn on **WorkMate announcements** per device under **Account → Notifications**. iPhones receive them only when WorkMate is installed on the home screen (iOS 16.4+).
+- People turn on notifications per device under **Account → Notifications**, or from a reminder pop-up (at most weekly, three times per device). iPhones receive them only when WorkMate is installed on the home screen (iOS 16.4+).
+- **Automatic notifications** (`EventNotifications`): a provider hears about new requests; a customer hears when their request is accepted, declined or done (with a prompt to rate) and when someone applies to their posted job; both sides hear about new chat messages; applicants hear decisions on their provider application and documents. They never include message text, reasons or contact details, and the person who caused the event isn't notified.
 - Administrators with `comms.send` send announcements from **Communications → Push Announcements**. Sending happens after the response, with no queue worker; devices that unsubscribed are removed automatically.
 - Requires VAPID keys in `.env` (see [Environment variables](#environment-variables)). Without them the switch is hidden.
-- Automatic notifications (new request, message, decision) are not built yet.
 
 ---
 
@@ -857,7 +857,7 @@ The mobile apps will use the **same `/api/v1` endpoints**, so the marketplace ba
 
 ### Notifications
 - [x] Browser push (Web Push): admin announcements
-- [ ] Automatic push for requests, messages and decisions
+- [x] Automatic push for requests, replies, messages and decisions
 - [ ] In-app notifications
 - [ ] Email notifications
 

@@ -27,9 +27,13 @@ class ProviderApplications
     /** @var AuditLogger */
     private $audit;
 
-    public function __construct(AuditLogger $audit)
+    /** @var EventNotifications */
+    private $notify;
+
+    public function __construct(AuditLogger $audit, EventNotifications $notify)
     {
         $this->audit = $audit;
+        $this->notify = $notify;
     }
 
     /**
@@ -216,6 +220,7 @@ class ProviderApplications
                 'provider.application_'.$outcome,
                 $application, ['status' => ProviderApplication::STATUS_PENDING_REVIEW], ['status' => $outcome], $reason ?: $note, $admin
             );
+            $this->notify->applicationDecided($application);
 
             return $application;
         });

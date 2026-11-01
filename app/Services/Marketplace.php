@@ -20,9 +20,13 @@ class Marketplace
     /** @var AuditLogger */
     private $audit;
 
-    public function __construct(AuditLogger $audit)
+    /** @var EventNotifications */
+    private $notify;
+
+    public function __construct(AuditLogger $audit, EventNotifications $notify)
     {
         $this->audit = $audit;
+        $this->notify = $notify;
     }
 
     /**
@@ -55,7 +59,10 @@ class Marketplace
         $category = Category::where('slug', $data['category'])->firstOrFail();
         $data['title'] = $category->name.' request';
 
-        return $this->createRequest($customer, $provider, $data);
+        $request = $this->createRequest($customer, $provider, $data);
+        $this->notify->requestReceived($request);
+
+        return $request;
     }
 
     /** @param array{message: string, start_time: ?string, amount: ?int} $data */
@@ -90,6 +97,7 @@ class Marketplace
             ])->save();
 
             $this->audit->record('marketplace.applied', $quotation, [], ['service_request_id' => $job->getKey(), 'amount' => $quotation->amount], null, $user);
+            $this->notify->applicationReceived($quotation);
 
             return $quotation;
         });
@@ -138,6 +146,13 @@ class Marketplace
             ])->save();
 
             $this->audit->record($action, $request, ['status' => $from], ['status' => $to], $note, $user);
+
+            $notices = [
+                ServiceRequest::STATUS_IN_PROGRESS => 'requestAccepted',
+                ServiceRequest::STATUS_CANCELLED => 'requestDeclined',
+                ServiceRequest::STATUS_COMPLETED => 'requestCompleted',
+            ];
+            $this->notify->{$notices[$to]}($request);
 
             return $request;
         });

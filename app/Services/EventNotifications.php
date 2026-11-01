@@ -1,0 +1,184 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Conversation;
+use App\Models\DocumentVerification;
+use App\Models\Message;
+use App\Models\ProviderApplication;
+use App\Models\ProviderMember;
+use App\Models\Quotation;
+use App\Models\ServiceRequest;
+use App\Models\User;
+
+/**
+ * The push notifications WorkMate sends by itself when something important
+ * happens to someone: requests and replies, messages, and decisions on their
+ * application or documents. The wording lives here, in one place.
+ *
+ * Notifications never include message text, contact details or reasons, so
+ * nothing private shows on a locked screen; the person opens WorkMate to read
+ * them. The account that caused the event is never notified about it.
+ */
+class EventNotifications
+{
+    /** @var PushNotifications */
+    private $push;
+
+    public function __construct(PushNotifications $push)
+    {
+        $this->push = $push;
+    }
+
+    /* ---------------- Requests sent to one provider ---------------- */
+
+    public function requestReceived(ServiceRequest $request): void
+    {
+        $this->toProvider($request->provider_profile_id, $request->customer_id, [
+            'title' => 'New request',
+            'body' => $this->firstName($request->customer).' needs '.$this->service($request).'. Reply in WorkMate.',
+            'url' => '/activity?tab=received',
+            'tag' => 'request-'.$request->id,
+        ]);
+    }
+
+    public function requestAccepted(ServiceRequest $request): void
+    {
+        $this->toCustomer($request, 'Request accepted', $this->providerName($request).' accepted your '.$this->service($request).' request.');
+    }
+
+    public function requestDeclined(ServiceRequest $request): void
+    {
+        $this->toCustomer($request, 'Request declined', $this->providerName($request).' can’t take your '.$this->service($request).' request. See their reply.');
+    }
+
+    public function requestCompleted(ServiceRequest $request): void
+    {
+        $this->toCustomer($request, 'Your job is done', $this->providerName($request).' finished your '.$this->service($request).' job. How did it go? Rate them in WorkMate.');
+    }
+
+    /* ---------------- Posted jobs ---------------- */
+
+    public function applicationReceived(Quotation $quotation): void
+    {
+        $job = $quotation->request;
+
+        $this->push->toUsers([$job->customer_id], [
+            'title' => 'New application',
+            'body' => optional($quotation->provider)->display_name.' applied for “'.$job->title.'”.',
+            'url' => '/activity?tab=posted',
+            'tag' => 'job-'.$job->id,
+        ]);
+    }
+
+    /* ---------------- Messages ---------------- */
+
+    public function messageSent(Conversation $conversation, Message $message, User $sender): void
+    {
+        $fromCustomer = $conversation->isCustomer($sender);
+        $name = $fromCustomer ? $this->firstName($sender) : $conversation->provider->display_name;
+        $notice = [
+            'title' => 'New message',
+            'body' => $name.' sent you a message.',
+            'url' => '/messages/c/'.$conversation->id,
+            // One notification per chat, replaced by the newest
+            'tag' => 'chat-'.$conversation->id,
+        ];
+
+        if ($fromCustomer) {
+            $this->toProvider($conversation->provider_profile_id, $sender->getKey(), $notice);
+        } else {
+            $this->push->toUsers([$conversation->customer_id], $notice);
+        }
+    }
+
+    /* ---------------- Provider application ---------------- */
+
+    public function applicationDecided(ProviderApplication $application): void
+    {
+        $profile = $application->profile;
+        $texts = [
+            ProviderApplication::STATUS_APPROVED => ['You’re approved', 'Your WorkMate provider profile is live. Customers can now find and hire you.'],
+            ProviderApplication::STATUS_REJECTED => ['Application not approved', 'Your provider application wasn’t approved. See the reason in WorkMate.'],
+            ProviderApplication::STATUS_MORE_INFO_REQUIRED => ['Changes needed', 'WorkMate needs more information on your provider application.'],
+        ];
+        if (! isset($texts[$application->status])) {
+            return;
+        }
+
+        $this->push->toUsers([$profile->owner_id], [
+            'title' => $texts[$application->status][0],
+            'body' => $texts[$application->status][1],
+            'url' => '/account',
+            'tag' => 'provider-application',
+        ]);
+    }
+
+    /* ---------------- Document verification ---------------- */
+
+    /** @param string $event approved | rejected | sent_back | requested | info_requested */
+    public function verificationChanged(DocumentVerification $verification, string $event): void
+    {
+        $texts = [
+            'approved' => ['Documents approved', 'Your documents are approved. Your profile now shows the tick.'],
+            'rejected' => ['Documents not approved', 'Your documents weren’t approved. See the reason in WorkMate.'],
+            'sent_back' => ['Document sent back', 'A document needs replacing. See what to change in WorkMate.'],
+            'requested' => ['Another document needed', 'WorkMate asked you for another document.'],
+            'info_requested' => ['More information needed', 'WorkMate needs more information about your documents.'],
+        ];
+        if (! isset($texts[$event])) {
+            return;
+        }
+
+        $this->push->toUsers([$verification->profile->owner_id], [
+            'title' => $texts[$event][0],
+            'body' => $texts[$event][1],
+            'url' => '/account/verification',
+            'tag' => 'verification',
+        ]);
+    }
+
+    /* ---------------- Helpers ---------------- */
+
+    private function toCustomer(ServiceRequest $request, string $title, string $body): void
+    {
+        $this->push->toUsers([$request->customer_id], [
+            'title' => $title,
+            'body' => $body,
+            'url' => '/activity?tab=requests',
+            'tag' => 'request-'.$request->id,
+        ]);
+    }
+
+    /** Everyone in the provider business, except whoever caused the event */
+    private function toProvider(?int $providerId, ?int $exceptUserId, array $notice): void
+    {
+        if (! $providerId) {
+            return;
+        }
+
+        $members = ProviderMember::where('provider_profile_id', $providerId)->pluck('user_id')
+            ->reject(function ($id) use ($exceptUserId) {
+                return (int) $id === (int) $exceptUserId;
+            });
+
+        $this->push->toUsers($members, $notice);
+    }
+
+    private function providerName(ServiceRequest $request): string
+    {
+        return optional($request->provider)->display_name ?: 'The provider';
+    }
+
+    private function service(ServiceRequest $request): string
+    {
+        return mb_strtolower(optional($request->category)->name ?: 'service');
+    }
+
+    private function firstName(?User $user): string
+    {
+        $name = $user ? trim($user->name) : '';
+
+        return $name !== '' ? explode(' ', $name)[0] : 'A customer';
+    }
+}

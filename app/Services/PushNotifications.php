@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Exceptions\BusinessRuleException;
 use App\Jobs\SendPushAnnouncement;
+use App\Jobs\SendUserNotification;
 use App\Models\PushAnnouncement;
 use App\Models\PushSubscription;
 use App\Models\User;
@@ -13,7 +14,8 @@ use Minishlink\WebPush\WebPush;
 
 /**
  * Push notifications to the installed app and browsers: devices turning them
- * on and off, and administrators' announcements to every subscribed device.
+ * on and off, administrators' announcements to every subscribed device, and
+ * notifications to particular accounts when something happens to them.
  */
 class PushNotifications
 {
@@ -99,17 +101,60 @@ class PushNotifications
      */
     public function deliver(PushAnnouncement $announcement, WebPush $client): void
     {
-        $payload = json_encode([
+        [$delivered, $failed, $expired] = $this->send(PushSubscription::query(), [
             'title' => $announcement->title,
             'body' => $announcement->body,
             'url' => $announcement->url ?: '/',
             'tag' => 'announcement-'.$announcement->id,
-        ]);
+        ], $client);
+
+        $announcement->forceFill([
+            'status' => 'sent',
+            'delivered' => $delivered,
+            'failed' => $failed,
+            'expired' => $expired,
+            'completed_at' => now(),
+        ])->save();
+    }
+
+    /**
+     * Notifies these accounts on every device where they turned notifications
+     * on, after the response has gone back. Nothing happens when push isn't
+     * set up. Call it as the last step of a change, so it isn't sent for a
+     * change that then fails.
+     *
+     * @param  iterable<int>  $userIds
+     * @param  array{title: string, body: string, url: string, tag: string}  $message
+     */
+    public function toUsers(iterable $userIds, array $message): void
+    {
+        $ids = collect($userIds)->filter()->map(function ($id) {
+            return (int) $id;
+        })->unique()->values()->all();
+
+        if (! $ids || ! self::configured()) {
+            return;
+        }
+
+        // Sent once the response has gone back, by which time the change is saved
+        SendUserNotification::dispatchAfterResponse($ids, $message);
+    }
+
+    /** @param int[] $userIds */
+    public function deliverToUsers(array $userIds, array $message, WebPush $client): void
+    {
+        $this->send(PushSubscription::whereIn('user_id', $userIds), $message, $client);
+    }
+
+    /** @return int[] [delivered, failed, expired] */
+    private function send($subscriptions, array $message, WebPush $client): array
+    {
+        $payload = json_encode($message);
         $delivered = $failed = $expired = 0;
 
-        PushSubscription::query()->chunkById(self::BATCH, function ($subscriptions) use ($client, $payload, &$delivered, &$failed, &$expired) {
+        $subscriptions->chunkById(self::BATCH, function ($batch) use ($client, $payload, &$delivered, &$failed, &$expired) {
             $byEndpoint = [];
-            foreach ($subscriptions as $s) {
+            foreach ($batch as $s) {
                 $byEndpoint[$s->endpoint] = $s;
                 $client->queueNotification(new Subscription($s->endpoint, $s->public_key, $s->auth_token, $s->content_encoding), $payload, ['TTL' => 86400]);
             }
@@ -132,12 +177,6 @@ class PushNotifications
             }
         });
 
-        $announcement->forceFill([
-            'status' => 'sent',
-            'delivered' => $delivered,
-            'failed' => $failed,
-            'expired' => $expired,
-            'completed_at' => now(),
-        ])->save();
+        return [$delivered, $failed, $expired];
     }
 }

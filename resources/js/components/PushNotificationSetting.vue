@@ -4,7 +4,7 @@
     <div class="wm-card flex items-start gap-3">
       <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-bell"></i></span>
       <div class="min-w-0 flex-1">
-        <p class="text-[15px] font-semibold text-ink">WorkMate announcements</p>
+        <p class="text-[15px] font-semibold text-ink">Notifications on this device</p>
         <p class="wm-meta mt-0.5">{{ description }}</p>
         <p v-if="push.error" class="mt-2 text-[13px] text-[#B91C1C]" role="alert">{{ push.error }}</p>
         <button
@@ -41,8 +41,8 @@ import { push, refreshPush, enablePush, disablePush } from '@/stores/push.js';
 import { openInstall } from '@/stores/pwa.js';
 
 const DESCRIPTIONS = {
-  on: 'On for this device. You’ll get news and updates from WorkMate.',
-  off: 'Get news and updates from WorkMate on this device.',
+  on: 'On. You’ll hear about new requests, replies, messages, decisions on your applications and documents, and WorkMate news.',
+  off: 'Hear about new requests, replies, messages and WorkMate news on this device, even when the app is closed.',
   denied: 'Blocked in your browser settings. Allow notifications for this site there, then come back.',
   'install-first': 'On iPhone and iPad, add WorkMate to your Home Screen first, then turn notifications on in the app.',
 };
