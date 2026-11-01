@@ -15,6 +15,11 @@ export const auth = reactive({ user: null, status: 'unknown' });
 export const isSignedIn = computed(() => !!auth.user);
 export const isProvider = computed(() => !!auth.user?.capabilities?.provider);
 
+/** Whether this provider profile belongs to the signed-in account */
+export function isOwnProvider(providerId) {
+    return !!auth.user?.provider_ids?.includes(Number(providerId));
+}
+
 let pending = null;
 
 export function loadSession({ force = false } = {}) {

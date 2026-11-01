@@ -13,7 +13,14 @@
       <BackLink :to="`/provider/${provider.id}`">Back to profile</BackLink>
 
       <!-- Success -->
-      <section v-if="sent" class="wm-card wm-card-lg mt-2 text-center flex flex-col items-center gap-3" role="status" aria-live="polite">
+      <section v-if="isOwnProvider(provider.id)" class="wm-card wm-card-lg mt-2 text-center flex flex-col items-center gap-3" role="status">
+        <i class="bi bi-person-badge text-3xl text-primary" aria-hidden="true"></i>
+        <h1 class="wm-h2">This is your own profile</h1>
+        <p class="text-sm text-muted">You can’t send a request to yourself. Requests customers send you are on My Work.</p>
+        <router-link to="/activity?tab=received" class="wm-btn wm-btn-primary wm-btn-lg">Requests you’ve received</router-link>
+      </section>
+
+      <section v-else-if="sent" class="wm-card wm-card-lg mt-2 text-center flex flex-col items-center gap-3" role="status" aria-live="polite">
         <span class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-success-tint text-success text-3xl" aria-hidden="true">
           <i class="bi bi-check-lg"></i>
         </span>
@@ -122,6 +129,7 @@
 
 <script setup>
 import { ref, reactive, computed, nextTick } from 'vue';
+import { isOwnProvider } from '@/stores/auth.js';
 import { useRoute } from 'vue-router';
 import BackLink from '@/components/BackLink.vue';
 import EmptyState from '@/components/EmptyState.vue';

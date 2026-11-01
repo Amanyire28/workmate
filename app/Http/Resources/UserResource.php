@@ -2,6 +2,8 @@
 
 namespace App\Http\Resources;
 
+use App\Models\ProviderMember;
+
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
@@ -31,6 +33,9 @@ class UserResource extends JsonResource
                 'provider' => $this->isProvider(),
             ],
             'provider_status' => $this->providerProfile ? $this->providerProfile->status : 'not_applied',
+            // Provider businesses this account belongs to, so it isn't offered
+            // requesting, messaging, reporting or rating itself
+            'provider_ids' => ProviderMember::where('user_id', $this->id)->pluck('provider_profile_id')->values(),
             'roles' => $this->roles->pluck('key')->values(),
             'permissions' => $this->permissionKeys(),
             'created_at' => optional($this->created_at)->toIso8601String(),

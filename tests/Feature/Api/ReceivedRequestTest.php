@@ -116,4 +116,25 @@ class ReceivedRequestTest extends ApiTestCase
         $this->signIn($provider->owner);
         $this->postJson("/api/v1/me/received-requests/{$id}/accept")->assertStatus(403)->assertJson(['code' => 'provider_not_active']);
     }
+
+    public function test_a_provider_cannot_request_message_report_or_rate_themselves()
+    {
+        $provider = $this->provider();
+        $this->signIn($provider->owner);
+
+        // The account knows which provider is its own, so the app hides these
+        $this->assertSame([$provider->id], $this->getJson('/api/v1/me')->json('data.provider_ids'));
+
+        $this->postJson("/api/v1/providers/{$provider->id}/requests", [
+            'category' => 'plumbing', 'description' => 'The kitchen sink is leaking badly.', 'area' => 'kisaasi', 'preferred_time' => 'Tomorrow',
+        ])->assertStatus(422)->assertJson(['code' => 'own_provider']);
+        $this->postJson("/api/v1/me/conversations/provider/{$provider->id}")->assertStatus(422)->assertJson(['code' => 'own_provider']);
+        $this->postJson("/api/v1/providers/{$provider->id}/reports", ['reason' => \App\Models\ProviderReport::REASONS[0]])
+            ->assertStatus(422)->assertJson(['code' => 'own_provider']);
+        // Rating needs a finished request they sent, which they can't have
+        $this->assertSame([], $this->getJson('/api/v1/me/reviews/waiting')->json('data'));
+
+        $this->signIn(User::factory()->create());
+        $this->assertSame([], $this->getJson('/api/v1/me')->json('data.provider_ids'));
+    }
 }

@@ -67,7 +67,19 @@
           </div>
         </dl>
 
-        <div class="mt-4 flex flex-col gap-2">
+        <!-- Your own profile: how customers see it, with your tools instead of theirs -->
+        <div v-if="isOwn" class="mt-4 flex flex-col gap-2">
+          <p class="wm-notice wm-notice-info !text-[13px]">
+            <i class="bi bi-person-badge" aria-hidden="true"></i><span>This is your profile, as customers see it.</span>
+          </p>
+          <router-link to="/account" class="wm-btn wm-btn-primary wm-btn-lg wm-btn-block">
+            <i class="bi bi-pencil" aria-hidden="true"></i> Edit your profile
+          </router-link>
+          <router-link to="/activity?tab=received" class="wm-btn wm-btn-secondary wm-btn-lg wm-btn-block">
+            <i class="bi bi-inbox" aria-hidden="true"></i> Requests you’ve received
+          </router-link>
+        </div>
+        <div v-else class="mt-4 flex flex-col gap-2">
           <router-link :to="`/provider/${provider.id}/request`" class="wm-btn wm-btn-primary wm-btn-lg wm-btn-block">
             Request this service
           </router-link>
@@ -164,19 +176,22 @@
         <p class="text-sm text-muted mt-2">
           For any job: agree the price in WorkMate chat, check the work before you pay, and meet in a safe place.
         </p>
-        <hr class="wm-divider my-4" />
-        <button type="button" class="wm-btn wm-btn-danger-ghost -ml-3" @click="reportOpen = true">
-          <i class="bi bi-flag" aria-hidden="true"></i> Report this provider
-        </button>
+        <template v-if="!isOwn">
+          <hr class="wm-divider my-4" />
+          <button type="button" class="wm-btn wm-btn-danger-ghost -ml-3" @click="reportOpen = true">
+            <i class="bi bi-flag" aria-hidden="true"></i> Report this provider
+          </button>
+        </template>
       </section>
     </div>
 
-    <ReportProviderSheet v-if="provider" :open="reportOpen" :provider-id="provider.id" :provider-name="name" @close="reportOpen = false" />
+    <ReportProviderSheet v-if="provider && !isOwn" :open="reportOpen" :provider-id="provider.id" :provider-name="name" @close="reportOpen = false" />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import { isOwnProvider } from '@/stores/auth.js';
 import { useRoute } from 'vue-router';
 import BackLink from '@/components/BackLink.vue';
 import EmptyState from '@/components/EmptyState.vue';
@@ -197,6 +212,7 @@ const name = computed(() => (provider.value ? displayName(provider.value) : ''))
 const reviews = computed(() => (provider.value ? reviewsFor(provider.value.id) : []));
 const summary = computed(() => feedbackSummary(reviews.value));
 const reportOpen = ref(false);
+const isOwn = computed(() => !!provider.value && isOwnProvider(provider.value.id));
 
 // The shared catalog holds only recent reviews; fetch this provider's full list
 watch(() => route.params.id, (id) => {

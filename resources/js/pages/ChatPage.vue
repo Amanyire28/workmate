@@ -119,6 +119,7 @@
 
 <script setup>
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
+import { isOwnProvider } from '@/stores/auth.js';
 import { useRoute } from 'vue-router';
 import EmptyState from '@/components/EmptyState.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
@@ -163,6 +164,12 @@ const suggestions = [
 ];
 
 async function load({ quiet = false } = {}) {
+  // Your own provider profile: there's nobody to message
+  if (target.value.providerId && isOwnProvider(target.value.providerId)) {
+    loadError.value = 'This is your own profile, so you can’t message it. Messages customers send you are in Messages.';
+    state.value = 'error';
+    return;
+  }
   if (!quiet) state.value = 'loading';
   try {
     const data = await openChat(chat.value && quiet ? { conversationId: chat.value.id } : target.value);

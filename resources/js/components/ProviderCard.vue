@@ -40,6 +40,7 @@
       <div class="flex items-center gap-1.5 shrink-0">
         <!-- Sits above the stretched link so it gets its own click -->
         <router-link
+          v-if="!isOwnProvider(provider.id)"
           :to="`/messages/${provider.id}`"
           class="relative z-10 wm-btn wm-btn-secondary !w-11 !px-0"
           :aria-label="`Message ${displayName(provider)}`"
@@ -57,6 +58,7 @@ import UserAvatar from './UserAvatar.vue';
 import AvailabilityBadge from './AvailabilityBadge.vue';
 import VerifiedBadge from './VerifiedBadge.vue';
 import { displayName, tradeLabel, formatPrice } from '@/utils/ui.js';
+import { isOwnProvider } from '@/stores/auth.js';
 
 defineProps({
   provider: { type: Object, required: true },
