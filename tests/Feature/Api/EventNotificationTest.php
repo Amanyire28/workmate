@@ -110,6 +110,8 @@ class EventNotificationTest extends ApiTestCase
         $first = $this->sentOnce()->firstWhere('payload.title', 'New request');
         $this->assertSame('Aisha needs plumbing. Reply in WorkMate.', $first['payload']['body']);
         $this->assertSame('/activity?tab=received', $first['payload']['url']);
+        // Requests stay on screen until dismissed; chat messages don't
+        $this->assertTrue($first['payload']['important']);
 
         $this->signIn($provider->owner);
         $this->postJson("/api/v1/me/received-requests/{$accepted}/accept")->assertOk();
@@ -139,6 +141,7 @@ class EventNotificationTest extends ApiTestCase
         $toProvider = $this->sentOnce()->where('endpoint', 'https://fcm.googleapis.com/fcm/send/device-'.$provider->owner_id)->firstWhere('payload.title', 'New message');
         $this->assertSame('Aisha sent you a message.', $toProvider['payload']['body']);
         $this->assertSame('/messages/c/'.$chat, $toProvider['payload']['url']);
+        $this->assertArrayNotHasKey('important', $toProvider['payload']);
         $this->assertStringNotContainsString('4321', json_encode($this->sent));
     }
 

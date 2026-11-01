@@ -136,9 +136,17 @@ self.addEventListener('push', (event) => {
     const url = typeof data.url === 'string' && data.url.startsWith('/') && !data.url.startsWith('//') ? data.url : '/';
     event.waitUntil(self.registration.showNotification(data.title || 'WorkMate', {
         body: data.body || '',
+        // Large picture beside the text
         icon: '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
+        // Small status-bar icon: Android paints it white, so it must be a white shape on transparent
+        badge: '/icons/badge-96.png',
         tag: data.tag,
+        // A newer notification with the same tag (e.g. another message in a chat) alerts again
+        renotify: !!data.tag,
+        vibrate: [200, 100, 200],
+        // Important ones (requests, replies, decisions) stay until dismissed where the device allows
+        requireInteraction: data.important === true,
+        timestamp: Date.now(),
         data: { url },
     }));
 });

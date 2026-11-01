@@ -19,6 +19,7 @@ use App\Models\User;
  * Notifications never include message text, contact details or reasons, so
  * nothing private shows on a locked screen; the person opens WorkMate to read
  * them. The account that caused the event is never notified about it.
+ * "important" ones stay on screen until dismissed where the device allows.
  */
 class EventNotifications
 {
@@ -39,6 +40,7 @@ class EventNotifications
             'body' => $this->firstName($request->customer).' needs '.$this->service($request).'. Reply in WorkMate.',
             'url' => '/activity?tab=received',
             'tag' => 'request-'.$request->id,
+            'important' => true,
         ]);
     }
 
@@ -68,6 +70,7 @@ class EventNotifications
             'body' => optional($quotation->provider)->display_name.' applied for “'.$job->title.'”.',
             'url' => '/activity?tab=posted',
             'tag' => 'job-'.$job->id,
+            'important' => true,
         ]);
     }
 
@@ -111,6 +114,7 @@ class EventNotifications
             'body' => $texts[$application->status][1],
             'url' => '/account',
             'tag' => 'provider-application',
+            'important' => true,
         ]);
     }
 
@@ -135,6 +139,7 @@ class EventNotifications
             'body' => $texts[$event][1],
             'url' => '/account/verification',
             'tag' => 'verification',
+            'important' => true,
         ]);
     }
 
@@ -147,6 +152,7 @@ class EventNotifications
             'body' => $body,
             'url' => '/activity?tab=requests',
             'tag' => 'request-'.$request->id,
+            'important' => true,
         ]);
     }
 
