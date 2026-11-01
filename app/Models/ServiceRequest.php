@@ -38,6 +38,7 @@ class ServiceRequest extends Model
         'workers_needed' => 'integer',
         'budget' => 'integer',
         'is_sample' => 'boolean',
+        'responded_at' => 'datetime',
     ];
 
     public function customer()
@@ -68,6 +69,13 @@ class ServiceRequest extends Model
     public function isPostedJob(): bool
     {
         return $this->provider_profile_id === null;
+    }
+
+    /** Requests sent to a provider business the user belongs to */
+    public function scopeReceivedBy($query, User $user)
+    {
+        return $query->whereNotNull('provider_profile_id')
+            ->whereIn('provider_profile_id', ProviderMember::where('user_id', $user->getKey())->select('provider_profile_id'));
     }
 
     /** Open jobs anyone can see and apply to */

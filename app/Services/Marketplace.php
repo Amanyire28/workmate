@@ -95,6 +95,54 @@ class Marketplace
         });
     }
 
+    /** The provider takes on a request sent to them */
+    public function acceptRequest(User $user, ServiceRequest $request): ServiceRequest
+    {
+        return $this->reply($user, $request, ServiceRequest::STATUS_OPEN, ServiceRequest::STATUS_IN_PROGRESS, null, 'marketplace.request_accepted');
+    }
+
+    /** The provider can't do it; the customer sees why */
+    public function declineRequest(User $user, ServiceRequest $request, string $reason): ServiceRequest
+    {
+        return $this->reply($user, $request, ServiceRequest::STATUS_OPEN, ServiceRequest::STATUS_CANCELLED, $reason, 'marketplace.request_declined');
+    }
+
+    /** The provider has finished the work they accepted */
+    public function completeRequest(User $user, ServiceRequest $request): ServiceRequest
+    {
+        return $this->reply($user, $request, ServiceRequest::STATUS_IN_PROGRESS, ServiceRequest::STATUS_COMPLETED, null, 'marketplace.request_completed');
+    }
+
+    private function reply(User $user, ServiceRequest $request, string $from, string $to, ?string $note, string $action): ServiceRequest
+    {
+        return DB::transaction(function () use ($user, $request, $from, $to, $note, $action) {
+            $request = ServiceRequest::receivedBy($user)->whereKey($request->getKey())->lockForUpdate()->first();
+
+            // Someone else's request is reported as not found
+            if (! $request) {
+                throw new BusinessRuleException('not_found', 'The requested item was not found.', 404);
+            }
+            if ($request->provider->status !== ProviderProfile::STATUS_APPROVED) {
+                throw new BusinessRuleException('provider_not_active', 'Your provider account isn’t active, so you can’t answer requests.', 403);
+            }
+            if ($request->status !== $from) {
+                throw new BusinessRuleException('request_status_conflict', $from === ServiceRequest::STATUS_OPEN
+                    ? 'This request has already been answered or cancelled.'
+                    : 'Only a request you accepted can be marked as done.', 409);
+            }
+
+            $request->forceFill([
+                'status' => $to,
+                'responded_at' => $request->responded_at ?: now(),
+                'provider_note' => $note ?? $request->provider_note,
+            ])->save();
+
+            $this->audit->record($action, $request, ['status' => $from], ['status' => $to], $note, $user);
+
+            return $request;
+        });
+    }
+
     private function createRequest(User $customer, ?ProviderProfile $provider, array $data): ServiceRequest
     {
         $area = Area::active()->where('slug', $data['area'])->firstOrFail();

@@ -226,5 +226,7 @@ export const statusLabels = {
     accepted:    { label: 'Accepted' },
     pending:     { label: 'Waiting for reply' },
     declined:    { label: 'Not chosen' },
+    new_request: { label: 'New request' },
+    request_declined: { label: 'Declined' },
     withdrawn:   { label: 'Withdrawn' },
 };

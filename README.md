@@ -121,7 +121,8 @@ Throughout this README:
 |---|---|---|
 | Places | Every populated place in Uganda (about 11,300 towns, trading centres, villages and suburbs from GeoNames, CC BY 4.0) loaded by a migration; one type-to-search place box everywhere; "Use my location" names the nearest place | Some small places are missing from GeoNames (e.g. Najjera). There is no admin screen yet to add a place by hand |
 | Location matching | Distance ranking and widening run in the browser | Server-side matching. The search still uses fixed radii (5 km / 10 km) in `resources/js/utils/nearbySearch.js` rather than the admin-editable settings. |
-| Quotations | Providers can apply to posted jobs with a price | Customers can't yet view or accept applications; providers have no inbox for direct requests |
+| Received requests | Providers see requests sent to them (My Work → Received), accept, decline with a reason, mark as done, and message the customer; the customer sees the answer | No notification is sent yet when a request arrives |
+| Quotations | Providers can apply to posted jobs with a price | Customers can't yet view or accept applications |
 | Reviews | Display, rating calculation and admin moderation | Customers can't write reviews yet (they will follow completed bookings) |
 | Document verification | National ID (front and back) plus up to 5 supporting documents, stored privately; admin review, per-document accept or send back, requests for extra documents, approval gives the grey tick | The per-profession Document Requirements screen is still a browser-only prototype |
 | Performance tick | Tick display and admin rules screen | Automatic evaluation isn't running; only sample providers carry a tick |
@@ -442,7 +443,7 @@ Not yet in the schema: bookings and booking event history; verification requirem
 |---|---|---|
 | Public | Anyone | `GET health`, `GET catalog` (everything the first page needs), `GET categories`, `GET areas` (quick picks and places in use), `GET areas/search?q=` (type-to-search), `GET areas/nearest`, `GET providers`, `GET providers/{id}`, `GET reviews/recent`, `GET jobs`, `GET jobs/{id}`, `GET avatars/{file}` |
 | Auth | Guests (website session) | `POST auth/register`, `auth/login`, `auth/logout`, `auth/forgot-password`, `auth/reset-password`; `GET auth/verify-email/{id}/{hash}` (signed link) |
-| Account | Signed in | `GET/PATCH me`, `PUT me/password`, `POST/DELETE me/photo`, `POST me/email/verification-notification`, `GET me/requests`, `GET me/applications` |
+| Account | Signed in | `GET/PATCH me`, `PUT me/password`, `POST/DELETE me/photo`, `POST me/email/verification-notification`, `GET me/requests`, `GET me/applications`, `GET me/received-requests`, `POST me/received-requests/{id}/accept|decline|complete|message` |
 | Provider application | Signed in | `GET/PUT me/provider`, `POST me/provider/submit`, `POST me/provider/reopen` |
 | Marketplace | Signed in | `POST jobs`, `POST jobs/{id}/applications` (approved providers), `POST providers/{id}/requests`, `POST providers/{id}/reports` |
 | Messages | Chat participants | `GET me/conversations`, `GET me/conversations/unread-count`, `POST me/conversations/provider/{id}`, `GET me/conversations/{id}`, `POST me/conversations/{id}/messages` |
@@ -772,7 +773,7 @@ Token sign-in endpoints for apps are not built yet; the website uses cookie sess
 - [x] Messaging between customers and providers
 - [x] Reports about providers
 - [ ] Customers view and accept applications
-- [ ] Provider inbox for direct requests
+- [x] Provider inbox for direct requests
 - [ ] Saved providers and locations
 - [ ] Admin management of categories, professions and areas
 

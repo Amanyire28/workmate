@@ -584,7 +584,7 @@ class AdminSnapshot
             return 'Admin';
         }
 
-        return Str::startsWith($log->action, ['provider.', 'marketplace.applied', 'verification.']) ? 'Provider' : 'Customer';
+        return Str::startsWith($log->action, ['provider.', 'marketplace.applied', 'marketplace.request_accepted', 'marketplace.request_declined', 'marketplace.request_completed', 'verification.']) ? 'Provider' : 'Customer';
     }
 
     /** @return array{type: string, id: string, label: string} */
@@ -648,6 +648,9 @@ class AdminSnapshot
             'marketplace.job_posted' => "Job posted: {$what}",
             'marketplace.request_sent' => "{$who} sent a request to a provider",
             'marketplace.applied' => "{$who} applied for a job",
+            'marketplace.request_accepted' => "{$who} accepted a request: {$what}",
+            'marketplace.request_declined' => "{$who} declined a request: {$what}",
+            'marketplace.request_completed' => "{$who} marked a request as done: {$what}",
             'trust.report_received' => 'A provider was reported',
             'roles.granted' => "{$who} gave {$what} an admin role",
             'roles.revoked' => "{$who} removed an admin role from {$what}",

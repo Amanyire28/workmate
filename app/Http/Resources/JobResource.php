@@ -42,6 +42,9 @@ class JobResource extends JsonResource
             'provider' => $this->when(! $this->isPostedJob(), function () {
                 return ['id' => $this->provider_profile_id, 'display_name' => $this->provider->display_name];
             }),
+            // The provider's reason for declining, for the customer who sent it
+            'provider_note' => $this->when(! $this->isPostedJob() && $user !== null && $this->customer_id === (int) $user->getKey(), $this->provider_note),
+            'responded_at' => $this->when(! $this->isPostedJob(), optional($this->responded_at)->toIso8601String()),
         ];
     }
 }

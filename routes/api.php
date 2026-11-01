@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\V1\MyActivityController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\ProviderApplicationController;
+use App\Http\Controllers\Api\V1\ReceivedRequestController;
 use App\Http\Controllers\Api\V1\VerificationController;
 use App\Http\Controllers\Api\V1\ProfilePhotoController;
 use App\Http\Controllers\Api\V1\ProviderReportController;
@@ -104,6 +105,15 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         });
         Route::get('me/requests', [MyActivityController::class, 'requests'])->name('me.requests');
         Route::get('me/applications', [MyActivityController::class, 'applications'])->name('me.applications');
+
+        // Requests customers sent to the provider business the account belongs to
+        Route::get('me/received-requests', [ReceivedRequestController::class, 'index'])->name('me.received-requests');
+        Route::middleware('throttle:marketplace-write')->group(function () {
+            Route::post('me/received-requests/{id}/accept', [ReceivedRequestController::class, 'accept'])->whereNumber('id')->name('me.received-requests.accept');
+            Route::post('me/received-requests/{id}/decline', [ReceivedRequestController::class, 'decline'])->whereNumber('id')->name('me.received-requests.decline');
+            Route::post('me/received-requests/{id}/complete', [ReceivedRequestController::class, 'complete'])->whereNumber('id')->name('me.received-requests.complete');
+            Route::post('me/received-requests/{id}/message', [ReceivedRequestController::class, 'message'])->whereNumber('id')->name('me.received-requests.message');
+        });
 
         // Messages (only the two sides of a chat can see it)
         Route::get('me/conversations', [ConversationController::class, 'index'])->name('me.conversations');

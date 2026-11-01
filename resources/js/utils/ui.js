@@ -81,6 +81,8 @@ const statusTones = {
     accepted:    'success',
     completed:   'success',
     cancelled:   'error',
+    new_request: 'warning',
+    request_declined: 'error',
 };
 
 export function statusInfo(status) {
