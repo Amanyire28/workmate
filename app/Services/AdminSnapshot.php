@@ -544,8 +544,8 @@ class AdminSnapshot
 
         $customers = $count(User::withTrashed()->where('is_sample', false), 'created_at');
         $providers = $count(ProviderProfile::where('is_sample', false)->whereNotNull('approved_at'), 'approved_at');
-        $jobs = $count(ServiceRequest::withTrashed()->where('is_sample', false)->whereNull('provider_profile_id'), 'created_at');
-        $enquiries = $count(ServiceRequest::withTrashed()->where('is_sample', false)->whereNotNull('provider_profile_id'), 'created_at');
+        $jobs = $count(ServiceRequest::withTrashed()->where('is_sample', false)->where('is_posted_job', true), 'created_at');
+        $enquiries = $count(ServiceRequest::withTrashed()->where('is_sample', false)->where('is_posted_job', false), 'created_at');
 
         $days = [];
         for ($i = 0; $i < self::HISTORY_DAYS; $i++) {
@@ -654,6 +654,7 @@ class AdminSnapshot
             'marketplace.request_declined' => "{$who} declined a request: {$what}",
             'marketplace.request_completed' => "{$who} marked a request as done: {$what}",
             'marketplace.review_posted' => "{$who} rated a provider",
+            'marketplace.hired' => "{$who} hired a provider for {$what}",
             'trust.report_received' => 'A provider was reported',
             'roles.granted' => "{$who} gave {$what} an admin role",
             'roles.revoked' => "{$who} removed an admin role from {$what}",

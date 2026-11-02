@@ -74,6 +74,27 @@ class EventNotifications
         ]);
     }
 
+    public function hired(ServiceRequest $job, Quotation $quotation): void
+    {
+        $this->toProvider($quotation->provider_profile_id, $job->customer_id, [
+            'title' => 'You got the job',
+            'body' => $this->firstName($job->customer).' hired you for “'.$job->title.'”. Message them to agree the details.',
+            'url' => '/activity?tab=received',
+            'tag' => 'job-'.$job->id,
+            'important' => true,
+        ]);
+    }
+
+    public function notChosen(ServiceRequest $job, Quotation $quotation): void
+    {
+        $this->toProvider($quotation->provider_profile_id, $job->customer_id, [
+            'title' => 'Job filled',
+            'body' => 'The customer chose someone else for “'.$job->title.'”. Keep applying: new jobs are posted every day.',
+            'url' => '/find-work',
+            'tag' => 'job-'.$job->id,
+        ]);
+    }
+
     /* ---------------- Messages ---------------- */
 
     public function messageSent(Conversation $conversation, Message $message, User $sender): void

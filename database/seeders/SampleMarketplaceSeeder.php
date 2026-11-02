@@ -125,6 +125,7 @@ class SampleMarketplaceSeeder extends Seeder
                 $job->forceFill([
                     'customer_id' => $customer->id,
                     'status' => ServiceRequest::STATUS_OPEN,
+                    'is_posted_job' => true,
                     'is_sample' => true,
                     'created_at' => $posted,
                     'updated_at' => $posted,

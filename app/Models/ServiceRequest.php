@@ -7,7 +7,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * Work a customer needs done: either a job posted for any provider to apply
- * to (provider_profile_id null), or a request sent to one provider.
+ * to (is_posted_job; provider_profile_id is set once someone is hired), or a
+ * request sent to one provider.
  */
 class ServiceRequest extends Model
 {
@@ -38,6 +39,7 @@ class ServiceRequest extends Model
         'workers_needed' => 'integer',
         'budget' => 'integer',
         'is_sample' => 'boolean',
+        'is_posted_job' => 'boolean',
         'responded_at' => 'datetime',
         'review_prompted_at' => 'datetime',
     ];
@@ -75,7 +77,7 @@ class ServiceRequest extends Model
 
     public function isPostedJob(): bool
     {
-        return $this->provider_profile_id === null;
+        return (bool) $this->is_posted_job;
     }
 
     /** Requests sent to a provider business the user belongs to */
@@ -88,6 +90,6 @@ class ServiceRequest extends Model
     /** Open jobs anyone can see and apply to */
     public function scopeOpenJobs($query)
     {
-        return $query->whereNull('provider_profile_id')->where('status', self::STATUS_OPEN);
+        return $query->where('is_posted_job', true)->whereNull('provider_profile_id')->where('status', self::STATUS_OPEN);
     }
 }

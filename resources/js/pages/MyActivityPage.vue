@@ -183,15 +183,32 @@
               <span class="inline-flex items-center gap-1"><i class="bi bi-geo-alt" aria-hidden="true"></i>{{ job.area }}</span>
               <span>Posted {{ job.postedAt }}</span>
             </p>
-            <p class="mt-auto pt-3 border-t border-line text-sm text-ink">
-              <template v-if="job.workerName">
-                <i class="bi bi-person-check text-muted mr-1.5" aria-hidden="true"></i>Worker: <strong class="font-semibold">{{ job.workerName }}</strong>
+            <p v-if="job.review" class="text-sm text-ink flex flex-wrap items-center gap-x-2">
+              <span class="text-[#F59E0B]" :aria-label="`You gave ${job.review.rating} out of 5 stars`">
+                <i v-for="n in 5" :key="n" :class="['bi', n <= job.review.rating ? 'bi-star-fill' : 'bi-star']" aria-hidden="true"></i>
+              </span>
+              <span class="text-muted">Your rating</span>
+            </p>
+            <div class="mt-auto pt-3 border-t border-line flex flex-wrap items-center justify-between gap-2 text-sm text-ink">
+              <template v-if="job.workerId">
+                <router-link :to="`/provider/${job.workerId}`" class="inline-flex items-center min-h-11">
+                  <i class="bi bi-person-check text-muted mr-1.5" aria-hidden="true"></i>Worker:&nbsp;<strong class="font-semibold">{{ job.workerName }}</strong>
+                </router-link>
+                <span class="flex gap-2">
+                  <router-link v-if="job.status === 'in_progress'" :to="`/messages/${job.workerId}`" class="wm-btn wm-btn-ghost !min-h-11">
+                    <i class="bi bi-chat-dots" aria-hidden="true"></i>Message
+                  </router-link>
+                  <button v-if="job.status === 'completed' && !job.review" type="button" class="wm-btn wm-btn-primary !min-h-11" @click="rateJob(job)">
+                    <i class="bi bi-star" aria-hidden="true"></i>Rate this job
+                  </button>
+                </span>
               </template>
               <template v-else-if="job.applicants">
-                <i class="bi bi-people text-muted mr-1.5" aria-hidden="true"></i>{{ job.applicants }} {{ job.applicants === 1 ? 'person has' : 'people have' }} applied
+                <span><i class="bi bi-people text-muted mr-1.5" aria-hidden="true"></i>{{ job.applicants }} {{ job.applicants === 1 ? 'person has' : 'people have' }} applied</span>
+                <button type="button" class="wm-btn wm-btn-primary !min-h-11" @click="applicantsFor = job">See applicants</button>
               </template>
               <span v-else class="text-muted">No applications yet</span>
-            </p>
+            </div>
           </li>
         </ul>
         <EmptyState
@@ -237,12 +254,14 @@
         </EmptyState>
       </template>
     </div>
+    <JobApplicantsSheet :job="applicantsFor" @close="applicantsFor = null" @hired="onHired" />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import FormField from '@/components/FormField.vue';
+import JobApplicantsSheet from '@/components/JobApplicantsSheet.vue';
 import { auth } from '@/stores/auth.js';
 import { openRating } from '@/stores/reviews.js';
 import { useRoute, useRouter } from 'vue-router';
@@ -302,6 +321,22 @@ const applications = ref([]);
 
 // An open request sent to one provider is waiting for their reply;
 // an open posted job is waiting for applications
+function toPostedJob(j) {
+  return {
+    id: j.id,
+    title: j.title,
+    category: j.category,
+    area: j.area_name,
+    postedAt: agoLabel(j.posted_at).toLowerCase(),
+    status: JOB_STATUS[j.status] || j.status,
+    // Who was hired, once someone is
+    workerId: j.provider?.id || null,
+    workerName: j.provider?.display_name || null,
+    applicants: j.applicants,
+    review: j.review || null,
+  };
+}
+
 const REQUEST_STATUS = { open: 'pending', in_progress: 'accepted', cancelled: 'request_declined' };
 // The provider's side of the same request
 const RECEIVED_STATUS = { open: 'new_request', in_progress: 'accepted', cancelled: 'request_declined' };
@@ -333,15 +368,7 @@ async function load() {
       review: r.review || null,
     }));
 
-    postedJobs.value = mine.data.filter(r => r.kind === 'posted').map(j => ({
-      id: j.id,
-      title: j.title,
-      area: j.area_name,
-      postedAt: agoLabel(j.posted_at).toLowerCase(),
-      status: JOB_STATUS[j.status] || j.status,
-      workerName: null,
-      applicants: j.applicants,
-    }));
+    postedJobs.value = mine.data.filter(r => r.kind === 'posted').map(toPostedJob);
 
     applications.value = applied.data.map(a => ({
       id: a.id,
@@ -362,6 +389,18 @@ async function load() {
 
 onMounted(load);
 
+/* ---------------- Choosing someone for a posted job ---------------- */
+const applicantsFor = ref(null);
+function onHired(job) {
+  postedJobs.value = postedJobs.value.map(j => (j.id === job.id ? toPostedJob(job) : j));
+}
+function rateJob(job) {
+  openRating({
+    request_id: job.id, category: job.category,
+    provider: { id: job.workerId, display_name: job.workerName, avatar_url: providerPhoto(job.workerId) },
+  });
+}
+
 /* ---------------- Rating finished jobs ---------------- */
 function rate(req) {
   openRating({
@@ -372,6 +411,7 @@ function rate(req) {
 // A rating posted from the pop-up shows on the card straight away
 function onRated(e) {
   requests.value = requests.value.map(r => (r.id === e.detail.requestId ? { ...r, review: e.detail.review } : r));
+  postedJobs.value = postedJobs.value.map(j => (j.id === e.detail.requestId ? { ...j, review: e.detail.review } : j));
 }
 onMounted(() => window.addEventListener('workmate:rated', onRated));
 onBeforeUnmount(() => window.removeEventListener('workmate:rated', onRated));

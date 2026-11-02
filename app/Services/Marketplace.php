@@ -103,6 +103,55 @@ class Marketplace
         });
     }
 
+    /**
+     * The customer hires one of the providers who applied to their posted
+     * job. The job is then theirs: it shows in their received requests, they
+     * mark it done there, and the customer can rate them. Everyone else who
+     * applied is told someone else was chosen.
+     */
+    public function hire(User $customer, int $jobId, int $quotationId): ServiceRequest
+    {
+        return DB::transaction(function () use ($customer, $jobId, $quotationId) {
+            $job = ServiceRequest::where('customer_id', $customer->getKey())->where('is_posted_job', true)
+                ->whereKey($jobId)->lockForUpdate()->first();
+            if (! $job) {
+                throw new BusinessRuleException('not_found', 'The requested item was not found.', 404);
+            }
+            if ($job->status !== ServiceRequest::STATUS_OPEN || $job->provider_profile_id) {
+                throw new BusinessRuleException('job_closed', 'You’ve already hired someone for this job.', 409);
+            }
+
+            $chosen = $job->quotations()->whereKey($quotationId)->lockForUpdate()->first();
+            if (! $chosen || $chosen->status !== Quotation::STATUS_PENDING) {
+                throw new BusinessRuleException('application_unavailable', 'This application can’t be accepted.', 409);
+            }
+            if (optional($chosen->provider)->status !== ProviderProfile::STATUS_APPROVED) {
+                throw new BusinessRuleException('provider_unavailable', 'This provider can’t take work on WorkMate right now. Choose someone else.', 409);
+            }
+
+            $others = $job->quotations()->whereKeyNot($chosen->id)->where('status', Quotation::STATUS_PENDING)->get();
+            $chosen->forceFill(['status' => Quotation::STATUS_ACCEPTED])->save();
+            $job->quotations()->whereKeyNot($chosen->id)->where('status', Quotation::STATUS_PENDING)
+                ->update(['status' => Quotation::STATUS_DECLINED, 'updated_at' => now()]);
+            $job->forceFill([
+                'provider_profile_id' => $chosen->provider_profile_id,
+                'status' => ServiceRequest::STATUS_IN_PROGRESS,
+                'responded_at' => now(),
+            ])->save();
+
+            $this->audit->record('marketplace.hired', $job, ['status' => ServiceRequest::STATUS_OPEN], [
+                'status' => ServiceRequest::STATUS_IN_PROGRESS, 'provider_profile_id' => $chosen->provider_profile_id, 'quotation_id' => $chosen->id,
+            ], null, $customer);
+
+            $this->notify->hired($job, $chosen);
+            foreach ($others as $other) {
+                $this->notify->notChosen($job, $other);
+            }
+
+            return $job;
+        });
+    }
+
     /** The provider takes on a request sent to them */
     public function acceptRequest(User $user, ServiceRequest $request): ServiceRequest
     {
@@ -178,6 +227,7 @@ class Marketplace
             $request->forceFill([
                 'customer_id' => $customer->getKey(),
                 'provider_profile_id' => $provider ? $provider->getKey() : null,
+                'is_posted_job' => $provider === null,
                 'status' => ServiceRequest::STATUS_OPEN,
             ])->save();
 

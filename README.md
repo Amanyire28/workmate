@@ -106,6 +106,7 @@ Throughout this README:
 **Marketplace**
 - Provider directory with profiles, skills, starting prices, availability and reviews
 - **Post a job** for any provider to apply to; **apply for a job** with a message, start time and optional price (approved providers only)
+- **Hire from applicants:** the customer compares applicants (rating, main skill, price, start time, message) and hires one; the others are told the job is filled. The job then works like a request: the provider marks it done and the customer rates them
 - **Request a specific provider** directly
 - **Received requests** for providers: accept, decline with a reason, mark as done, message the customer
 - **Ratings and reviews** written by customers after a provider finishes their request; ratings on profiles are always calculated from published reviews
@@ -129,7 +130,7 @@ Throughout this README:
 - Platform settings for search radii and online-presence timings
 
 **Quality**
-- **139 automated tests** (feature and unit) on a separate MariaDB test database
+- **146 automated tests** (feature and unit) on a separate MariaDB test database
 
 ### 🟡 In development
 
@@ -137,7 +138,6 @@ Throughout this README:
 |---|---|---|
 | Location matching | Distance ranking and widening run in the browser, from every place in Uganda | Server-side matching. The search still uses fixed radii (5 km / 10 km) in `resources/js/utils/nearbySearch.js` rather than the admin-editable settings |
 | Places | GeoNames places loaded automatically, with districts | A few small places are missing from GeoNames (e.g. Najjera); there is no admin screen yet to add a place by hand |
-| Quotations | Providers can apply to posted jobs with a price | Customers can't yet view or accept applications, so posted jobs can't be completed or rated |
 | Document requirements | Real document checks (ID + supporting + requested documents) | The per-profession Document Requirements admin screen is still a browser-only prototype |
 | Performance tick | Tick display and admin rules screen | Automatic evaluation isn't running; only sample providers carry a blue tick |
 | Push notifications | Per-device opt-in, a reminder pop-up, administrator announcements, and automatic notifications for requests, replies, messages and decisions | No in-app notification list yet, and no per-type choices (one switch covers all) |
@@ -148,7 +148,7 @@ Throughout this README:
 
 ### ⬜ Planned
 
-- Bookings: accepting an application, booking status tracking, booking history, rating posted jobs
+- Bookings: payment-linked booking status tracking and booking history
 - Payments with Ugandan mobile money (MTN MoMo, Airtel Money), commission, refunds, payouts and reconciliation
 - In-app and email notifications
 - Saved providers and saved locations
@@ -428,7 +428,7 @@ Request → middleware (auth:sanctum, active, can:<permission>, throttle)
 | `provider_service_areas` | Places a provider travels to |
 | `provider_applications` | Each review round, with a snapshot of what was submitted, the decision, the reason shown to the applicant and internal notes |
 | `document_verifications`, `verification_documents`, `document_requests` | A provider's document check, its private files, and extra documents reviewers asked for |
-| `service_requests` | Posted jobs (no provider) and requests to one provider, with the provider's reply (`responded_at`, `provider_note`) and when the customer was asked to rate (`review_prompted_at`) |
+| `service_requests` | Posted jobs (`is_posted_job`; the provider is set once someone is hired) and requests to one provider, with the provider's reply (`responded_at`, `provider_note`) and when the customer was asked to rate (`review_prompted_at`) |
 | `quotations` | A provider's application or price for a posted job (one per provider per job) |
 | `reviews` | Ratings and comments, linked to the request they're about (`service_request_id`, one review per request); status for moderation |
 | `conversations`, `messages` | Customer–provider chats and their messages, with read status |
@@ -510,7 +510,7 @@ Not yet in the schema: bookings and booking event history; versioned document re
 | Public | Anyone | `GET health`, `GET catalog` (everything the first page needs), `GET categories`, `GET areas` (quick picks and places in use), `GET areas/search?q=` (type-to-search), `GET areas/nearest`, `GET providers`, `GET providers/{id}`, `GET reviews/recent`, `GET jobs`, `GET jobs/{id}`, `GET avatars/{file}`, `GET push/config`, `POST app-events` |
 | Auth | Guests (website session) | `POST auth/register`, `auth/login`, `auth/logout`, `auth/forgot-password`, `auth/reset-password`; `GET auth/verify-email/{id}/{hash}` (signed link) |
 | Account | Signed in | `GET/PATCH me` (includes `provider_ids`), `PUT me/password`, `POST/DELETE me/photo`, `POST me/email/verification-notification`, `POST/DELETE me/push-subscriptions` |
-| My work | Signed in | `GET me/requests`, `GET me/applications`, `GET me/received-requests`, `POST me/received-requests/{id}/accept`, `…/decline`, `…/complete`, `…/message`, `GET me/reviews/waiting`, `POST me/requests/{id}/review`, `POST me/requests/{id}/review/later` |
+| My work | Signed in | `GET me/requests`, `GET me/applications`, `GET me/jobs/{id}/applications`, `POST me/jobs/{id}/applications/{application}/hire`, `GET me/received-requests`, `POST me/received-requests/{id}/accept`, `…/decline`, `…/complete`, `…/message`, `GET me/reviews/waiting`, `POST me/requests/{id}/review`, `POST me/requests/{id}/review/later` |
 | Provider application | Signed in | `GET/PUT me/provider`, `POST me/provider/submit`, `POST me/provider/reopen` |
 | Verification | Signed in (provider) | `GET me/verification`, `POST me/verification/documents`, `POST me/verification/documents/{id}/replace`, `DELETE me/verification/documents/{id}`, `GET me/verification/documents/{id}/files/{n}`, `POST me/verification/submit` |
 | Marketplace | Signed in | `POST jobs`, `POST jobs/{id}/applications` (approved providers), `POST providers/{id}/requests`, `POST providers/{id}/reports` |
@@ -631,7 +631,7 @@ The admin area is at <http://127.0.0.1:8000/admin>. On the live server, run the 
 
 ## Testing
 
-- **139 tests** in `tests/Feature/Api` and `tests/Unit`. They cover accounts, permissions and the permission lists staying identical, provider applications and typed professions, place search, the marketplace, received requests and ratings, messaging, document verification (including file privacy), push notifications, install events, photos, admin data and actions, settings and the audit log. New endpoints include a test proving another user or provider can't read or change the data.
+- **146 tests** in `tests/Feature/Api` and `tests/Unit`. They cover accounts, permissions and the permission lists staying identical, provider applications and typed professions, place search, the marketplace, received requests and ratings, messaging, document verification (including file privacy), push notifications, install events, photos, admin data and actions, settings and the audit log. New endpoints include a test proving another user or provider can't read or change the data.
 - Tests use `RefreshDatabase`, which **rebuilds the database on every run**. `phpunit.xml` therefore points them at the separate **`workmate_test`** database. Never point it at a database whose data you need.
 - Mail, cache, sessions and queues use in-memory drivers during tests; uploads use a fake disk; push delivery is mocked.
 
@@ -829,7 +829,7 @@ The mobile apps will use the **same `/api/v1` endpoints**, so the marketplace ba
 - [x] Provider inbox for direct requests (accept, decline, done)
 - [x] Messaging between customers and providers
 - [x] Reports about providers
-- [ ] Customers view and accept applications to posted jobs
+- [x] Customers view applicants and hire one for a posted job
 - [ ] Saved providers and locations
 - [ ] Admin management of categories, professions and places
 
@@ -842,7 +842,8 @@ The mobile apps will use the **same `/api/v1` endpoints**, so the marketplace ba
 
 ### Bookings and reviews
 - [x] Customer ratings after a provider finishes a request
-- [ ] Bookings and status tracking for posted jobs
+- [x] Hiring, completion and ratings for posted jobs
+- [ ] Payment-linked bookings
 - [ ] Booking history
 
 ### Verification and the tick

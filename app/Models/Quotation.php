@@ -8,6 +8,9 @@ use Illuminate\Database\Eloquent\Model;
 class Quotation extends Model
 {
     public const STATUS_PENDING = 'pending';
+    public const STATUS_ACCEPTED = 'accepted';
+    // Someone else was hired
+    public const STATUS_DECLINED = 'declined';
 
     protected $fillable = [
         'message',

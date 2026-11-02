@@ -38,15 +38,15 @@ class JobResource extends JsonResource
             'is_mine' => $user !== null && $this->customer_id === (int) $user->getKey(),
             'has_applied' => $profile !== null
                 && $this->quotations()->where('provider_profile_id', $profile->getKey())->exists(),
-            // Only for requests sent to one provider
-            'provider' => $this->when(! $this->isPostedJob(), function () {
+            // The provider a request was sent to, or who was hired for a posted job
+            'provider' => $this->when($this->provider_profile_id !== null, function () {
                 return ['id' => $this->provider_profile_id, 'display_name' => $this->provider->display_name];
             }),
             // The provider's reason for declining, for the customer who sent it
             'provider_note' => $this->when(! $this->isPostedJob() && $user !== null && $this->customer_id === (int) $user->getKey(), $this->provider_note),
-            'responded_at' => $this->when(! $this->isPostedJob(), optional($this->responded_at)->toIso8601String()),
+            'responded_at' => $this->when($this->provider_profile_id !== null, optional($this->responded_at)->toIso8601String()),
             // The customer's own rating of a finished request
-            'review' => $this->when(! $this->isPostedJob() && $user !== null && $this->customer_id === (int) $user->getKey(), function () {
+            'review' => $this->when($this->provider_profile_id !== null && $user !== null && $this->customer_id === (int) $user->getKey(), function () {
                 return $this->review ? ['rating' => $this->review->rating, 'comment' => $this->review->comment] : null;
             }),
         ];

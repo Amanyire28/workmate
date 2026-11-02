@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\ConversationController;
 use App\Http\Controllers\Api\V1\DirectoryController;
+use App\Http\Controllers\Api\V1\JobApplicantController;
 use App\Http\Controllers\Api\V1\JobController;
 use App\Http\Controllers\Api\V1\MyActivityController;
 use App\Http\Controllers\Api\V1\HealthController;
@@ -106,6 +107,11 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         });
         Route::get('me/requests', [MyActivityController::class, 'requests'])->name('me.requests');
         Route::get('me/applications', [MyActivityController::class, 'applications'])->name('me.applications');
+
+        // Providers who applied to the customer's own posted job
+        Route::get('me/jobs/{id}/applications', [JobApplicantController::class, 'index'])->whereNumber('id')->name('me.jobs.applications');
+        Route::post('me/jobs/{id}/applications/{application}/hire', [JobApplicantController::class, 'hire'])
+            ->whereNumber('id')->whereNumber('application')->middleware('throttle:marketplace-write')->name('me.jobs.hire');
 
         // Rating providers who finished work for the customer
         Route::get('me/reviews/waiting', [ReviewController::class, 'waiting'])->name('me.reviews.waiting');
