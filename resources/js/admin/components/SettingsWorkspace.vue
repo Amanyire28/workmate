@@ -4,7 +4,7 @@
       <template v-if="values && canEdit" #actions>
         <button type="button" class="wm-btn wm-btn-secondary !min-h-10 !rounded-lg !text-[13.5px]" :disabled="isDefault" @click="resetDefaults">Reset to defaults</button>
         <button type="button" class="wm-btn wm-btn-primary !min-h-10 !rounded-lg !text-[13.5px]" :disabled="!changes.length" @click="review">
-          Review {{ changes.length || '' }} {{ changes.length === 1 ? 'change' : 'changes' }}
+          Save {{ changes.length || '' }} {{ changes.length === 1 ? 'change' : 'changes' }}
         </button>
       </template>
     </AdminPageHeader>
@@ -78,6 +78,23 @@
       </fieldset>
     </form>
 
+    <!-- Unsaved changes: always in view, next to wherever the change was made -->
+    <div
+      v-if="values && changes.length && canEdit"
+      class="sticky bottom-3 z-20 mx-auto flex w-full max-w-[720px] flex-wrap items-center justify-between gap-3 rounded-xl border border-[#F5C46B] bg-[#FFFBEB] px-4 py-3 shadow-lg"
+      role="status"
+    >
+      <p class="text-[13.5px] text-[#92400E]">
+        <i class="bi bi-exclamation-circle mr-1" aria-hidden="true"></i>
+        <strong class="font-semibold">{{ changes.length }} unsaved {{ changes.length === 1 ? 'change' : 'changes' }}.</strong>
+        Nothing changes for anyone until you save.
+      </p>
+      <div class="flex gap-2">
+        <button type="button" class="wm-btn wm-btn-secondary !min-h-10 !rounded-lg !text-[13.5px]" @click="undo">Undo</button>
+        <button type="button" class="wm-btn wm-btn-primary !min-h-10 !rounded-lg !text-[13.5px]" @click="review">Save changes</button>
+      </div>
+    </div>
+
     <ActionDialog
       :open="reviewing"
       :title="`Save ${changes.length} ${changes.length === 1 ? 'change' : 'changes'} to ${item.label}?`"
@@ -93,7 +110,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, useId, h } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount, useId, h } from 'vue';
+import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import AdminPageHeader from './AdminPageHeader.vue';
 import StateBlock from './StateBlock.vue';
 import ActionDialog from './ActionDialog.vue';
@@ -197,6 +215,26 @@ async function save({ reason }) {
     saving.value = false;
   }
 }
+
+/* ---------------- Unsaved changes ---------------- */
+function undo() {
+  values.value = { ...saved.value };
+  for (const k of Object.keys(errors)) delete errors[k];
+}
+
+// Leaving with unsaved changes asks first: they'd be lost
+const unsaved = () => !!(values.value && changes.value.length && canEdit.value);
+const confirmLeave = () => (unsaved() ? window.confirm('You have unsaved changes. Leave without saving?') : true);
+onBeforeRouteLeave(confirmLeave);
+// Switching between the Settings tabs too
+onBeforeRouteUpdate(confirmLeave);
+function warnOnUnload(e) {
+  if (!unsaved()) return;
+  e.preventDefault();
+  e.returnValue = '';
+}
+onMounted(() => window.addEventListener('beforeunload', warnOnUnload));
+onBeforeUnmount(() => window.removeEventListener('beforeunload', warnOnUnload));
 
 // Only live settings can be reset; the rest aren't connected
 function resetDefaults() {

@@ -40,6 +40,12 @@ class DirectoryController extends Controller
         ]]);
     }
 
+    /** Just the settings the app applies, for refreshing them while it's open */
+    public function settings(PlatformSettings $settings): JsonResponse
+    {
+        return response()->json(['data' => $settings->publicValues()]);
+    }
+
     /**
      * The quick-pick areas, plus every place a listed provider or an open
      * job uses, so pages can place them on the map. Other places are found

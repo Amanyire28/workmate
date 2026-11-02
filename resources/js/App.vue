@@ -50,11 +50,16 @@ import MobileBottomNav from '@/components/MobileBottomNav.vue';
 import AppStatusLayer from '@/components/AppStatusLayer.vue';
 import RateProviderDialog from '@/components/RateProviderDialog.vue';
 import PushReminder from '@/components/PushReminder.vue';
-import { catalog, loadCatalog, appSettings } from '@/stores/catalog.js';
+import { catalog, loadCatalog, appSettings, refreshSettings } from '@/stores/catalog.js';
 import { startPresence } from '@/stores/presence.js';
 
 // While the app is open, a signed-in account checks in (Admin → Settings → presence)
 startPresence();
+
+// Settings changed in the admin (maintenance mode, support contact…) reach open
+// apps within a minute, and straight away when the app comes back on screen
+setInterval(() => { if (document.visibilityState === 'visible') refreshSettings(); }, 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refreshSettings(); });
 
 const route = useRoute();
 const isAdmin = computed(() => route.meta.layout === 'admin');

@@ -136,6 +136,18 @@ function toArea(a) {
     };
 }
 
+/**
+ * Re-reads the settings while the app is open (e.g. maintenance switched on
+ * or off), without reloading the rest of the catalogue.
+ */
+export async function refreshSettings() {
+    try {
+        applySettings((await api('/settings')).data);
+    } catch {
+        // Kept as they were; tried again next time
+    }
+}
+
 function applySettings(s) {
     const pick = (key, fallback) => (key in s ? s[key] : fallback);
     Object.assign(appSettings, {

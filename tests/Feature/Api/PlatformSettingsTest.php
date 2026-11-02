@@ -108,4 +108,14 @@ class PlatformSettingsTest extends ApiTestCase
         $this->assertSame('recently_active', $rows[$quiet->id]['presence']);
         $this->assertSame('offline', $rows[$away->id]['presence']);
     }
+
+    public function test_open_apps_can_refresh_just_the_settings()
+    {
+        app(PlatformSettings::class)->set('platform.maintenance_mode', true, $this->userWithRoles(['super_admin']));
+
+        $settings = $this->getJson('/api/v1/settings')->assertOk()->json('data');
+        $this->assertTrue($settings['platform.maintenance_mode']);
+        $this->assertSame(app(PlatformSettings::class)->publicValues(), $settings);
+        $this->assertArrayNotHasKey('presence.online_minutes', $settings);
+    }
 }
