@@ -1,4 +1,5 @@
 import { count, kpiCount, statusTabs, setStatus, historySection } from './helpers.js';
+import { areaOptions } from '../data/liveData.js';
 import { ROLES } from '../permissions.js';
 
 const roleLabel = (id) => ROLES.find(r => r.id === id)?.label || id;
@@ -67,27 +68,27 @@ export default {
         type: 'settings', editPermission: 'admin.manage',
         sections: [
             { title: 'Platform', fields: [
-                { key: 'platformName', label: 'Platform name', type: 'text' },
-                { key: 'defaultCity', label: 'Default city', type: 'text', help: 'Used when a customer hasn’t chosen an area.' },
-                { key: 'currency', label: 'Currency', type: 'select', options: [['UGX', 'Ugandan shilling (UGX)']] },
-                { key: 'languages', label: 'Languages', type: 'select', options: [['English, Luganda', 'English and Luganda'], ['English', 'English only']] },
+                { key: 'defaultArea', label: 'Default place', type: 'select', options: areaOptions, help: 'Where searches start when someone hasn’t chosen a place.' },
+                { key: 'platformName', label: 'Platform name', type: 'text', unavailable: 'The WorkMate name is part of the design, emails and app icon, so it can’t be changed from here.' },
+                { key: 'currency', label: 'Currency', type: 'select', options: [['UGX', 'Ugandan shilling (UGX)']], unavailable: 'Ugandan shillings are the only currency for now.' },
+                { key: 'languages', label: 'Languages', type: 'select', options: [['English', 'English only'], ['English, Luganda', 'English and Luganda']], unavailable: 'Available once WorkMate is translated into Luganda.' },
             ] },
-            { title: 'Support contact', description: 'Shown in the app and in messages.', fields: [
-                { key: 'supportPhone', label: 'Support phone', type: 'text' },
+            { title: 'Support contact', description: 'Shown in the site footer and on everyone’s Account page. Leave empty to hide.', fields: [
+                { key: 'supportPhone', label: 'Support phone', type: 'text', help: 'For example +256 700 123456.' },
                 { key: 'supportEmail', label: 'Support email', type: 'text' },
             ] },
             { title: 'Availability', fields: [
-                { key: 'providerSignups', label: 'Accept new provider applications', type: 'toggle' },
-                { key: 'maintenanceMode', label: 'Maintenance mode', type: 'toggle', help: 'Shows a maintenance notice to customers and pauses new bookings.' },
+                { key: 'providerSignups', label: 'Accept new provider applications', type: 'toggle', help: 'When off, nobody can send a new provider application. Changes you asked for can still be sent.' },
+                { key: 'maintenanceMode', label: 'Maintenance mode', type: 'toggle', help: 'Shows a notice on the site and pauses new jobs, requests, applications and hiring. Browsing, messages and the admin keep working.' },
             ] },
             { title: 'Online presence', description: 'How the admin decides whether someone is online. Presence is separate from a provider’s availability for work.', fields: [
                 { key: 'presenceOnlineMin', label: 'Online if active within', type: 'number', unit: 'minutes', min: 1, max: 30, help: 'After this long without a heartbeat or activity, the account shows as recently active, not online.' },
                 { key: 'presenceRecentMin', label: 'Recently active if active within', type: 'number', unit: 'minutes', min: 2, max: 240 },
-                { key: 'presenceHeartbeatSec', label: 'App heartbeat interval', type: 'number', unit: 'seconds', min: 15, max: 600, help: 'How often the app reports it is open, once presence collection is connected.' },
+                { key: 'presenceHeartbeatSec', label: 'App check-in interval', type: 'number', unit: 'seconds', min: 15, max: 600, help: 'How often an open app reports it is in use. Shown as Presence on Customers and Service Providers.' },
             ] },
         ],
         validate: (v) => ({
-            ...(/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.supportEmail) ? {} : { supportEmail: 'Enter a valid email address.' }),
+            ...(!v.supportEmail || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.supportEmail) ? {} : { supportEmail: 'Enter a valid email address, or leave it empty.' }),
             ...(v.presenceRecentMin > v.presenceOnlineMin ? {} : { presenceRecentMin: 'Must be longer than the online window.' }),
         }),
     },

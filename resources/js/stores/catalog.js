@@ -1,5 +1,6 @@
 import { reactive } from 'vue';
 import { api } from '@/api/client.js';
+import { applySearchSettings } from '@/utils/nearbySearch.js';
 
 /**
  * Shared marketplace data, loaded from the Laravel API: categories, areas,
@@ -14,6 +15,17 @@ import { api } from '@/api/client.js';
  */
 
 export const catalog = reactive({ status: 'idle', error: '' });   // idle | loading | ready | error
+
+// Settings administrators change (Admin → Settings) that the app applies.
+// Defaults until the catalogue arrives; the server's values replace them.
+export const appSettings = reactive({
+    defaultArea: 'kampala',
+    supportPhone: null,
+    supportEmail: null,
+    providerSignups: true,
+    maintenanceMode: false,
+    heartbeatSeconds: 60,
+});
 
 export const categories = reactive([]);
 // Places the pages know about: the quick picks, every place a listed provider
@@ -124,6 +136,19 @@ function toArea(a) {
     };
 }
 
+function applySettings(s) {
+    const pick = (key, fallback) => (key in s ? s[key] : fallback);
+    Object.assign(appSettings, {
+        defaultArea: pick('platform.default_area', appSettings.defaultArea),
+        supportPhone: pick('platform.support_phone', null),
+        supportEmail: pick('platform.support_email', null),
+        providerSignups: !!pick('platform.provider_signups', true),
+        maintenanceMode: !!pick('platform.maintenance_mode', false),
+        heartbeatSeconds: pick('presence.heartbeat_seconds', 60),
+    });
+    applySearchSettings(s);
+}
+
 /** Adds a place from the API to the known places (once) and returns it */
 export function rememberArea(a) {
     if (!a) return null;
@@ -166,6 +191,7 @@ export function loadCatalog({ force = false } = {}) {
             // Keep places chosen from a search before the catalogue arrived
             const chosen = searchLocations.filter(l => !data.areas.some(a => a.slug === l.id));
             replace(searchLocations, [...data.areas.map(toArea), ...chosen]);
+            applySettings(data.settings || {});
             replace(providers, data.providers.map(toProvider));
             replace(providerReviews, data.reviews.map(toReview));
             replace(jobs, data.jobs.map(toJob));

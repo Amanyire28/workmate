@@ -30,6 +30,7 @@ export const professions = reactive([]);         // [{ id: slug, label, category
 export const categoryWeights = reactive({});     // id → 1 (kept for code that lists every category)
 export const AREAS = reactive([]);               // [[name, weight, town]] as the demo shaped it
 export const townOf = reactive({});              // area name → town
+export const areaOptions = reactive([]);         // [[slug, label]] places for pickers (quick picks and places in use)
 // Web app install figures, for administrators with usage.view
 export const installs = reactive({ available: false, trackingSince: null, devicesWithApp: 0, daily: [] });
 // Push notification set-up and subscribed devices, for administrators with comms.view
@@ -84,6 +85,7 @@ export function loadAdminData({ force = false } = {}) {
             for (const k of Object.keys(categoryWeights)) delete categoryWeights[k];
             for (const c of data.categories) { categoryLabels[c.id] = c.label; categoryWeights[c.id] = 1; }
             fill(AREAS, data.areas.map(a => [a.name, 1, a.town]));
+            fill(areaOptions, data.areas.map(a => [a.slug, a.district && a.district !== a.name ? `${a.name}, ${a.district}` : a.name]));
             for (const a of data.areas) townOf[a.name] = a.town;
             installs.available = !!data.installs;
             installs.trackingSince = data.installs?.trackingSince || null;

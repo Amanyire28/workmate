@@ -1,6 +1,6 @@
 import { reactive, watch } from 'vue';
 import { resolveOrigin, searchNearby } from '@/utils/nearbySearch.js';
-import { searchOrigin, requestDeviceLocation, GPS_MAX_AGE_MS } from './location.js';
+import { searchOrigin, requestDeviceLocation, gpsMaxAgeMs } from './location.js';
 
 /**
  * State for the homepage "nearby" search: a short staged sequence the radar
@@ -60,7 +60,7 @@ export async function startNearbySearch(query) {
 
     // Refresh a shared position only if it is old; a picked area needs no location check
     let originState = searchOrigin.value;
-    if (originState.kind === 'gps' && Date.now() - originState.timestamp > GPS_MAX_AGE_MS) {
+    if (originState.kind === 'gps' && Date.now() - originState.timestamp > gpsMaxAgeMs()) {
         nearbySearch.stage = 'locating';
         try {
             originState = await requestDeviceLocation();

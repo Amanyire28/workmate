@@ -15,7 +15,7 @@
     </p>
     <p v-else-if="values" class="wm-notice wm-notice-info">
       <i class="bi bi-database" aria-hidden="true"></i>
-      <span>Settings marked <strong class="font-semibold">Live</strong> apply to the whole platform as soon as you save. The others aren’t connected yet and can’t be changed.</span>
+      <span>Settings marked <strong class="font-semibold">Live</strong> apply to the whole platform as soon as you save. Those marked <strong class="font-semibold">Not available yet</strong> can’t work today; each says why.</span>
     </p>
     <p v-if="values && hasConnected && !canEdit" class="wm-notice wm-notice-info">
       <i class="bi bi-lock" aria-hidden="true"></i><span>Your role can view these settings but not change them.</span>
@@ -40,13 +40,13 @@
             <label v-if="f.type === 'toggle'" class="flex items-start gap-3" :class="editable(f) ? 'cursor-pointer' : 'opacity-70'">
               <input v-model="values[f.key]" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-[#1769D2]" :aria-describedby="f.help ? `${uid}-${f.key}-h` : undefined" />
               <span>
-                <span class="block text-[13.5px] font-medium text-ink">{{ f.label }}<ChangedMark :on="changed(f.key)" /><SourceMark :live="!!connected[f.key]" /></span>
-                <span v-if="f.help" :id="`${uid}-${f.key}-h`" class="block text-[12.5px] text-[#64748B]">{{ f.help }}</span>
+                <span class="block text-[13.5px] font-medium text-ink">{{ f.label }}<ChangedMark :on="changed(f.key)" /><SourceMark :live="!!connected[f.key]" :unavailable="!!f.unavailable" /></span>
+                <span v-if="f.unavailable || f.help" :id="`${uid}-${f.key}-h`" class="block text-[12.5px] text-[#64748B]">{{ f.unavailable || f.help }}</span>
               </span>
             </label>
 
             <template v-else>
-              <label :for="`${uid}-${f.key}`" class="block text-[13.5px] font-medium text-ink">{{ f.label }}<ChangedMark :on="changed(f.key)" /><SourceMark :live="!!connected[f.key]" /></label>
+              <label :for="`${uid}-${f.key}`" class="block text-[13.5px] font-medium text-ink">{{ f.label }}<ChangedMark :on="changed(f.key)" /><SourceMark :live="!!connected[f.key]" :unavailable="!!f.unavailable" /></label>
               <div class="mt-1.5 flex items-center gap-2">
                 <select
                   v-if="f.type === 'select'"
@@ -71,7 +71,7 @@
                 <span v-if="f.unit" class="text-[13px] text-[#64748B]">{{ f.unit }}</span>
               </div>
               <p v-if="errors[f.key]" :id="`${uid}-${f.key}-h`" class="mt-1 text-[12.5px] text-[#B91C1C]">{{ errors[f.key] }}</p>
-              <p v-else-if="f.help" :id="`${uid}-${f.key}-h`" class="mt-1 text-[12.5px] text-[#64748B]">{{ f.help }}</p>
+              <p v-else-if="f.unavailable || f.help" :id="`${uid}-${f.key}-h`" class="mt-1 text-[12.5px] text-[#64748B]">{{ f.unavailable || f.help }}</p>
             </template>
           </fieldset>
         </div>
@@ -108,13 +108,13 @@ const props = defineProps({
 const ChangedMark = (p) => (p.on ? h('span', { class: 'ml-1.5 rounded bg-[#FEF3E2] px-1.5 text-[11px] font-semibold text-[#92400E]' }, 'Changed') : null);
 ChangedMark.props = ['on'];
 
-// "Live": saved on the server for the whole platform. Others aren't connected yet.
+// "Live": saved on the server for the whole platform. "Not available yet": can't work today.
 const SourceMark = (p) => h('span', {
   class: p.live
     ? 'ml-1.5 rounded bg-[#EAF3FF] px-1.5 text-[11px] font-semibold text-[#1E5AA8]'
     : 'ml-1.5 rounded bg-[#F1F5F9] px-1.5 text-[11px] font-medium text-[#64748B]',
-}, p.live ? 'Live' : 'Not connected yet');
-SourceMark.props = ['live'];
+}, p.live ? 'Live' : (p.unavailable ? 'Not available yet' : 'Not connected yet'));
+SourceMark.props = ['live', 'unavailable'];
 
 const uid = useId();
 const values = ref(null);

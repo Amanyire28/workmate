@@ -3,20 +3,49 @@
  * Runs on mock data in the browser. A backend search endpoint can later take
  * the same inputs (query + origin) and return the same grouped shape.
  */
-import { providers, categories } from '@/stores/catalog.js';
+import { reactive } from 'vue';
+import { providers, categories, appSettings } from '@/stores/catalog.js';
+import { availabilityInfo, trustRank } from './trust.js';
 import { getSearchLocation, searchLocations, locationLabel } from '@/data/searchLocations.js';
 import { categoriesMatching } from './search.js';
 import { displayName, tradeLabel } from './ui.js';
 import { preferMainSkill } from './recommend.js';
 
-/** Demonstration thresholds: change them here, not in components. */
-export const SEARCH_CONFIG = {
-    nearbyKm: 5,           // "Closest to you"
-    extendedKm: 10,        // "More … around {town}" (plus anyone based in the same town)
-    minNearbyResults: 3,   // fewer nearby matches than this → expand the search
-    radarRangeKm: 12,      // distance drawn at the radar's outer edge
-    gpsAreaMatchKm: 6,     // a GPS fix within this of a sample area counts as being in it
+/**
+ * Search settings. Administrators change them in Admin → Settings → Matching;
+ * the server's values replace these defaults when the catalogue loads.
+ */
+export const SEARCH_CONFIG = reactive({
+    nearbyKm: 5,             // "Closest to you"
+    extendedKm: 10,          // "More … around {town}"
+    maxKm: 25,               // beyond this, only providers who travel to the place
+    minNearbyResults: 3,     // fewer nearby matches than this → expand the search
+    useServiceAreas: true,   // include providers who travel to the place
+    sameTownFallback: true,  // include providers based in the same town or district
+    gpsAreaMatchKm: 6,       // a GPS fix within this of a place counts as being in it
+    gpsMaxAgeMin: 2,         // refresh a shared position older than this
+    rankAvailability: true,  // tie-breaks within the same distance
+    rankVerification: true,
+    rankRating: false,
+    radarRangeKm: 12,        // distance drawn at the radar's outer edge (display only)
+});
+
+const SETTING_KEYS = {
+    'search.nearby_km': 'nearbyKm', 'search.extended_km': 'extendedKm', 'search.max_km': 'maxKm',
+    'search.min_nearby_results': 'minNearbyResults', 'search.use_service_areas': 'useServiceAreas',
+    'search.same_town_fallback': 'sameTownFallback', 'search.gps_area_match_km': 'gpsAreaMatchKm',
+    'search.gps_max_age_minutes': 'gpsMaxAgeMin', 'search.rank_availability': 'rankAvailability',
+    'search.rank_verification': 'rankVerification', 'search.rank_rating': 'rankRating',
 };
+
+/** Applies the server's search settings ({ 'search.nearby_km': 5, … }) */
+export function applySearchSettings(settings) {
+    for (const [key, field] of Object.entries(SETTING_KEYS)) {
+        if (key in settings && settings[key] !== null) SEARCH_CONFIG[field] = settings[key];
+    }
+    // The radar shows a little beyond the wider radius
+    SEARCH_CONFIG.radarRangeKm = Math.max(SEARCH_CONFIG.extendedKm + 2, 6);
+}
 
 // Plural "people" wording per category, for headings like "Plumbers near Ntinda".
 // Categories not listed use their first profession's plural name.
@@ -86,7 +115,7 @@ export function resolveOrigin(state) {
             label: area ? `near ${area.name}` : 'your location',
         };
     }
-    const area = getSearchLocation(state?.areaId) || getSearchLocation('kampala');
+    const area = getSearchLocation(state?.areaId) || getSearchLocation(appSettings.defaultArea) || getSearchLocation('kampala') || searchLocations[0];
     return {
         kind: 'area',
         latitude: area.latitude,
@@ -147,16 +176,23 @@ export function searchNearby(query, origin, config = SEARCH_CONFIG) {
         const baseTown = getSearchLocation(provider.areaSlug)?.town || null;
         const sameTown = !!origin.town && baseTown === origin.town;
 
+        const withinMax = distanceKm == null || distanceKm <= config.maxKm;
         let tier = null;
         if (distanceKm != null && distanceKm <= config.nearbyKm) tier = 'nearby';
-        else if ((distanceKm != null && distanceKm <= config.extendedKm) || sameTown) tier = 'extended';
-        else if (serves) tier = 'serving';
+        else if ((distanceKm != null && distanceKm <= config.extendedKm) || (config.sameTownFallback && sameTown && withinMax)) tier = 'extended';
+        else if (config.useServiceAreas && serves) tier = 'serving';
 
         if (tier) groups[tier].push({ provider, distanceKm, serves, tier });
     }
 
-    // Unknown distances sort after known ones
-    const byDistance = (a, b) => (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity);
+    // Distance first (unknown after known; providers based in the same place
+    // tie), then the tie-breaks chosen in Admin → Settings
+    const km = (x) => (x.distanceKm == null ? Infinity : Math.round(x.distanceKm * 10) / 10);
+    const tieBreak = (a, b) =>
+        (config.rankAvailability ? availabilityInfo(a.provider).rank - availabilityInfo(b.provider).rank : 0) ||
+        (config.rankVerification ? trustRank(b.provider) - trustRank(a.provider) : 0) ||
+        (config.rankRating ? (b.provider.rating || 0) - (a.provider.rating || 0) : 0);
+    const byDistance = (a, b) => (km(a) - km(b)) || tieBreak(a, b);
     groups.nearby.sort(byDistance);
     groups.extended.sort((a, b) => (b.serves - a.serves) || byDistance(a, b));
     groups.serving.sort(byDistance);

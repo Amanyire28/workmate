@@ -106,7 +106,7 @@ class AdminSnapshot
                 return ['id' => $p->slug, 'label' => $p->name, 'category' => $p->category->slug];
             })->values(),
             'areas' => $areas->map(function ($a) {
-                return ['name' => $a->name, 'town' => $a->town];
+                return ['slug' => $a->slug, 'name' => $a->name, 'town' => $a->town, 'district' => $a->district];
             })->values(),
             'daily' => $can('dashboard.view', 'analytics.view') ? $this->daily() : [],
             'installs' => $can('usage.view') ? $this->installs() : null,
@@ -144,6 +144,7 @@ class AdminSnapshot
                 'channel' => 'Website', 'language' => $u->locale === 'lg' ? 'Luganda' : 'English',
                 'registeredAt' => $u->created_at->toIso8601String(),
                 'lastActiveAt' => optional($u->last_seen_at ?: $u->updated_at)->toIso8601String(),
+                'presence' => $this->presence($u->last_seen_at), 'lastSeenAt' => optional($u->last_seen_at)->toIso8601String(),
                 'status' => $u->trashed() ? 'deactivated' : $u->status,
                 'emailVerified' => $u->email_verified_at !== null,
                 'notifications' => ['sms' => null, 'email' => true, 'push' => null],
@@ -181,6 +182,7 @@ class AdminSnapshot
                     'status' => $p->status === ProviderProfile::STATUS_SUSPENDED ? 'suspended' : ($p->owner->isActive() ? 'active' : $p->owner->status),
                     'registeredAt' => optional($p->approved_at ?: $p->created_at)->toIso8601String(),
                     'lastActiveAt' => optional($p->owner->last_seen_at ?: $p->updated_at)->toIso8601String(),
+                    'presence' => $this->presence($p->owner->last_seen_at), 'lastSeenAt' => optional($p->owner->last_seen_at)->toIso8601String(),
                     'phoneMasked' => $this->maskPhone($p->owner->phone),
                     'checks' => ['identity' => 'not_checked', 'phone' => 'not_checked', 'tradeCertificate' => 'not_provided', 'references' => 'not_checked'],
                     'publicListing' => $p->status === ProviderProfile::STATUS_APPROVED,
@@ -744,6 +746,25 @@ class AdminSnapshot
         }));
 
         return (int) round(30 + 70 * $filled / count($checks));
+    }
+
+    /**
+     * online | recently_active | offline | unknown, from the last check-in and the
+     * presence windows in Admin → Settings. Online isn't the same as
+     * available for work.
+     */
+    private function presence($lastSeen): string
+    {
+        if (! $lastSeen) {
+            return 'unknown';
+        }
+        $settings = app(PlatformSettings::class);
+        $minutes = $lastSeen->diffInSeconds(now()) / 60;
+        if ($minutes <= $settings->get('presence.online_minutes')) {
+            return 'online';
+        }
+
+        return $minutes <= $settings->get('presence.recent_minutes') ? 'recently_active' : 'offline';
     }
 
     private function label(string $name, bool $isSample): string

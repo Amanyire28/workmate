@@ -225,6 +225,21 @@
 
     <PushNotificationSetting v-if="user" />
 
+    <!-- Support contact from Admin → Settings -->
+    <section v-if="appSettings.supportPhone || appSettings.supportEmail" class="mt-6" aria-labelledby="account-help-heading">
+      <h2 id="account-help-heading" class="wm-meta font-medium uppercase tracking-wide mb-2 px-1">Help</h2>
+      <div class="wm-card !p-0 overflow-hidden divide-y divide-line">
+        <a v-if="appSettings.supportPhone" :href="`tel:${appSettings.supportPhone.replace(/\s+/g, '')}`" class="flex items-center gap-3 px-4 min-h-[56px] hover:bg-white/60">
+          <i class="bi bi-telephone text-xl text-muted" aria-hidden="true"></i>
+          <span class="flex-1"><span class="block text-[15px] font-medium text-ink">Call WorkMate support</span><span class="block wm-meta">{{ appSettings.supportPhone }}</span></span>
+        </a>
+        <a v-if="appSettings.supportEmail" :href="`mailto:${appSettings.supportEmail}`" class="flex items-center gap-3 px-4 min-h-[56px] hover:bg-white/60">
+          <i class="bi bi-envelope text-xl text-muted" aria-hidden="true"></i>
+          <span class="flex-1"><span class="block text-[15px] font-medium text-ink">Email WorkMate support</span><span class="block wm-meta">{{ appSettings.supportEmail }}</span></span>
+        </a>
+      </div>
+    </section>
+
     <!-- Shortcuts -->
     <nav class="mt-6" aria-labelledby="account-shortcuts-heading">
       <h2 id="account-shortcuts-heading" class="wm-meta font-medium uppercase tracking-wide mb-2 px-1">Shortcuts</h2>
@@ -261,6 +276,7 @@ import PrimaryButton from '@/components/PrimaryButton.vue';
 import ProviderApplicationPanel from '@/components/ProviderApplicationPanel.vue';
 import PushNotificationSetting from '@/components/PushNotificationSetting.vue';
 import PlacePicker from '@/components/PlacePicker.vue';
+import { appSettings } from '@/stores/catalog.js';
 import { selectedArea } from '@/stores/location.js';
 import { focusFirstError } from '@/utils/forms.js';
 import { VERIFICATION_STATUS } from '@/utils/verificationStatus.js';

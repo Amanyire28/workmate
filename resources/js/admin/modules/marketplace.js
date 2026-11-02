@@ -64,6 +64,7 @@ export default {
             { key: 'status', label: 'Status', format: 'status', sortable: true },
             { key: 'bookings', label: 'Bookings', format: 'number', align: 'right', sortable: true },
             { key: 'registeredAt', label: 'Registered', format: 'relative', sortable: true, hideBelow: 'lg' },
+            { key: 'presence', label: 'Presence', format: 'status', sortable: true, hideBelow: 'lg' },
             { key: 'lastActiveAt', label: 'Last active', format: 'relative', sortable: true },
         ],
         detail: {
@@ -72,7 +73,7 @@ export default {
                 return [
                     { title: 'Profile', fields: [
                         ['Area', r.area], ['Phone', r.phoneMasked], ['Email', r.emailMasked], ['Language', r.language],
-                        ['Signed up via', r.channel], ['Registered', r.registeredAt, 'date'], ['Last active', r.lastActiveAt, 'relative'],
+                        ['Signed up via', r.channel], ['Registered', r.registeredAt, 'date'], ['Last active', r.lastActiveAt, 'relative'], ['Presence', r.presence, 'status'],
                         ['Bookings', r.bookings, 'number'], ['Complaints involved in', r.complaints, 'number'],
                     ] },
                     { note: 'Contact details stay masked. Revealing them should be limited to roles that need them, and each reveal logged.' },
@@ -116,6 +117,7 @@ export default {
             { key: 'status', label: 'Account', format: 'status', sortable: true },
             { key: 'verification', label: 'Verification', format: 'status', sortable: true },
             { key: 'blueTick', label: 'Blue tick', format: 'status', sortable: true, hideBelow: 'lg' },
+            { key: 'presence', label: 'Presence', format: 'status', sortable: true, hideBelow: 'lg' },
             { key: 'completedJobs', label: 'Completed jobs', format: 'number', align: 'right', sortable: true },
             { key: 'rating', label: 'Rating', align: 'right', sortable: true, hideBelow: 'lg', value: r => (r.rating ? `${r.rating} (${r.reviewCount})` : null), sortValue: r => r.rating },
         ],
@@ -129,7 +131,7 @@ export default {
                         ['Base map location', r.hasCoordinates ? 'Set (coordinates hidden)' : 'Missing'],
                         ['Current GPS location', 'Not collected'],
                         ['Listed on the public site', r.publicListing, 'bool'],
-                        ['Registered', r.registeredAt, 'date'], ['Last active', r.lastActiveAt, 'relative'],
+                        ['Registered', r.registeredAt, 'date'], ['Last active', r.lastActiveAt, 'relative'], ['Presence', r.presence, 'status'],
                     ] },
                     { title: 'Recognition', fields: [
                         ['Phone number (at sign-up)', r.checks.phone, 'status'],

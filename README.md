@@ -128,16 +128,16 @@ Throughout this README:
 - Live data for customers, providers, applications, typed professions, verification, jobs, quotations, reviews, reports, area coverage, installs, push announcements, admin users, the activity feed and global search
 - Connected actions (see [Administration](#administration)), each requiring a reason
 - Append-only **audit log** of every important action, with who, when and why
-- Platform settings for search radii and online-presence timings
+- **Settings** that change the app straight away: nearby search (radii, maximum distance, fallbacks, GPS, tie-breaks), the default place, support phone and email, accepting provider applications, maintenance mode, and presence timings
 
 **Quality**
-- **154 automated tests** (feature and unit) on a separate MariaDB test database
+- **159 automated tests** (feature and unit) on a separate MariaDB test database
 
 ### 🟡 In development
 
 | Area | What exists | What's missing |
 |---|---|---|
-| Location matching | Distance ranking and widening run in the browser, from every place in Uganda | Server-side matching. The search still uses fixed radii (5 km / 10 km) in `resources/js/utils/nearbySearch.js` rather than the admin-editable settings |
+| Location matching | Distance ranking and widening run in the browser, from every place in Uganda, using the radii, fallbacks and tie-breaks set in Admin → Settings | Server-side matching for large numbers of providers |
 | Places | GeoNames places loaded automatically, with districts | A few small places are missing from GeoNames (e.g. Najjera); there is no admin screen yet to add a place by hand |
 | Document requirements | Real document checks (ID + supporting + requested documents) | The per-profession Document Requirements admin screen is still a browser-only prototype |
 | Performance tick | Tick display and admin rules screen | Automatic evaluation isn't running; only sample providers carry a blue tick |
@@ -345,7 +345,9 @@ Screens for features that aren't built yet (finance, bookings, disputes, videos,
 - Anything not recorded yet (payments, bookings, disputes, searches) is shown as **Not tracked yet**, never as zero.
 - Actions that call the API are listed in `resources/js/admin/modules/connected.js` (or call the API from their module or page). Other actions aren't offered; the record shows how many aren't connected.
 - Every action needs a reason and is written to the audit log.
-- The six search and presence settings are saved server-side; the other settings are marked "Not connected yet".
+- **Settings** (Platform and Matching tabs): every setting marked **Live** is saved on the server (`config/workmate.php`, audited) and sent to the app with `GET /catalog` → `settings`, which applies it. Platform name, currency, languages, road distance and "providers without a map location" are marked **Not available yet**, each with the reason.
+- **Presence:** while the app is open and on screen, a signed-in account checks in (`POST me/heartbeat`, every *App check-in interval*). Customers and Service Providers show **Online**, **Recently active** or **Offline** from the presence windows. Only the time is stored, never a location.
+- **Maintenance mode** shows a notice on the site and pauses new jobs, requests, applications and hiring (HTTP 503 `maintenance`); browsing, messages and the admin keep working. **Accept new provider applications** off stops new applications (`provider_signups_closed`); requested changes can still be sent.
 - Admin screens work with the popular places and the places in use, not all 11,300.
 
 **Still a prototype in the sidebar ⬜:** Document Requirements (changes are kept in the browser only).
@@ -543,7 +545,7 @@ Not yet in the schema: bookings and booking event history; versioned document re
 |---|---|---|
 | Public | Anyone | `GET health`, `GET catalog` (everything the first page needs), `GET categories`, `GET areas` (quick picks and places in use), `GET areas/search?q=` (type-to-search), `GET areas/nearest`, `GET providers`, `GET providers/{id}`, `GET reviews/recent`, `GET jobs`, `GET jobs/{id}`, `GET avatars/{file}`, `GET push/config`, `POST app-events` |
 | Auth | Guests (website session) | `POST auth/register`, `auth/login`, `auth/logout`, `auth/forgot-password`, `auth/reset-password`; `GET auth/verify-email/{id}/{hash}` (signed link) |
-| Account | Signed in | `GET/PATCH me` (includes `provider_ids`), `PUT me/password`, `POST/DELETE me/photo`, `POST me/email/verification-notification`, `POST/DELETE me/push-subscriptions` |
+| Account | Signed in | `GET/PATCH me` (includes `provider_ids`), `POST me/heartbeat`, `PUT me/password`, `POST/DELETE me/photo`, `POST me/email/verification-notification`, `POST/DELETE me/push-subscriptions` |
 | My work | Signed in | `GET me/requests`, `GET me/applications`, `GET me/jobs/{id}/applications`, `POST me/jobs/{id}/applications/{application}/hire`, `GET me/received-requests`, `POST me/received-requests/{id}/accept`, `…/decline`, `…/complete`, `…/message`, `GET me/reviews/waiting`, `POST me/requests/{id}/review`, `POST me/requests/{id}/review/later`, `GET me/reports`, `POST me/reports/{id}/reply`, `GET me/reports/{id}/files/{n}`, `GET me/warnings`, `POST me/warnings/{id}/read` |
 | Provider application | Signed in | `GET/PUT me/provider`, `POST me/provider/submit`, `POST me/provider/reopen` |
 | Verification | Signed in (provider) | `GET me/verification`, `POST me/verification/documents`, `POST me/verification/documents/{id}/replace`, `DELETE me/verification/documents/{id}`, `GET me/verification/documents/{id}/files/{n}`, `POST me/verification/submit` |
@@ -665,7 +667,7 @@ The admin area is at <http://127.0.0.1:8000/admin>. On the live server, run the 
 
 ## Testing
 
-- **154 tests** in `tests/Feature/Api` and `tests/Unit`. They cover accounts, permissions and the permission lists staying identical, provider applications and typed professions, place search, the marketplace, received requests and ratings, messaging, document verification (including file privacy), push notifications, install events, photos, admin data and actions, settings and the audit log. New endpoints include a test proving another user or provider can't read or change the data.
+- **159 tests** in `tests/Feature/Api` and `tests/Unit`. They cover accounts, permissions and the permission lists staying identical, provider applications and typed professions, place search, the marketplace, received requests and ratings, messaging, document verification (including file privacy), push notifications, install events, photos, admin data and actions, settings and the audit log. New endpoints include a test proving another user or provider can't read or change the data.
 - Tests use `RefreshDatabase`, which **rebuilds the database on every run**. `phpunit.xml` therefore points them at the separate **`workmate_test`** database. Never point it at a database whose data you need.
 - Mail, cache, sessions and queues use in-memory drivers during tests; uploads use a fake disk; push delivery is mocked.
 
@@ -872,7 +874,7 @@ The mobile apps will use the **same `/api/v1` endpoints**, so the marketplace ba
 - [x] Device location (with permission) naming the nearest place
 - [x] Distance ranking, widening and main-skill priority in the browser
 - [ ] Server-side matching with indexed distance queries
-- [ ] Customer search reading the admin-configured radii
+- [x] Customer search reading the admin-configured radii and ranking
 
 ### Bookings and reviews
 - [x] Customer ratings after a provider finishes a request

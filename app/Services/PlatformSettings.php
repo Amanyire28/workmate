@@ -7,6 +7,7 @@ use App\Models\PlatformSetting;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 
 /**
@@ -49,8 +50,12 @@ class PlatformSettings
     public function get(string $key)
     {
         $overrides = $this->overrides();
+        if (! array_key_exists($key, $overrides)) {
+            return $this->definition($key)['default'];
+        }
 
-        return array_key_exists($key, $overrides) ? $overrides[$key] : $this->definition($key)['default'];
+        // A text setting cleared by an administrator is stored as "" (the column can't be empty)
+        return $overrides[$key] === '' ? null : $overrides[$key];
     }
 
     public function canView(User $user, string $key): bool
@@ -61,6 +66,25 @@ class PlatformSettings
     public function canChange(User $user, string $key): bool
     {
         return $user->hasPermission($this->group($key)['change_permission']);
+    }
+
+    /**
+     * The settings the app itself applies, for everyone (no permission
+     * needed): nearby search, the default place, support contact, provider
+     * sign-ups, maintenance mode and presence timing.
+     *
+     * @return array<string, mixed>
+     */
+    public function publicValues(): array
+    {
+        $values = [];
+        foreach (config('workmate.settings', []) as $key => $definition) {
+            if (! empty($definition['public'])) {
+                $values[$key] = $this->get($key);
+            }
+        }
+
+        return $values;
     }
 
     /** Settings the user may see, with whether they may change each one. */
@@ -105,6 +129,12 @@ class PlatformSettings
                 return ['required', 'integer', 'min:'.$definition['min'], 'max:'.$definition['max']];
             case 'boolean':
                 return ['required', 'boolean'];
+            case 'string':
+                return ['nullable', 'string', 'max:'.($definition['max'] ?? 255)];
+            case 'email':
+                return ['nullable', 'email', 'max:120'];
+            case 'area':
+                return ['required', 'string', Rule::exists('areas', 'slug')->where('is_active', true)];
             default:
                 throw new InvalidArgumentException("Unsupported setting type [{$definition['type']}].");
         }
@@ -128,7 +158,7 @@ class PlatformSettings
         DB::transaction(function () use ($key, $value, $before, $actor, $reason) {
             $setting = PlatformSetting::updateOrCreate(
                 ['key' => $key],
-                ['value' => $value, 'updated_by' => $actor->getKey()]
+                ['value' => $value ?? '', 'updated_by' => $actor->getKey()]
             );
 
             $this->audit->record('settings.updated', $setting, [$key => $before], [$key => $value], $reason, $actor);
@@ -148,7 +178,17 @@ class PlatformSettings
     /** @param mixed $value */
     private function cast(string $key, $value)
     {
-        return $this->definition($key)['type'] === 'integer' ? (int) $value : (bool) $value;
+        switch ($this->definition($key)['type']) {
+            case 'integer':
+                return (int) $value;
+            case 'boolean':
+                return (bool) $value;
+            default:
+                // Text: trimmed, with an empty value meaning "not set"
+                $value = trim((string) $value);
+
+                return $value === '' ? null : $value;
+        }
     }
 
     /**

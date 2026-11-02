@@ -1,5 +1,6 @@
 import { ref, reactive, watch } from 'vue';
-import { catalog, searchLocations, nearestPlace } from '@/stores/catalog.js';
+import { catalog, searchLocations, nearestPlace, appSettings } from '@/stores/catalog.js';
+import { SEARCH_CONFIG } from '@/utils/nearbySearch.js';
 import { getSearchLocation, findSearchLocationByName } from '@/data/searchLocations.js';
 
 /**
@@ -31,7 +32,7 @@ const ORIGIN_KEY = 'workmate.searchArea';
 
 // Places load from the API after start-up, so the saved choice is trusted
 // here and checked once they arrive
-let lastAreaId = read(ORIGIN_KEY) || 'kampala';
+let lastAreaId = read(ORIGIN_KEY) || appSettings.defaultArea;
 export const searchOrigin = ref({ kind: 'area', areaId: lastAreaId });
 
 watch(() => catalog.status, (status) => {
@@ -42,7 +43,7 @@ watch(() => catalog.status, (status) => {
     }
     if (searchOrigin.value.kind !== 'area') return;
     if (getSearchLocation(searchOrigin.value.areaId) && read(ORIGIN_KEY)) return;
-    lastAreaId = getSearchLocation(selectedArea.value)?.id || 'kampala';
+    lastAreaId = getSearchLocation(selectedArea.value)?.id || appSettings.defaultArea;
     searchOrigin.value = { kind: 'area', areaId: lastAreaId };
 }, { immediate: true });
 
@@ -81,8 +82,10 @@ export const gpsMessages = {
     timeout:     'Finding your location took too long. Try again, or choose an area.',
 };
 
-/** A shared position older than this is refreshed before searching */
-export const GPS_MAX_AGE_MS = 2 * 60 * 1000;
+/** A shared position older than this is refreshed before searching (Admin → Settings) */
+export function gpsMaxAgeMs() {
+    return SEARCH_CONFIG.gpsMaxAgeMin * 60 * 1000;
+}
 
 let pending = null;
 

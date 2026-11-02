@@ -5,6 +5,15 @@
         <AppLogo />
         <p class="mt-2 text-sm text-[#64748B]">Local skills. Real opportunities.</p>
         <p class="mt-3 text-sm text-[#64748B]">A product of <span class="font-medium text-ink">ResNet Systems</span>.</p>
+        <p v-if="appSettings.supportPhone || appSettings.supportEmail" class="mt-3 flex flex-col gap-1 text-sm text-[#64748B]">
+          <span class="font-medium text-ink">Need help?</span>
+          <a v-if="appSettings.supportPhone" :href="`tel:${appSettings.supportPhone.replace(/\s+/g, '')}`" class="inline-flex items-center gap-1.5 min-h-11 hover:text-primary">
+            <i class="bi bi-telephone" aria-hidden="true"></i>{{ appSettings.supportPhone }}
+          </a>
+          <a v-if="appSettings.supportEmail" :href="`mailto:${appSettings.supportEmail}`" class="inline-flex items-center gap-1.5 min-h-11 hover:text-primary">
+            <i class="bi bi-envelope" aria-hidden="true"></i>{{ appSettings.supportEmail }}
+          </a>
+        </p>
         <button
           v-if="!pwa.standalone"
           type="button"
@@ -48,7 +57,7 @@
 
 <script setup>
 import AppLogo from './AppLogo.vue';
-import { categories } from '@/stores/catalog.js';
+import { categories, appSettings } from '@/stores/catalog.js';
 import { pwa, openInstall } from '@/stores/pwa.js';
 
 const year = new Date().getFullYear();

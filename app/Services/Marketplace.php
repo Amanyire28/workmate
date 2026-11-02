@@ -36,6 +36,8 @@ class Marketplace
      */
     public function postJob(User $customer, array $data): ServiceRequest
     {
+        $this->guardOpenForBusiness();
+
         return $this->createRequest($customer, null, $data);
     }
 
@@ -46,6 +48,8 @@ class Marketplace
      */
     public function requestProvider(User $customer, ProviderProfile $provider, array $data): ServiceRequest
     {
+        $this->guardOpenForBusiness();
+
         if ($provider->hasMember($customer)) {
             throw new BusinessRuleException('own_provider', 'You can’t send a request to your own provider profile.', 422);
         }
@@ -68,6 +72,8 @@ class Marketplace
     /** @param array{message: string, start_time: ?string, amount: ?int} $data */
     public function apply(User $user, ServiceRequest $job, array $data): Quotation
     {
+        $this->guardOpenForBusiness();
+
         $provider = $user->providerProfile;
 
         if (! $user->isProvider() || ! $provider) {
@@ -111,6 +117,8 @@ class Marketplace
      */
     public function hire(User $customer, int $jobId, int $quotationId): ServiceRequest
     {
+        $this->guardOpenForBusiness();
+
         return DB::transaction(function () use ($customer, $jobId, $quotationId) {
             $job = ServiceRequest::where('customer_id', $customer->getKey())->where('is_posted_job', true)
                 ->whereKey($jobId)->lockForUpdate()->first();
@@ -205,6 +213,14 @@ class Marketplace
 
             return $request;
         });
+    }
+
+    /** Maintenance mode (Admin → Settings) pauses new work; messages and replies continue */
+    private function guardOpenForBusiness(): void
+    {
+        if (app(PlatformSettings::class)->get('platform.maintenance_mode')) {
+            throw new BusinessRuleException('maintenance', 'WorkMate is having maintenance, so new jobs, requests and applications are paused. Please try again later.', 503);
+        }
     }
 
     private function createRequest(User $customer, ?ProviderProfile $provider, array $data): ServiceRequest

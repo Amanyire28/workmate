@@ -10,6 +10,7 @@ use App\Models\Area;
 use App\Models\ProviderProfile;
 use App\Models\Review;
 use App\Models\ServiceRequest;
+use App\Services\PlatformSettings;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -33,7 +34,10 @@ class DirectoryController extends Controller
 
         return response()->json(['data' => array_map(function ($collection) use ($request) {
             return $collection->resolve($request);
-        }, $data)]);
+        }, $data) + [
+            // Settings administrators change that the app applies
+            'settings' => app(PlatformSettings::class)->publicValues(),
+        ]]);
     }
 
     /**
@@ -52,7 +56,9 @@ class DirectoryController extends Controller
 
         $areas = Area::active()
             ->where(function ($query) use ($used) {
-                $query->where('is_featured', true)->orWhereIn('id', $used);
+                $query->where('is_featured', true)->orWhereIn('id', $used)
+                    // The default place searches start from
+                    ->orWhere('slug', app(PlatformSettings::class)->get('platform.default_area'));
             })
             ->orderByDesc('is_featured')->orderBy('sort_order')->orderBy('name')
             ->get();

@@ -620,8 +620,8 @@ const SETTINGS_DEFAULTS = {
         marketingDefault: false, quietHoursStart: '21:00', quietHoursEnd: '07:00', defaultLanguage: 'English',
     }),
     platform: () => ({
-        platformName: 'WorkMate', supportPhone: '+256 700 000 000', supportEmail: 'support@workmate.example',
-        defaultCity: 'Kampala', currency: 'UGX', languages: 'English, Luganda', maintenanceMode: false, providerSignups: true,
+        platformName: 'WorkMate', supportPhone: '', supportEmail: '',
+        defaultArea: 'kampala', currency: 'UGX', languages: 'English', maintenanceMode: false, providerSignups: true,
         ...PRESENCE_DEFAULTS,
     }),
     rules: () => ({
@@ -636,8 +636,15 @@ const SETTINGS_DEFAULTS = {
  * connected yet and is shown read-only.
  */
 export const SERVER_SETTINGS = {
-    matching: { nearbyKm: 'search.nearby_km', extendedKm: 'search.extended_km', minNearbyResults: 'search.min_nearby_results' },
+    matching: {
+        nearbyKm: 'search.nearby_km', extendedKm: 'search.extended_km', maxKm: 'search.max_km', minNearbyResults: 'search.min_nearby_results',
+        useServiceAreas: 'search.use_service_areas', sameTownFallback: 'search.same_town_fallback',
+        gpsAreaMatchKm: 'search.gps_area_match_km', gpsMaxAgeMin: 'search.gps_max_age_minutes',
+        rankAvailability: 'search.rank_availability', rankVerification: 'search.rank_verification', rankRating: 'search.rank_rating',
+    },
     platform: {
+        defaultArea: 'platform.default_area', supportPhone: 'platform.support_phone', supportEmail: 'platform.support_email',
+        providerSignups: 'platform.provider_signups', maintenanceMode: 'platform.maintenance_mode',
         presenceOnlineMin: 'presence.online_minutes', presenceRecentMin: 'presence.recent_minutes',
         presenceHeartbeatSec: 'presence.heartbeat_seconds',
     },
@@ -659,8 +666,8 @@ export async function getSettings(moduleId) {
         for (const [field, key] of Object.entries(mapped)) {
             const s = server.get(key);
             if (!s) continue;   // this role may not see it
-            values[field] = s.value;
-            defaults[field] = s.default;
+            values[field] = s.value ?? '';
+            defaults[field] = s.default ?? '';
             connected[field] = { key, canChange: s.can_change, min: s.min, max: s.max };
         }
     }

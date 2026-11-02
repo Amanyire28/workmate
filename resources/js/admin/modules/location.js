@@ -170,7 +170,7 @@ export default {
         type: 'settings',
         editPermission: 'location.configure',
         description: 'How nearby search finds and orders providers. Each setting explains its effect.',
-        effectNote: 'The radius settings marked Live are stored by the server. The rest aren’t connected yet.',
+        effectNote: 'Settings marked Live apply to everyone’s nearby search as soon as you save.',
         sections: [
             { title: 'Search radius', description: 'Search starts close to the customer and widens only when there are too few results.', fields: [
                 { key: 'nearbyKm', label: 'Initial search radius', type: 'number', unit: 'km', min: 1, max: 20, help: 'Providers within this straight-line distance appear first, as “Closest to you”.' },
@@ -179,18 +179,20 @@ export default {
                 { key: 'minNearbyResults', label: 'Widen when nearby results are fewer than', type: 'number', min: 1, max: 10, help: 'Fewer close matches than this triggers the expansion step.' },
             ] },
             { title: 'Fallback rules', fields: [
-                { key: 'useServiceAreas', label: 'Include providers who serve the customer’s area', type: 'toggle', help: 'A provider based in Mukono who lists Ntinda can appear for Ntinda searches.' },
-                { key: 'sameTownFallback', label: 'Include providers based in the same town', type: 'toggle', help: 'Even beyond the expansion radius, as “More professionals around Kampala”.' },
-                { key: 'noCoordinates', label: 'Providers without a map location', type: 'select', wide: true, options: [['town_only', 'Include by town, without a distance'], ['exclude', 'Exclude from nearby search'], ['area_centre', 'Estimate from their area’s centre (labelled as estimate)']], help: 'WorkMate never invents a distance; an estimate is always labelled.' },
+                { key: 'useServiceAreas', label: 'Include providers who travel to the customer’s place', type: 'toggle', help: 'A provider based in Mukono who lists Ntinda can appear for Ntinda searches.' },
+                { key: 'sameTownFallback', label: 'Include providers based in the same town or district', type: 'toggle', help: 'Beyond the expansion radius but within the maximum distance, as “More professionals around Kampala”.' },
+                { key: 'noCoordinates', label: 'Providers without a map location', type: 'select', wide: true,
+                  unavailable: 'Every provider now has to choose a place, which gives them a map location, so this no longer applies.', options: [['town_only', 'Include by town, without a distance'], ['exclude', 'Exclude from nearby search'], ['area_centre', 'Estimate from their area’s centre (labelled as estimate)']], help: 'WorkMate never invents a distance; an estimate is always labelled.' },
             ] },
             { title: 'Distance and location', fields: [
-                { key: 'distancePolicy', label: 'Distance calculation', type: 'select', options: [['straight_line', 'Straight line (Haversine)'], ['road', 'Road distance (needs a routing service)']], help: 'Distances are to the provider’s registered base, never their live position.' },
+                { key: 'distancePolicy', label: 'Distance calculation', type: 'select',
+                  unavailable: 'Road distance needs a paid routing service. Straight-line distance is used.', options: [['straight_line', 'Straight line (Haversine)'], ['road', 'Road distance (needs a routing service)']], help: 'Distances are to the provider’s registered base, never their live position.' },
                 { key: 'gpsAreaMatchKm', label: 'Match a GPS position to an area within', type: 'number', unit: 'km', min: 1, max: 20, help: 'Used to check service areas for customers who share their location.' },
                 { key: 'gpsMaxAgeMin', label: 'Refresh a shared location older than', type: 'number', unit: 'min', min: 1, max: 60 },
             ] },
             { title: 'Ranking factors', description: 'Within each distance group, providers are ordered by distance first; these break ties.', fields: [
                 { key: 'rankAvailability', label: 'Prefer providers available now', type: 'toggle' },
-                { key: 'rankVerification', label: 'Prefer providers with more verified checks', type: 'toggle' },
+                { key: 'rankVerification', label: 'Prefer providers with the tick', type: 'toggle' },
                 { key: 'rankRating', label: 'Prefer higher-rated providers', type: 'toggle', help: 'Off by default so new providers without reviews aren’t buried.' },
             ] },
         ],

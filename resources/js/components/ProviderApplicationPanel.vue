@@ -32,6 +32,12 @@
         Start a new application
       </PrimaryButton>
 
+      <!-- Admin → Settings → Accept new provider applications -->
+      <p v-if="!appSettings.providerSignups && (!profile || profile.status === 'draft')" class="wm-notice wm-notice-info" role="status">
+        <i class="bi bi-pause-circle" aria-hidden="true"></i>
+        <span>WorkMate isn’t accepting new provider applications right now. You can still save your details and send them when applications reopen.</span>
+      </p>
+
       <form v-if="editable" class="flex flex-col gap-4" novalidate @submit.prevent="save(false)">
         <fieldset>
           <legend class="wm-label">I’m offering services as</legend>
@@ -231,7 +237,7 @@ import FormField from '@/components/FormField.vue';
 import PrimaryButton from '@/components/PrimaryButton.vue';
 import { api, fieldErrors } from '@/api/client.js';
 import { auth, loadSession } from '@/stores/auth.js';
-import { loadCatalog, rememberArea, areaById, areaLabel } from '@/stores/catalog.js';
+import { loadCatalog, rememberArea, areaById, areaLabel, appSettings } from '@/stores/catalog.js';
 import PlacePicker from '@/components/PlacePicker.vue';
 import { focusFirstError } from '@/utils/forms.js';
 

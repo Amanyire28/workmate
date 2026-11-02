@@ -22,6 +22,14 @@
       </p>
     </div>
 
+    <!-- Admin → Settings → Maintenance mode -->
+    <div v-if="appSettings.maintenanceMode" class="wm-container mt-3">
+      <p class="wm-notice wm-notice-warning" role="status">
+        <i class="bi bi-tools" aria-hidden="true"></i>
+        <span><strong class="font-semibold">WorkMate is having maintenance.</strong> You can browse and message people, but new jobs, requests and applications are paused for now.</span>
+      </p>
+    </div>
+
     <main id="main" tabindex="-1" class="focus:outline-none">
       <router-view />
     </main>
@@ -42,7 +50,11 @@ import MobileBottomNav from '@/components/MobileBottomNav.vue';
 import AppStatusLayer from '@/components/AppStatusLayer.vue';
 import RateProviderDialog from '@/components/RateProviderDialog.vue';
 import PushReminder from '@/components/PushReminder.vue';
-import { catalog, loadCatalog } from '@/stores/catalog.js';
+import { catalog, loadCatalog, appSettings } from '@/stores/catalog.js';
+import { startPresence } from '@/stores/presence.js';
+
+// While the app is open, a signed-in account checks in (Admin → Settings → presence)
+startPresence();
 
 const route = useRoute();
 const isAdmin = computed(() => route.meta.layout === 'admin');

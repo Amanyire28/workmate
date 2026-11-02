@@ -24,6 +24,7 @@ use App\Http\Controllers\Api\V1\JobController;
 use App\Http\Controllers\Api\V1\MyActivityController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\MeController;
+use App\Http\Controllers\Api\V1\PresenceController;
 use App\Http\Controllers\Api\V1\ProviderApplicationController;
 use App\Http\Controllers\Api\V1\ReceivedRequestController;
 use App\Http\Controllers\Api\V1\ReportController;
@@ -116,6 +117,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('me/jobs/{id}/applications', [JobApplicantController::class, 'index'])->whereNumber('id')->name('me.jobs.applications');
         Route::post('me/jobs/{id}/applications/{application}/hire', [JobApplicantController::class, 'hire'])
             ->whereNumber('id')->whereNumber('application')->middleware('throttle:marketplace-write')->name('me.jobs.hire');
+
+        // The open app checks in so administrators can see who is online
+        Route::post('me/heartbeat', [PresenceController::class, 'heartbeat'])->middleware('throttle:heartbeat')->name('me.heartbeat');
 
         // The account's own reports and complaints, and warnings sent to it
         Route::get('me/reports', [ReportController::class, 'index'])->name('me.reports');

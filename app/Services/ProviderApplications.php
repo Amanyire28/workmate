@@ -111,6 +111,11 @@ class ProviderApplications
                 throw new BusinessRuleException('provider_not_submittable', $this->lockedMessage($profile->status), 409);
             }
 
+            // Admin → Settings can stop new applications; requested changes can still be sent
+            if ($profile->status === ProviderProfile::STATUS_DRAFT && ! app(PlatformSettings::class)->get('platform.provider_signups')) {
+                throw new BusinessRuleException('provider_signups_closed', 'WorkMate isn’t accepting new provider applications right now. Your details are saved: send them when applications reopen.', 409);
+            }
+
             $profile->load('professions', 'professionSuggestions');
 
             if ($profile->professions->isEmpty() && $profile->professionSuggestions->where('status', ProfessionSuggestion::STATUS_PENDING)->isEmpty()) {

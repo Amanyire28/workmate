@@ -237,7 +237,10 @@ class MarketplaceTest extends ApiTestCase
 
         $data = $this->getJson('/api/v1/catalog')->assertOk()->json('data');
 
-        $this->assertSame(['categories', 'areas', 'providers', 'reviews', 'jobs'], array_keys($data));
+        $this->assertSame(['categories', 'areas', 'providers', 'reviews', 'jobs', 'settings'], array_keys($data));
+        // Only settings the app applies; nothing only administrators should see
+        $this->assertSame(5, $data['settings']['search.nearby_km']);
+        $this->assertArrayNotHasKey('presence.online_minutes', $data['settings']);
         $this->assertCount(\App\Models\Category::where('is_active', true)->count(), $data['categories']);
         $this->assertSame($provider->id, $data['providers'][0]['id']);
     }
