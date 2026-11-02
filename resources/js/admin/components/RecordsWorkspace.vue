@@ -360,7 +360,10 @@ function openFromQuery() {
     if (row) openRow(row);
   }
   if (route.query.create && def.create) openCreate();
-  if (route.query.open || route.query.create) router.replace({ query: {} });
+  if (route.query.open || route.query.create) {
+    const { open, create, ...rest } = route.query;
+    router.replace({ query: rest });
+  }
 }
 
 /* ---------------- Actions ---------------- */

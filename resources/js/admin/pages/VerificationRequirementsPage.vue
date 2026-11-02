@@ -32,7 +32,7 @@
             >
               <span class="min-w-0 flex-1">
                 <span class="block text-[13.5px] font-medium whitespace-nowrap" :class="profession === c.id ? 'text-primary' : 'text-ink'">{{ c.label }}</span>
-                <span class="block text-[11.5px] text-[#64748B] whitespace-nowrap">v{{ currentVersion(c.id).version }} · {{ currentVersion(c.id).documents.filter(d => d.enabled).length }} documents</span>
+                <span class="block text-[11.5px] text-[#64748B] whitespace-nowrap">{{ currentVersion(c.id).version ? `v${currentVersion(c.id).version} · ${currentVersion(c.id).documents.filter(d => d.enabled).length} documents` : 'Not set up yet' }}</span>
               </span>
             </button>
           </li>
@@ -42,7 +42,8 @@
       <div class="flex min-w-0 flex-col gap-3">
         <div class="flex flex-wrap items-baseline justify-between gap-2">
           <h2 class="text-[16px] font-semibold text-ink">{{ categoryLabel(profession) }}</h2>
-          <p class="text-[12.5px] text-[#64748B]">Current: v{{ current.version }}, published {{ formatDateTime(current.publishedAt) }} by {{ current.publishedBy }}</p>
+          <p v-if="current.version" class="text-[12.5px] text-[#64748B]">Current: v{{ current.version }}, published {{ formatDateTime(current.publishedAt) }} by {{ current.publishedBy }}</p>
+          <p v-else class="text-[12.5px] text-[#64748B]">No requirements published yet. Add documents below, then publish version 1.</p>
         </div>
 
         <!-- Document requirements -->
@@ -169,7 +170,7 @@ import { currentVersion, versionHistory, publishVersion } from '@/stores/verific
 import { fetchDataset } from '../data/adminApi.js';
 import { can } from '../permissions.js';
 import { recordAudit, actorName, toast } from '../stores/prototypeChanges.js';
-import { categoryLabel } from '@/utils/ui.js';
+import { categoryLabel } from '../modules/helpers.js';
 import { formatDateTime } from '../utils/format.js';
 
 const uid = useId();
@@ -256,7 +257,8 @@ const apps = ref([]);
 onMounted(async () => { try { apps.value = (await fetchDataset('verification-applications')).rows; } catch { /* history counts are optional */ } });
 const appsPerVersion = computed(() => {
   const out = {};
-  for (const a of apps.value) if (a.profession === profession.value) out[a.snapshot.version] = (out[a.snapshot.version] || 0) + 1;
+  // Real applications aren't tied to a requirements version
+  for (const a of apps.value) if (a.profession === profession.value && a.snapshot?.version) out[a.snapshot.version] = (out[a.snapshot.version] || 0) + 1;
   return out;
 });
 </script>

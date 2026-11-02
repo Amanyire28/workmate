@@ -170,14 +170,9 @@ const createMenu = reactive(usePopover());
 const alertMenu = reactive(usePopover());
 const userMenu = reactive(usePopover());
 
-// Each opens the module with its create form
+// Each opens the module with its create form; only forms that save something are listed
 const createItems = computed(() => [
-  { label: 'Announcement', icon: 'bi-megaphone', permission: 'content.view', path: '/admin/content/announcements' },
-  { label: 'Help article', icon: 'bi-question-circle', permission: 'content.view', path: '/admin/content/help' },
-  { label: 'Campaign', icon: 'bi-send', permission: 'comms.view', path: '/admin/comms/campaigns' },
-  { label: 'Saved report', icon: 'bi-file-earmark-bar-graph', permission: 'analytics.view', path: '/admin/analytics/reports' },
-  { label: 'Service category', icon: 'bi-grid', permission: 'admin.manage', path: '/admin/marketplace/categories' },
-  { label: 'Admin user', icon: 'bi-person-plus', permission: 'admin.manage', path: '/admin/settings/users' },
+  { label: 'Push announcement', icon: 'bi-megaphone', permission: 'comms.send', path: '/admin/comms/push' },
 ].filter(c => can(c.permission)));
 
 // Alerts, limited to what this role may act on

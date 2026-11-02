@@ -4,7 +4,7 @@
  * which picks the workspace its definition asks for (admin/modules/*).
  * Everything is lazy-loaded: customers never download the admin bundle.
  */
-import { navItems } from './navigation.js';
+import { navItems, findNavItem, itemPermissions } from './navigation.js';
 
 const pages = {
     dashboard: () => import('./pages/ExecutiveDashboard.vue'),
@@ -14,6 +14,7 @@ const pages = {
     'live-presence': () => import('./pages/LivePresencePage.vue'),
 };
 const modulePage = () => import('./pages/ModulePage.vue');
+const tabbedPage = () => import('./pages/TabbedPage.vue');
 
 export const adminRoutes = [
     {
@@ -21,13 +22,20 @@ export const adminRoutes = [
         component: () => import('./layouts/AdminLayout.vue'),
         meta: { layout: 'admin' },
         children: [
-            ...navItems.map(item => ({
+            // A screen shown as a tab of another opens there, on its tab
+            ...navItems.filter(item => item.tabOf).map(item => ({
+                path: item.path.replace(/^\/admin\/?/, ''),
+                redirect: (to) => ({ path: findNavItem(item.tabOf).path, query: { ...to.query, tab: item.id } }),
+            })),
+            ...navItems.filter(item => !item.tabOf).map(item => ({
                 // Child paths are relative to /admin
                 path: item.path.replace(/^\/admin\/?/, ''),
-                component: pages[item.id] || modulePage,
+                component: item.tabs ? tabbedPage : (pages[item.id] || modulePage),
                 meta: {
                     navId: item.id,
                     permission: item.permission,
+                    // Any one of these opens it (a tabbed screen)
+                    permissions: itemPermissions(item),
                     groupLabel: item.group.label,
                     pageLabel: item.label,
                     title: `${item.label} – WorkMate Admin`,

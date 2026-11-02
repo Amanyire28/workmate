@@ -17,7 +17,8 @@ export const verification = reactive({
 
 export function currentVersion(professionId) {
     const list = verification.versions[professionId] || [];
-    return list[list.length - 1] || null;
+    // Categories without sample requirements start with nothing published
+    return list[list.length - 1] || { version: 0, publishedAt: null, publishedBy: null, note: null, documents: [] };
 }
 
 export function versionHistory(professionId) {

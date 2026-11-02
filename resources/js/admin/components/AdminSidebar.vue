@@ -88,7 +88,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
-import { navGroups } from '../navigation.js';
+import { navGroups, itemPermissions } from '../navigation.js';
 import { can, currentRole } from '../permissions.js';
 import { auth } from '@/stores/auth.js';
 import UserAvatar from '@/components/UserAvatar.vue';
@@ -104,7 +104,7 @@ const role = computed(() => currentRole());
 
 // Only sections and pages the role may open
 const groups = computed(() => navGroups
-  .map(g => ({ ...g, items: g.items.filter(i => can(i.permission)) }))
+  .map(g => ({ ...g, items: g.items.filter(i => !i.hidden && itemPermissions(i).some(p => can(p))) }))
   .filter(g => g.items.length));
 
 const isActive = (item) => route.path === item.path || (item.path !== '/admin' && route.path.startsWith(`${item.path}/`));

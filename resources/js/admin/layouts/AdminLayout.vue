@@ -48,7 +48,7 @@ import { can, currentRole } from '../permissions.js';
 
 const route = useRoute();
 const role = computed(() => currentRole());
-const allowed = computed(() => can(route.meta.permission));
+const allowed = computed(() => (route.meta.permissions || [route.meta.permission]).some(p => can(p)));
 
 // Desktop: collapse to an icon rail (remembered). Smaller screens: off-canvas drawer.
 const KEY = 'workmate.admin.sidebarCollapsed';

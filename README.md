@@ -294,7 +294,20 @@ The blue tick is separate from document checks and is awarded **automatically**.
 
 The admin area lives at **`/admin`**. It requires sign-in with an admin role; other accounts are redirected with an explanation.
 
-**Sections (12):** Overview · Marketplace · Location Intelligence · Trust and Safety · Verification Management · Trust and Reputation · Finance · Content and Engagement · Communications · Analytics · System · Administration.
+**What's in the sidebar (19 screens):**
+
+| Section | Screens |
+|---|---|
+| Overview | Executive Dashboard; Activity and Audit Log (tabs: Activity, Audit Logs) |
+| Marketplace | Customers, Service Providers, Provider Applications, Jobs and Requests, Job Applications, Typed Professions, Service Categories, Reviews and Ratings |
+| Places | Places (tabs: By place, Provider Coverage) |
+| Trust and Safety | Reports and Abuse |
+| Verification Management | Applications, Document Requirements |
+| Communications | Push Announcements |
+| Usage | Downloads and Installs |
+| Administration | Admin Users, Roles and Permissions, Settings (tabs: Platform, Matching Configuration) |
+
+Screens for features that aren't built yet (finance, bookings, disputes, videos, content, notification templates and campaigns, search logs, presence, system monitoring, blue tick and more) are **hidden, not deleted**: they are marked `hidden` in `resources/js/admin/navigation.js`, still open from old links, and come back by removing the flag once the feature is built. A tabbed screen opens for anyone allowed one of its tabs, and only shows the tabs that role may open.
 
 **Roles (9):** Super Administrator, Operations Administrator, Provider Review Administrator, Customer Support Agent, Finance Administrator, Trust and Safety Moderator, Content Moderator, Analytics Viewer, Technical Administrator. Permissions are defined in `config/permissions.php`. The admin frontend mirrors them in `resources/js/admin/permissions.js`, and a test keeps the two identical.
 
@@ -316,7 +329,7 @@ The admin area lives at **`/admin`**. It requires sign-in with an admin role; ot
 - The six search and presence settings are saved server-side; the other settings are marked "Not connected yet".
 - Admin screens work with the popular places and the places in use, not all 11,300.
 
-**Still prototypes ⬜:** Document Requirements, blue tick rules, payments, refunds and payouts, disputes, video moderation, notification campaigns, system health monitoring, data requests.
+**Still a prototype in the sidebar ⬜:** Document Requirements (changes are kept in the browser only).
 
 ---
 

@@ -17,9 +17,14 @@ import { findNavItem } from '../navigation.js';
 import { modules } from '../modules/index.js';
 
 /** One route component for every module: picks the workspace for the module's type */
+const props = defineProps({
+  // Set when shown as a tab of another screen; otherwise the route's module
+  moduleId: { type: String, default: '' },
+});
 const route = useRoute();
-const item = computed(() => findNavItem(route.meta.navId));
-const def = computed(() => modules[route.meta.navId]);
+const id = computed(() => props.moduleId || route.meta.navId);
+const item = computed(() => findNavItem(id.value));
+const def = computed(() => modules[id.value]);
 const workspace = computed(() => ({
   records: RecordsWorkspace, analytics: AnalyticsWorkspace, settings: SettingsWorkspace, roles: RolesMatrix,
 })[def.value?.type] || RecordsWorkspace);
