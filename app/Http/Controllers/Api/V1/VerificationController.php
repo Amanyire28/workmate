@@ -7,9 +7,9 @@ use App\Http\Resources\DocumentVerificationResource;
 use App\Models\DocumentVerification;
 use App\Models\VerificationDocument;
 use App\Services\DocumentVerifications;
+use App\Services\PrivateFiles;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 /** The signed-in provider's own documents for verification */
@@ -101,18 +101,9 @@ class VerificationController extends Controller
     public static function stream(VerificationDocument $document, int $index)
     {
         $file = ($document->files ?: [])[$index] ?? null;
-        abort_unless($file && Storage::disk('local')->exists($file['path']), 404);
+        abort_unless($file, 404);
 
-        $response = response()->file(Storage::disk('local')->path($file['path']), [
-            'Content-Type' => $file['mime'],
-            'Content-Disposition' => 'inline; filename="'.addcslashes($file['name'], '"\\').'"',
-            'X-Content-Type-Options' => 'nosniff',
-        ]);
-        // File responses default to public caching; identity documents must never be cached
-        $response->setPrivate();
-        $response->headers->addCacheControlDirective('no-store');
-
-        return $response;
+        return app(PrivateFiles::class)->response($file);
     }
 
     private function own(Request $request, string $uuid): VerificationDocument

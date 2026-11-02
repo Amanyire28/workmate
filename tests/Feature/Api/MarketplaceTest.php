@@ -4,7 +4,6 @@ namespace Tests\Feature\Api;
 
 use App\Models\AuditLog;
 use App\Models\ProviderProfile;
-use App\Models\ProviderReport;
 use App\Models\Review;
 use App\Models\ServiceRequest;
 use App\Models\User;
@@ -224,8 +223,9 @@ class MarketplaceTest extends ApiTestCase
         $this->postJson("/api/v1/providers/{$provider->id}/reports", ['reason' => 'scam', 'details' => 'Asked for money upfront.'])
             ->assertCreated();
 
-        $report = ProviderReport::sole();
+        $report = \App\Models\Report::sole();
         $this->assertSame($reporter->id, $report->reporter_id);
+        $this->assertSame($provider->id, $report->provider_profile_id);
         $this->assertSame('open', $report->status);
         // A report alone changes nothing about the provider
         $this->assertSame('approved', $provider->fresh()->status);

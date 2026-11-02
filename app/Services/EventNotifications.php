@@ -2,12 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\AccountWarning;
 use App\Models\Conversation;
 use App\Models\DocumentVerification;
 use App\Models\Message;
 use App\Models\ProviderApplication;
 use App\Models\ProviderMember;
 use App\Models\Quotation;
+use App\Models\Report;
 use App\Models\ServiceRequest;
 use App\Models\User;
 
@@ -160,6 +162,40 @@ class EventNotifications
             'body' => $texts[$event][1],
             'url' => '/account/verification',
             'tag' => 'verification',
+            'important' => true,
+        ]);
+    }
+
+    /* ---------------- Reports and warnings ---------------- */
+
+    /** @param string $event info_requested | resolved */
+    public function reportChanged(Report $report, string $event): void
+    {
+        $texts = [
+            'info_requested' => ['WorkMate has a question', 'We need a little more information about your report.'],
+            'resolved' => ['Your report has been reviewed', 'WorkMate has finished looking into your report. See the outcome.'],
+        ];
+        if (! isset($texts[$event]) || ! $report->reporter_id) {
+            return;
+        }
+
+        $this->push->toUsers([$report->reporter_id], [
+            'title' => $texts[$event][0],
+            'body' => $texts[$event][1],
+            'url' => '/account/reports',
+            'tag' => 'report-'.$report->id,
+            'important' => true,
+        ]);
+    }
+
+    /** The warning's text stays in WorkMate; the notification only says there is one */
+    public function warningIssued(AccountWarning $warning): void
+    {
+        $this->push->toUsers([$warning->user_id], [
+            'title' => 'A notice from WorkMate',
+            'body' => 'You have a notice about how you use WorkMate. Please read it.',
+            'url' => '/account/reports',
+            'tag' => 'warning-'.$warning->id,
             'important' => true,
         ]);
     }

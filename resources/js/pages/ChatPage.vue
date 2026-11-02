@@ -33,7 +33,7 @@
             <span v-else class="block wm-meta truncate">Customer</span>
           </span>
         </component>
-        <button v-if="provider" type="button" class="wm-icon-btn text-muted" aria-label="Report this provider" @click="reportOpen = true">
+        <button v-if="chat" type="button" class="wm-icon-btn text-muted" :aria-label="chat.role === 'customer' ? 'Report this provider' : 'Report this customer'" @click="reportOpen = true">
           <i class="bi bi-flag text-lg" aria-hidden="true"></i>
         </button>
       </header>
@@ -113,7 +113,9 @@
       <p v-if="sendError" class="wm-field-error mt-2 text-center" role="alert">{{ sendError }}</p>
     </template>
 
-    <ReportProviderSheet v-if="provider" :open="reportOpen" :provider-id="provider.id" :provider-name="name" @close="reportOpen = false" />
+    <!-- Either side can report the other from the chat -->
+    <ReportSheet v-if="chat" :open="reportOpen" :about="chat.role === 'customer' ? 'provider' : 'customer'" :name="name"
+      :provider-id="chat.role === 'customer' ? chat.provider_id : null" :conversation-id="chat.id" @close="reportOpen = false" />
   </div>
 </template>
 
@@ -124,7 +126,7 @@ import { useRoute } from 'vue-router';
 import EmptyState from '@/components/EmptyState.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import VerifiedBadge from '@/components/VerifiedBadge.vue';
-import ReportProviderSheet from '@/components/ReportProviderSheet.vue';
+import ReportSheet from '@/components/ReportSheet.vue';
 import { providers } from '@/stores/catalog.js';
 import { displayName } from '@/utils/ui.js';
 import { availabilityInfo } from '@/utils/trust.js';

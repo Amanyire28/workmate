@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminDataController;
 use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\DocumentVerificationController;
 use App\Http\Controllers\Api\V1\Admin\ProfessionSuggestionController;
+use App\Http\Controllers\Api\V1\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Api\V1\Admin\ProviderApplicationController as AdminProviderApplicationController;
 use App\Http\Controllers\Api\V1\Admin\ProviderStandingController;
 use App\Http\Controllers\Api\V1\Admin\PushAnnouncementController;
@@ -25,6 +26,7 @@ use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\ProviderApplicationController;
 use App\Http\Controllers\Api\V1\ReceivedRequestController;
+use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReviewController;
 use App\Http\Controllers\Api\V1\VerificationController;
 use App\Http\Controllers\Api\V1\ProfilePhotoController;
@@ -100,6 +102,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::post('jobs/{id}/applications', [JobController::class, 'apply'])->whereNumber('id')->name('jobs.apply');
             Route::post('providers/{id}/requests', [JobController::class, 'requestProvider'])->whereNumber('id')->name('providers.request');
             Route::post('providers/{id}/reports', [ProviderReportController::class, 'store'])->whereNumber('id')->name('providers.report');
+            Route::post('reports', [ReportController::class, 'store'])->name('reports.store');
+            Route::post('me/reports/{id}/reply', [ReportController::class, 'reply'])->whereNumber('id')->name('me.reports.reply');
         });
         Route::middleware('throttle:marketplace-write')->group(function () {
             Route::post('me/push-subscriptions', [PushSubscriptionController::class, 'store'])->name('me.push.store');
@@ -112,6 +116,12 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('me/jobs/{id}/applications', [JobApplicantController::class, 'index'])->whereNumber('id')->name('me.jobs.applications');
         Route::post('me/jobs/{id}/applications/{application}/hire', [JobApplicantController::class, 'hire'])
             ->whereNumber('id')->whereNumber('application')->middleware('throttle:marketplace-write')->name('me.jobs.hire');
+
+        // The account's own reports and complaints, and warnings sent to it
+        Route::get('me/reports', [ReportController::class, 'index'])->name('me.reports');
+        Route::get('me/reports/{id}/files/{index}', [ReportController::class, 'file'])->whereNumber('id')->whereNumber('index')->name('me.reports.file');
+        Route::get('me/warnings', [ReportController::class, 'warnings'])->name('me.warnings');
+        Route::post('me/warnings/{id}/read', [ReportController::class, 'readWarning'])->whereNumber('id')->name('me.warnings.read');
 
         // Rating providers who finished work for the customer
         Route::get('me/reviews/waiting', [ReviewController::class, 'waiting'])->name('me.reviews.waiting');
@@ -161,7 +171,12 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::middleware('can:trust.view')->group(function () {
                 Route::post('users/{user}/suspend', [AdminActionController::class, 'suspendAccount'])->name('users.suspend');
                 Route::post('users/{user}/reactivate', [AdminActionController::class, 'reactivateAccount'])->name('users.reactivate');
-                Route::patch('reports/{report}', [AdminActionController::class, 'updateReport'])->name('reports.update');
+                // Working a report: take it, ask the reporter, note, resolve with an action
+                Route::post('reports/{report}/assign', [AdminReportController::class, 'assign'])->name('reports.assign');
+                Route::post('reports/{report}/request-information', [AdminReportController::class, 'requestInformation'])->name('reports.request-information');
+                Route::post('reports/{report}/note', [AdminReportController::class, 'note'])->name('reports.note');
+                Route::post('reports/{report}/resolve', [AdminReportController::class, 'resolve'])->name('reports.resolve');
+                Route::get('reports/{report}/files/{index}', [AdminReportController::class, 'file'])->whereNumber('index')->name('reports.file');
             });
             Route::patch('reviews/{review}', [AdminActionController::class, 'updateReview'])
                 ->middleware('can:content.view')

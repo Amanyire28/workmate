@@ -26,6 +26,7 @@
 - [User types and the account model](#user-types-and-the-account-model)
 - [Location-based matching](#location-based-matching)
 - [Requests, completion and ratings](#requests-completion-and-ratings)
+- [Reports and complaints](#reports-and-complaints)
 - [Provider verification and the tick](#provider-verification-and-the-tick)
 - [Installable app and push notifications](#installable-app-and-push-notifications)
 - [Administration](#administration)
@@ -112,7 +113,7 @@ Throughout this README:
 - **Ratings and reviews** written by customers after a provider finishes their request; ratings on profiles are always calculated from published reviews
 - **My Work:** received requests (providers), sent requests, posted jobs and applications
 - **Messages** between customers and providers, visible only to the two sides of the chat
-- **Report a provider** to the safety team (a report is an allegation until confirmed, so it never penalises anyone by itself)
+- **Reports and complaints** (see [Reports and complaints](#reports-and-complaints)): customers and providers report each other, or anything else that went wrong, with up to 3 photos, and follow the outcome
 
 **Verification**
 - **Get verified:** National ID (front and back) plus up to 5 supporting documents, stored privately; reviewers accept or send back each document and can ask for further documents; approval gives the **grey tick**
@@ -130,7 +131,7 @@ Throughout this README:
 - Platform settings for search radii and online-presence timings
 
 **Quality**
-- **146 automated tests** (feature and unit) on a separate MariaDB test database
+- **154 automated tests** (feature and unit) on a separate MariaDB test database
 
 ### 🟡 In development
 
@@ -247,6 +248,24 @@ A request sent to one provider goes through these steps (implemented ✅):
 - Reviews are published under the customer's short name ("Aisha N.") and can be hidden by administrators with content permissions.
 
 The provider sees the customer's name and photo, never their email or phone number; they reply through WorkMate's messages.
+
+---
+
+## Reports and complaints
+
+Implemented ✅. A report is an allegation until the safety team acts on it: it never penalises anyone by itself, and the reported person is never told who reported them.
+
+**Raising one**
+- **About a provider:** from their profile, a chat, or a request or hired job on My Work.
+- **About a customer:** a provider reports a customer from a request they received or a chat with them. A provider can only report customers they've dealt with.
+- **Something else:** a payment problem, a safety concern or a problem with WorkMate, from **Account → Reports and complaints**.
+- Each has its own reasons, a required description and up to **3 photos** (JPG or PNG, re-encoded and stored privately under `storage/app/reports`).
+
+**Following it** (Account → Reports and complaints): status (Received, Being looked at, Your answer needed, Resolved, Closed), the safety team's question and the reporter's answer, and WorkMate's reply. Warnings sent to the account appear here as **Notices from WorkMate**, never naming the reporter. Push notifications announce a question, an outcome or a notice without including their text.
+
+**Working it** (admin → Trust and Safety → Reports and Abuse, `trust.view`): take the report, ask the reporter a question, add internal notes, open evidence photos (each opening audited), and resolve with an outcome that is carried out straight away: no violation, resolved, **warning** to the reported person, **suspend the provider listing**, or **suspend the account**. Nobody can handle a report they made or one about a provider they belong to. Every step is in the audit log.
+
+**Data:** `reports` and `account_warnings`. Reports made before this existed were copied from `provider_reports`, which is kept unchanged until its removal is approved.
 
 ---
 
@@ -445,7 +464,9 @@ Request → middleware (auth:sanctum, active, can:<permission>, throttle)
 | `quotations` | A provider's application or price for a posted job (one per provider per job) |
 | `reviews` | Ratings and comments, linked to the request they're about (`service_request_id`, one review per request); status for moderation |
 | `conversations`, `messages` | Customer–provider chats and their messages, with read status |
-| `provider_reports` | Confidential reports about providers and their review status |
+| `reports` | Reports and complaints: reporter and side, who or what it's about, linked request or chat, reason, details, private photos, severity, status, the question to the reporter and their answer, outcome and the message to the reporter |
+| `account_warnings` | Warnings the safety team sent an account, with when they were read |
+| `provider_reports` | Earlier reports about providers, copied into `reports`; kept unchanged until removal is approved |
 | `push_subscriptions`, `push_announcements` | Devices that turned on notifications, and announcements sent with their delivery counts |
 | `app_install_events` | Anonymous install prompts, installs and first launches per device and day |
 
@@ -523,12 +544,12 @@ Not yet in the schema: bookings and booking event history; versioned document re
 | Public | Anyone | `GET health`, `GET catalog` (everything the first page needs), `GET categories`, `GET areas` (quick picks and places in use), `GET areas/search?q=` (type-to-search), `GET areas/nearest`, `GET providers`, `GET providers/{id}`, `GET reviews/recent`, `GET jobs`, `GET jobs/{id}`, `GET avatars/{file}`, `GET push/config`, `POST app-events` |
 | Auth | Guests (website session) | `POST auth/register`, `auth/login`, `auth/logout`, `auth/forgot-password`, `auth/reset-password`; `GET auth/verify-email/{id}/{hash}` (signed link) |
 | Account | Signed in | `GET/PATCH me` (includes `provider_ids`), `PUT me/password`, `POST/DELETE me/photo`, `POST me/email/verification-notification`, `POST/DELETE me/push-subscriptions` |
-| My work | Signed in | `GET me/requests`, `GET me/applications`, `GET me/jobs/{id}/applications`, `POST me/jobs/{id}/applications/{application}/hire`, `GET me/received-requests`, `POST me/received-requests/{id}/accept`, `…/decline`, `…/complete`, `…/message`, `GET me/reviews/waiting`, `POST me/requests/{id}/review`, `POST me/requests/{id}/review/later` |
+| My work | Signed in | `GET me/requests`, `GET me/applications`, `GET me/jobs/{id}/applications`, `POST me/jobs/{id}/applications/{application}/hire`, `GET me/received-requests`, `POST me/received-requests/{id}/accept`, `…/decline`, `…/complete`, `…/message`, `GET me/reviews/waiting`, `POST me/requests/{id}/review`, `POST me/requests/{id}/review/later`, `GET me/reports`, `POST me/reports/{id}/reply`, `GET me/reports/{id}/files/{n}`, `GET me/warnings`, `POST me/warnings/{id}/read` |
 | Provider application | Signed in | `GET/PUT me/provider`, `POST me/provider/submit`, `POST me/provider/reopen` |
 | Verification | Signed in (provider) | `GET me/verification`, `POST me/verification/documents`, `POST me/verification/documents/{id}/replace`, `DELETE me/verification/documents/{id}`, `GET me/verification/documents/{id}/files/{n}`, `POST me/verification/submit` |
-| Marketplace | Signed in | `POST jobs`, `POST jobs/{id}/applications` (approved providers), `POST providers/{id}/requests`, `POST providers/{id}/reports` |
+| Marketplace | Signed in | `POST jobs`, `POST jobs/{id}/applications` (approved providers), `POST providers/{id}/requests`, `POST reports` (and the older `POST providers/{id}/reports`) |
 | Messages | Chat participants | `GET me/conversations`, `GET me/conversations/unread-count`, `POST me/conversations/provider/{id}`, `GET me/conversations/{id}`, `POST me/conversations/{id}/messages` |
-| Admin | Admin permissions | `GET admin/data`; provider applications (`approve`, `reject`, `request-information`); `profession-suggestions/{id}/add`, `match`, `decline`; `verifications/{id}/assign`, `documents/{doc}/accept`, `documents/{doc}/send-back`, `request-document`, `request-information`, `approve`, `reject`, `reopen`, `note`, `documents/{doc}/files/{n}`; `push-announcements`; `providers/{id}/suspend` and `reinstate`; `users/{id}/suspend` and `reactivate`; `PATCH reviews/{id}`, `PATCH reports/{id}`; roles and permissions, `PUT/DELETE users/{id}/roles/{role}`; `GET/PATCH settings`; `GET audit-logs` |
+| Admin | Admin permissions | `GET admin/data`; provider applications (`approve`, `reject`, `request-information`); `profession-suggestions/{id}/add`, `match`, `decline`; `verifications/{id}/assign`, `documents/{doc}/accept`, `documents/{doc}/send-back`, `request-document`, `request-information`, `approve`, `reject`, `reopen`, `note`, `documents/{doc}/files/{n}`; `push-announcements`; `providers/{id}/suspend` and `reinstate`; `users/{id}/suspend` and `reactivate`; `PATCH reviews/{id}`; `reports/{id}/assign`, `request-information`, `note`, `resolve`, `files/{n}`; roles and permissions, `PUT/DELETE users/{id}/roles/{role}`; `GET/PATCH settings`; `GET audit-logs` |
 
 The legacy Laravel route `GET /api/user` (Sanctum default) is still present.
 
@@ -644,7 +665,7 @@ The admin area is at <http://127.0.0.1:8000/admin>. On the live server, run the 
 
 ## Testing
 
-- **146 tests** in `tests/Feature/Api` and `tests/Unit`. They cover accounts, permissions and the permission lists staying identical, provider applications and typed professions, place search, the marketplace, received requests and ratings, messaging, document verification (including file privacy), push notifications, install events, photos, admin data and actions, settings and the audit log. New endpoints include a test proving another user or provider can't read or change the data.
+- **154 tests** in `tests/Feature/Api` and `tests/Unit`. They cover accounts, permissions and the permission lists staying identical, provider applications and typed professions, place search, the marketplace, received requests and ratings, messaging, document verification (including file privacy), push notifications, install events, photos, admin data and actions, settings and the audit log. New endpoints include a test proving another user or provider can't read or change the data.
 - Tests use `RefreshDatabase`, which **rebuilds the database on every run**. `phpunit.xml` therefore points them at the separate **`workmate_test`** database. Never point it at a database whose data you need.
 - Mail, cache, sessions and queues use in-memory drivers during tests; uploads use a fake disk; push delivery is mocked.
 
@@ -841,7 +862,7 @@ The mobile apps will use the **same `/api/v1` endpoints**, so the marketplace ba
 - [x] Post a job, request a provider, apply for a job
 - [x] Provider inbox for direct requests (accept, decline, done)
 - [x] Messaging between customers and providers
-- [x] Reports about providers
+- [x] Two-way reports and complaints with evidence photos, warnings and actions
 - [x] Customers view applicants and hire one for a posted job
 - [ ] Saved providers and locations
 - [ ] Admin management of categories, professions and places

@@ -9,7 +9,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Account, review and report decisions made by administrators. Each one
+ * Account and review decisions made by administrators. Each one
  * needs a reason and is written to the audit log.
  */
 class AdminActions
@@ -62,17 +62,6 @@ class AdminActions
             $this->audit->record('admin.review_status_changed', $review, ['status' => $before], ['status' => $status], $reason, $admin);
 
             return $review;
-        });
-    }
-
-    public function setReportStatus(ProviderReport $report, string $status, User $admin, string $reason): ProviderReport
-    {
-        return DB::transaction(function () use ($report, $status, $admin, $reason) {
-            $before = $report->status;
-            $report->forceFill(['status' => $status])->save();
-            $this->audit->record('admin.report_status_changed', $report, ['status' => $before], ['status' => $status], $reason, $admin);
-
-            return $report;
         });
     }
 }

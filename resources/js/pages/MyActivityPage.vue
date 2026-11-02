@@ -109,6 +109,9 @@
               <button v-if="req.status !== 'cancelled'" type="button" class="wm-btn wm-btn-ghost !min-h-11" :disabled="busy === req.id" @click="messageCustomer(req)">
                 <i class="bi bi-chat-dots" aria-hidden="true"></i>Message
               </button>
+              <button type="button" class="wm-btn wm-btn-ghost !min-h-11 text-muted" @click="reportFor = { about: 'customer', name: req.customer.name.split(' ')[0], requestId: req.id }">
+                <i class="bi bi-flag" aria-hidden="true"></i>Report
+              </button>
             </div>
           </li>
         </ul>
@@ -155,9 +158,14 @@
               <router-link :to="`/provider/${req.providerId}`" class="wm-link inline-flex items-center gap-1 min-h-11">
                 View provider <i class="bi bi-chevron-right text-[11px]" aria-hidden="true"></i>
               </router-link>
-              <button v-if="req.status === 'completed' && !req.review" type="button" class="wm-btn wm-btn-primary !min-h-11" @click="rate(req)">
-                <i class="bi bi-star" aria-hidden="true"></i>Rate this job
-              </button>
+              <span class="flex gap-2">
+                <button type="button" class="wm-btn wm-btn-ghost !min-h-11 text-muted" @click="reportFor = { about: 'provider', name: req.providerName, providerId: req.providerId, requestId: req.id }">
+                  <i class="bi bi-flag" aria-hidden="true"></i>Report
+                </button>
+                <button v-if="req.status === 'completed' && !req.review" type="button" class="wm-btn wm-btn-primary !min-h-11" @click="rate(req)">
+                  <i class="bi bi-star" aria-hidden="true"></i>Rate this job
+                </button>
+              </span>
             </div>
           </li>
         </ul>
@@ -200,6 +208,9 @@
                   </router-link>
                   <button v-if="job.status === 'completed' && !job.review" type="button" class="wm-btn wm-btn-primary !min-h-11" @click="rateJob(job)">
                     <i class="bi bi-star" aria-hidden="true"></i>Rate this job
+                  </button>
+                  <button type="button" class="wm-btn wm-btn-ghost !min-h-11 text-muted" :aria-label="`Report ${job.workerName}`" @click="reportFor = { about: 'provider', name: job.workerName, providerId: job.workerId, requestId: job.id }">
+                    <i class="bi bi-flag" aria-hidden="true"></i>
                   </button>
                 </span>
               </template>
@@ -255,6 +266,8 @@
       </template>
     </div>
     <JobApplicantsSheet :job="applicantsFor" @close="applicantsFor = null" @hired="onHired" />
+  <ReportSheet :open="!!reportFor" :about="reportFor?.about || 'provider'" :name="reportFor?.name || ''"
+    :provider-id="reportFor?.providerId || null" :request-id="reportFor?.requestId || null" @close="reportFor = null" />
   </div>
 </template>
 
@@ -262,6 +275,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import FormField from '@/components/FormField.vue';
 import JobApplicantsSheet from '@/components/JobApplicantsSheet.vue';
+import ReportSheet from '@/components/ReportSheet.vue';
 import { auth } from '@/stores/auth.js';
 import { openRating } from '@/stores/reviews.js';
 import { useRoute, useRouter } from 'vue-router';
@@ -388,6 +402,9 @@ async function load() {
 }
 
 onMounted(load);
+
+/* ---------------- Reporting someone about a request or job ---------------- */
+const reportFor = ref(null);   // { about, name, providerId?, requestId }
 
 /* ---------------- Choosing someone for a posted job ---------------- */
 const applicantsFor = ref(null);

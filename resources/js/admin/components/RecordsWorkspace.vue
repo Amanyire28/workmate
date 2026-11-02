@@ -170,6 +170,15 @@
           <router-link v-else-if="s.link" :to="s.link.to" class="wm-btn wm-btn-secondary !min-h-10 !rounded-lg !text-[13.5px]">
             {{ s.link.label }} <i class="bi bi-arrow-right" aria-hidden="true"></i>
           </router-link>
+          <!-- Private files (e.g. evidence photos): each opening is recorded by the server -->
+          <ul v-else-if="s.files" class="flex flex-col gap-1.5 text-[13.5px]">
+            <li v-for="f in s.files" :key="f.href">
+              <a :href="f.href" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 font-medium text-primary hover:underline">
+                <i class="bi bi-image" aria-hidden="true"></i>{{ f.label }}
+              </a>
+            </li>
+            <li v-if="!s.files.length" class="text-[#64748B]">None</li>
+          </ul>
           <p v-else-if="s.text" class="text-[13.5px] leading-relaxed text-[#334155]">{{ s.text }}</p>
           <p v-else-if="s.note" class="rounded-lg bg-[#F8FAFC] p-3 text-[12.5px] leading-relaxed text-[#64748B]">{{ s.note }}</p>
 

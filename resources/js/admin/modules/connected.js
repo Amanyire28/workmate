@@ -44,11 +44,10 @@ export const CONNECTED = {
         restore: review('published'),
     },
     reports: {
-        assign: (r) => patch(`/admin/reports/${num(r.id)}`, { status: 'under_review', reason: 'Taken for review' }),
-        resolve: (r, v) => patch(`/admin/reports/${num(r.id)}`, {
-            status: v.resolution === 'No violation found' ? 'dismissed' : 'confirmed',
-            reason: `${v.resolution}: ${v.reason}`,
-        }),
+        assign: (r) => post(`/admin/reports/${num(r.id)}/assign`, {}),
+        'request-info': (r, v) => post(`/admin/reports/${num(r.id)}/request-information`, { question: v.question }),
+        resolve: (r, v) => post(`/admin/reports/${num(r.id)}/resolve`, { outcome: v.outcome, message: v.message, warning: v.warning || null, reason: v.reason }),
+        note: (r, v) => post(`/admin/reports/${num(r.id)}/note`, { note: v.note }),
     },
     restricted: {
         lift: (r, v) => (r.id.startsWith('P-')

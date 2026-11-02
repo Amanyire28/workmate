@@ -43,14 +43,6 @@ class AdminActionController extends Controller
         return response()->json(['data' => ['id' => $review->id, 'status' => $review->status]]);
     }
 
-    public function updateReport(Request $request, ProviderReport $report): JsonResponse
-    {
-        $status = $request->validate(['status' => ['required', Rule::in(['under_review', 'confirmed', 'dismissed'])]])['status'];
-        $report = $this->actions->setReportStatus($report, $status, $request->user(), $this->reason($request));
-
-        return response()->json(['data' => ['id' => $report->id, 'status' => $report->status]]);
-    }
-
     private function reason(Request $request): string
     {
         return $request->validate(['reason' => ['required', 'string', 'min:5', 'max:1000']])['reason'];

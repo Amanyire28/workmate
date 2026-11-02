@@ -2,6 +2,7 @@ import { count, sum, within, kpiCount, statusOptions, statusTabs, setStatus, his
 
 const OPEN = ['new', 'under_review', 'awaiting_information', 'escalated'];
 const severityOrder = { high: 0, medium: 1, low: 2 };
+const REPORT_OPEN = ['new', 'under_review', 'info_requested'];
 
 /** Shared case workflow: assign → review → (awaiting info | escalated) → resolved → closed */
 function caseActions(resolutions) {
@@ -82,18 +83,31 @@ export default {
     /* ================= Reports and abuse ================= */
     reports: {
         type: 'records', entity: 'Report',
-        search: { keys: ['id', 'type', 'subjectName', 'subjectId'], placeholder: 'Search report, person or ID' },
-        tabs: [{ id: 'open', label: 'Open', filter: r => OPEN.includes(r.status) }, ...statusTabs(['new', 'under_review', 'escalated', 'resolved', 'closed'])],
+        description: 'Reports and complaints from customers and providers about each other, or anything else that went wrong. The reported person is never told who reported them.',
+        search: { keys: ['id', 'type', 'subjectName', 'subjectId', 'reporterName', 'jobTitle'], placeholder: 'Search report, person, job or ID' },
+        tabs: [
+            { id: 'open', label: 'Open', filter: r => REPORT_OPEN.includes(r.status) },
+            ...statusTabs(['new', 'under_review', 'info_requested', 'resolved', 'closed']),
+        ],
         filters: [
-            { key: 'type', label: 'Type', options: ['Spam', 'Abusive messages', 'Suspected fraud', 'Impersonation', 'Inappropriate review', 'Reported video', 'Fake profile'].map(c => [c, c]) },
+            { key: 'target', label: 'About', options: [['provider', 'A provider'], ['customer', 'A customer'], ['general', 'Something else']] },
             { key: 'severity', label: 'Severity', options: statusOptions(['high', 'medium', 'low']) },
+            { key: 'reporterType', label: 'Reported by', options: [['Customer', 'A customer'], ['Provider', 'A provider']] },
         ],
         period: { key: 'submittedAt', label: 'Submitted' },
         defaultSort: { key: 'submittedAt', dir: 'desc' },
-        kpis: (rows) => caseKpis(rows, 'submittedAt'),
+        kpis: (rows) => {
+            const open = rows.filter(r => REPORT_OPEN.includes(r.status));
+            return [
+                kpiCount('Open reports', open.length),
+                kpiCount('High severity, open', count(open, r => r.severity === 'high')),
+                kpiCount('Waiting for the reporter', count(rows, r => r.status === 'info_requested')),
+                kpiCount('Unassigned', count(open, r => !r.assignedTo)),
+            ];
+        },
         columns: [
-            { key: 'type', label: 'Report', sortable: true, sub: r => r.id },
-            { key: 'subjectName', label: 'About', sortable: true, sub: r => `${r.target} · ${r.subjectId}` },
+            { key: 'type', label: 'Report', sortable: true, sub: r => `${r.id} · by a ${r.reporterType.toLowerCase()}` },
+            { key: 'subjectName', label: 'About', sortable: true, sub: r => r.jobTitle || (r.subjectId || '') },
             { key: 'severity', label: 'Severity', format: 'status', sortable: true, sortValue: r => severityOrder[r.severity] },
             { key: 'status', label: 'Status', format: 'status', sortable: true },
             { key: 'submittedAt', label: 'Submitted', format: 'relative', sortable: true },
@@ -101,13 +115,43 @@ export default {
         detail: {
             title: r => `${r.type}: ${r.subjectName}`,
             sections: (r) => [
-                { title: 'Report', fields: [['Type', r.type], ['About', `${r.subjectName} (${r.subjectId})`], ['Reported by', `A ${r.reporterType.toLowerCase()} (identity hidden)`], ['Severity', r.severity, 'status'],
-                    ['Submitted', r.submittedAt, 'date'], ['Assigned to', r.assignedTo || 'Unassigned'], ['Resolution', r.resolution]] },
-                { title: 'Evidence', permission: 'trust.view', fields: [['Screenshots or links', `${r.evidence} (attachments aren’t built yet)`]] },
-                { title: 'Internal notes and actions', permission: 'trust.view', timeline: true },
+                { title: 'Report', fields: [['What happened', r.type], ['About', r.subjectId ? `${r.subjectName} (${r.subjectId})` : r.subjectName],
+                    ['Reported by', `${r.reporterName} (${r.reporterType.toLowerCase()}${r.reporterId ? `, ${r.reporterId}` : ''})`], ['Job', r.jobTitle],
+                    ['Severity', r.severity, 'status'], ['Submitted', r.submittedAt, 'date'], ['Assigned to', r.assignedTo || 'Unassigned']] },
+                { title: 'Their account', text: r.details || 'No details given.' },
+                { title: `Evidence photos (${r.evidence})`, permission: 'trust.view',
+                  files: (r.photos || []).map(f => ({ label: f.name, href: `/api/v1/admin/reports/${r.reportId}/files/${f.index}` })) },
+                ...(r.question ? [{ title: 'Question to the reporter', fields: [['Asked', r.question], ['Their answer', r.reporterReply || 'Not answered yet']] }] : []),
+                ...(r.outcome ? [{ title: 'Outcome', fields: [['Result', r.resolution], ['Told the reporter', r.outcomeMessage], ['Resolved', r.resolvedAt, 'date']] }] : []),
+                historySection,
             ],
         },
-        actions: caseActions(['Content removed', 'Account warned', 'Account suspended', 'No violation found']),
+        actions: [
+            { id: 'assign', label: 'Take this report', done: 'Taken', permission: 'trust.view', icon: 'bi-person-check', tone: 'primary',
+              when: r => REPORT_OPEN.includes(r.status) && !r.assignedTo },
+            { id: 'request-info', label: 'Ask the reporter', done: 'Question sent', permission: 'trust.view', icon: 'bi-chat-left-text',
+              when: r => r.status === 'new' || r.status === 'under_review',
+              message: () => 'The reporter sees your question in their account and gets a notification. The reported person isn’t told.',
+              fields: () => [{ key: 'question', label: 'Your question', type: 'textarea', required: true, minLength: 5, maxLength: 1000 }] },
+            { id: 'resolve', label: 'Resolve', done: 'Resolved', permission: 'trust.view', icon: 'bi-check2-circle', tone: 'primary',
+              when: r => REPORT_OPEN.includes(r.status),
+              message: (r) => `The action is carried out straight away. ${r.canWarn ? 'A warning is shown to the reported person, never naming the reporter.' : 'This report isn’t about a particular person, so only “No violation” or “Resolved” apply.'}`,
+              fields: (r) => [
+                  { key: 'outcome', label: 'Outcome', type: 'select', required: true, options: [
+                      ['no_violation', 'No violation found'],
+                      ['resolved', 'Resolved (no action on an account)'],
+                      ...(r.canWarn ? [['warned', 'Send the reported person a warning']] : []),
+                      ...(r.canSuspendProvider ? [['provider_suspended', 'Suspend the provider listing']] : []),
+                      ...(r.canWarn ? [['account_suspended', 'Suspend the reported person’s account']] : []),
+                  ] },
+                  { key: 'message', label: 'What the reporter is told', type: 'textarea', required: true, minLength: 5, maxLength: 1000, help: 'Shown in their account. Don’t include anything private about the other person.' },
+                  ...(r.canWarn ? [{ key: 'warning', label: 'Warning for the reported person (only if sending a warning)', type: 'textarea', maxLength: 1000, help: 'Shown to them in WorkMate. Never mention who reported them.' }] : []),
+                  { key: 'reason', label: 'Reason (for the audit log)', type: 'textarea', required: true, minLength: 5 },
+              ] },
+            { id: 'note', label: 'Add internal note', done: 'Note added', permission: 'trust.view', icon: 'bi-sticky',
+              when: r => REPORT_OPEN.includes(r.status),
+              fields: () => [{ key: 'note', label: 'Note (safety team only)', type: 'textarea', required: true, minLength: 3 }] },
+        ],
     },
 
     /* ================= Content moderation ================= */

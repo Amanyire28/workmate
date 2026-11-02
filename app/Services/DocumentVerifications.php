@@ -29,7 +29,6 @@ use Illuminate\Support\Str;
 class DocumentVerifications
 {
     public const DIRECTORY = 'verification';
-    private const MAX_IMAGE_SIDE = 2400;
 
     /** @var AuditLogger */
     private $audit;
@@ -37,10 +36,14 @@ class DocumentVerifications
     /** @var EventNotifications */
     private $notify;
 
-    public function __construct(AuditLogger $audit, EventNotifications $notify)
+    /** @var PrivateFiles */
+    private $files;
+
+    public function __construct(AuditLogger $audit, EventNotifications $notify, PrivateFiles $files)
     {
         $this->audit = $audit;
         $this->notify = $notify;
+        $this->files = $files;
     }
 
     public function forProfile(ProviderProfile $profile): DocumentVerification
@@ -414,62 +417,6 @@ class DocumentVerifications
     /** Saves one file privately and returns its details */
     private function store(UploadedFile $file, ?string $side): array
     {
-        $bytes = file_get_contents($file->getRealPath());
-        $isPdf = strncmp($bytes, '%PDF-', 5) === 0;
-
-        if ($isPdf) {
-            $contents = $bytes;
-            $mime = 'application/pdf';
-            $extension = 'pdf';
-        } else {
-            $image = @imagecreatefromstring($bytes);
-            if (! $image) {
-                throw new BusinessRuleException('file_unreadable', 'We couldn’t read '.$this->safeName($file).'. Use a JPG, PNG or PDF file.', 422);
-            }
-            $contents = $this->reencode($image, $file);
-            $mime = 'image/jpeg';
-            $extension = 'jpg';
-        }
-
-        $path = self::DIRECTORY.'/'.Str::uuid().'.'.$extension;
-        Storage::disk('local')->put($path, $contents);
-
-        return ['path' => $path, 'side' => $side, 'name' => $this->safeName($file), 'mime' => $mime, 'size' => strlen($contents)];
-    }
-
-    /** @param resource|\GdImage $image */
-    private function reencode($image, UploadedFile $file): string
-    {
-        if (function_exists('exif_read_data') && in_array(strtolower($file->getClientOriginalExtension()), ['jpg', 'jpeg'], true)) {
-            $exif = @exif_read_data($file->getRealPath());
-            $angles = [3 => 180, 6 => -90, 8 => 90];
-            $orientation = $exif['Orientation'] ?? 1;
-            if (isset($angles[$orientation])) {
-                $image = imagerotate($image, $angles[$orientation], 0);
-            }
-        }
-
-        $width = imagesx($image);
-        $height = imagesy($image);
-        $scale = min(1, self::MAX_IMAGE_SIDE / max($width, $height));
-        $w = max(1, (int) round($width * $scale));
-        $h = max(1, (int) round($height * $scale));
-        $canvas = imagecreatetruecolor($w, $h);
-        imagefill($canvas, 0, 0, imagecolorallocate($canvas, 255, 255, 255));
-        imagecopyresampled($canvas, $image, 0, 0, 0, 0, $w, $h, $width, $height);
-        imagedestroy($image);
-
-        ob_start();
-        imagejpeg($canvas, null, 88);
-        imagedestroy($canvas);
-
-        return ob_get_clean();
-    }
-
-    private function safeName(UploadedFile $file): string
-    {
-        $name = preg_replace('/[^\w.\- ]+/u', '', $file->getClientOriginalName());
-
-        return Str::limit($name ?: 'document', 80, '');
+        return ['side' => $side] + $this->files->store($file, self::DIRECTORY);
     }
 }

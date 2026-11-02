@@ -185,7 +185,7 @@
       </section>
     </div>
 
-    <ReportProviderSheet v-if="provider && !isOwn" :open="reportOpen" :provider-id="provider.id" :provider-name="name" @close="reportOpen = false" />
+    <ReportSheet v-if="provider && !isOwn" :open="reportOpen" about="provider" :provider-id="provider.id" :name="name" @close="reportOpen = false" />
   </div>
 </template>
 
@@ -198,7 +198,7 @@ import EmptyState from '@/components/EmptyState.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import AvailabilityBadge from '@/components/AvailabilityBadge.vue';
 import VerifiedBadge from '@/components/VerifiedBadge.vue';
-import ReportProviderSheet from '@/components/ReportProviderSheet.vue';
+import ReportSheet from '@/components/ReportSheet.vue';
 import { providers, loadProviderReviews } from '@/stores/catalog.js';
 import {
   displayName, tradeLabel, formatPrice, categoryIcon, categoryLabel, providerTypeLabels,

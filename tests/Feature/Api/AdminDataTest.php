@@ -3,7 +3,6 @@
 namespace Tests\Feature\Api;
 
 use App\Models\AuditLog;
-use App\Models\ProviderReport;
 use App\Models\Review;
 use App\Models\User;
 use Database\Seeders\SampleMarketplaceSeeder;
@@ -95,10 +94,10 @@ class AdminDataTest extends ApiTestCase
         $this->patchJson("/api/v1/admin/reviews/{$review->id}", ['status' => 'hidden', 'reason' => 'Abusive language'])->assertOk();
         $this->assertSame('hidden', $review->fresh()->status);
 
-        $report = new ProviderReport(['reason' => 'scam']);
-        $report->forceFill(['provider_profile_id' => $review->provider_profile_id, 'status' => 'open'])->save();
+        $report = new \App\Models\Report();
+        $report->forceFill(['subject_type' => 'provider', 'provider_profile_id' => $review->provider_profile_id, 'reason' => 'scam', 'status' => 'open'])->save();
         $this->signIn($this->userWithRoles(['trust_safety']));
-        $this->patchJson("/api/v1/admin/reports/{$report->id}", ['status' => 'dismissed', 'reason' => 'No evidence found'])->assertOk();
-        $this->assertSame('dismissed', $report->fresh()->status);
+        $this->postJson("/api/v1/admin/reports/{$report->id}/resolve", ['outcome' => 'no_violation', 'message' => 'We found no problem.', 'reason' => 'No evidence found'])->assertOk();
+        $this->assertSame('closed', $report->fresh()->status);
     }
 }

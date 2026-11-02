@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AppInstallEvent;
+use App\Models\AccountWarning;
 use App\Models\Area;
 use App\Models\AuditLog;
 use App\Models\Category;
@@ -13,6 +14,7 @@ use App\Models\ProfessionSuggestion;
 use App\Models\ProviderApplication;
 use App\Models\ProviderProfile;
 use App\Models\ProviderReport;
+use App\Models\Report;
 use App\Models\PushAnnouncement;
 use App\Models\PushSubscription;
 use App\Models\Quotation;
@@ -50,8 +52,15 @@ class AdminSnapshot
     private const PROVIDER_TYPES = ['individual' => 'individual', 'group' => 'team', 'company' => 'business'];
 
     private const REPORT_TYPES = [
-        'scam' => 'Suspected fraud', 'offline' => 'Off-platform payment request', 'no_show' => 'Took payment, no work',
-        'unsafe' => 'Unsafe behaviour', 'fake' => 'Impersonation', 'quality' => 'Poor or damaging work', 'other' => 'Other',
+        'scam' => 'Suspected fraud', 'offline' => 'Off-platform payment request', 'no_show' => 'Didn’t show up or didn’t do the work',
+        'unsafe' => 'Unsafe behaviour', 'fake' => 'Fake profile or request', 'quality' => 'Poor or damaging work',
+        'abusive' => 'Rude or abusive', 'not_paid' => 'Didn’t pay', 'payment' => 'Payment problem', 'safety' => 'Safety concern',
+        'app_problem' => 'Problem with the app', 'other' => 'Other',
+    ];
+
+    private const REPORT_OUTCOMES = [
+        'no_violation' => 'No violation found', 'warned' => 'Warning sent', 'provider_suspended' => 'Provider suspended',
+        'account_suspended' => 'Account suspended', 'resolved' => 'Resolved',
     ];
 
     /** @var User */
@@ -341,18 +350,32 @@ class AdminSnapshot
         });
     }
 
+    /** Reports and complaints, for the safety team: who reported, about whom, and the case so far */
     private function reports(): Collection
     {
-        $statuses = ['open' => 'new', 'under_review' => 'under_review', 'confirmed' => 'resolved', 'dismissed' => 'closed'];
+        $statuses = [Report::STATUS_OPEN => 'new', Report::STATUS_UNDER_REVIEW => 'under_review', Report::STATUS_INFO_REQUESTED => 'info_requested',
+            Report::STATUS_RESOLVED => 'resolved', Report::STATUS_CLOSED => 'closed'];
 
-        return ProviderReport::with('provider')->latest()->get()->map(function (ProviderReport $r) use ($statuses) {
+        return Report::with(['reporter', 'provider', 'subjectUser', 'serviceRequest', 'assignee'])->latest()->get()->map(function (Report $r) use ($statuses) {
+            $about = $r->subject_type === Report::SUBJECT_PROVIDER
+                ? ['P-'.$r->provider_profile_id, optional($r->provider)->display_name ?: 'Provider']
+                : ($r->subject_type === Report::SUBJECT_CUSTOMER ? ['C-'.$r->subject_user_id, optional($r->subjectUser)->name ?: 'Customer'] : [null, 'Something else']);
+
             return [
-                'id' => 'RP-'.$r->id, 'reportId' => $r->id, 'type' => self::REPORT_TYPES[$r->reason] ?? $r->reason, 'target' => 'provider',
-                'subjectId' => 'P-'.$r->provider_profile_id, 'subjectName' => $r->provider->display_name, 'reporterType' => 'Customer',
-                'severity' => in_array($r->reason, ['scam', 'fake', 'unsafe'], true) ? 'high' : ($r->reason === 'no_show' ? 'medium' : 'low'),
-                'status' => $statuses[$r->status] ?? $r->status, 'submittedAt' => $r->created_at->toIso8601String(),
-                'assignedTo' => null, 'resolution' => $r->status === 'confirmed' ? 'Confirmed' : ($r->status === 'dismissed' ? 'No violation found' : null),
-                'details' => $r->details, 'evidence' => 0, 'notes' => [], 'history' => $this->historyFor(ProviderReport::class, $r->id),
+                'id' => 'RP-'.$r->id, 'reportId' => $r->id, 'reason' => $r->reason, 'type' => self::REPORT_TYPES[$r->reason] ?? $r->reason,
+                'target' => $r->subject_type, 'subjectId' => $about[0], 'subjectName' => $about[1],
+                // The safety team sees who reported; the reported person never does
+                'reporterId' => $r->reporter_id ? 'C-'.$r->reporter_id : null, 'reporterName' => optional($r->reporter)->name ?: 'Deleted account',
+                'reporterType' => $r->reporter_role === 'provider' ? 'Provider' : 'Customer',
+                'jobTitle' => optional($r->serviceRequest)->title, 'jobId' => $r->service_request_id ? 'J-'.$r->service_request_id : null,
+                'severity' => $r->severity, 'status' => $statuses[$r->status] ?? $r->status,
+                'submittedAt' => $r->created_at->toIso8601String(), 'assignedTo' => optional($r->assignee)->name,
+                'details' => $r->details, 'photos' => $r->publicAttachments(), 'evidence' => count($r->attachments ?: []),
+                'question' => $r->info_request, 'reporterReply' => $r->reporter_reply,
+                'outcome' => $r->outcome, 'resolution' => $r->outcome ? (self::REPORT_OUTCOMES[$r->outcome] ?? $r->outcome) : null,
+                'outcomeMessage' => $r->outcome_message, 'resolvedAt' => optional($r->resolved_at)->toIso8601String(),
+                'canWarn' => $r->subject_user_id !== null, 'canSuspendProvider' => $r->provider_profile_id !== null,
+                'notes' => [], 'history' => $this->historyFor(Report::class, $r->id),
             ];
         });
     }
@@ -580,7 +603,8 @@ class AdminSnapshot
         }
         if (Str::startsWith($log->action, ['provider.application_', 'provider.suspended', 'provider.reinstated', 'settings.', 'roles.', 'admin.', 'profession.', 'document.viewed',
             'verification.assigned', 'verification.document_accepted', 'verification.document_sent_back', 'verification.document_requested', 'verification.info_requested',
-            'verification.approved', 'verification.rejected', 'verification.reopened', 'verification.note_added'])) {
+            'verification.approved', 'verification.rejected', 'verification.reopened', 'verification.note_added',
+            'trust.report_assigned', 'trust.report_info_requested', 'trust.report_note', 'trust.report_resolved', 'trust.report_photo_viewed', 'trust.warning_sent'])) {
             return 'Admin';
         }
 
@@ -606,6 +630,10 @@ class AdminSnapshot
                 return ['type' => 'quotation', 'id' => 'Q-'.$id, 'label' => 'Application for a job'];
             case ProviderReport::class:
                 return ['type' => 'report', 'id' => 'RP-'.$id, 'label' => 'Report about a provider'];
+            case Report::class:
+                return ['type' => 'report', 'id' => 'RP-'.$id, 'label' => 'a report'];
+            case AccountWarning::class:
+                return ['type' => 'warning', 'id' => '—', 'label' => 'a warning'];
             case PushAnnouncement::class:
                 return ['type' => 'announcement', 'id' => 'PA-'.$id, 'label' => $s ? '“'.$s->title.'”' : 'Announcement'];
             case DocumentVerification::class:
@@ -655,7 +683,14 @@ class AdminSnapshot
             'marketplace.request_completed' => "{$who} marked a request as done: {$what}",
             'marketplace.review_posted' => "{$who} rated a provider",
             'marketplace.hired' => "{$who} hired a provider for {$what}",
-            'trust.report_received' => 'A provider was reported',
+            'trust.report_received' => 'A report was received',
+            'trust.report_reply' => "{$who} answered the safety team’s question",
+            'trust.report_assigned' => "{$who} took the report",
+            'trust.report_info_requested' => "{$who} asked the reporter for more information",
+            'trust.report_note' => "{$who} added a note",
+            'trust.report_resolved' => "{$who} resolved the report",
+            'trust.report_photo_viewed' => "{$who} opened an evidence photo",
+            'trust.warning_sent' => "{$who} sent {$what} a warning",
             'roles.granted' => "{$who} gave {$what} an admin role",
             'roles.revoked' => "{$who} removed an admin role from {$what}",
             'settings.updated' => "{$who} changed {$what}",

@@ -77,6 +77,17 @@
       <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
     </router-link>
 
+    <!-- Reports, complaints and notices from WorkMate -->
+    <router-link v-if="user" to="/account/reports" class="wm-card wm-card-link mt-3 flex items-center gap-4">
+      <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-flag"></i></span>
+      <span class="min-w-0 flex-1">
+        <span class="block text-[15px] font-semibold text-ink">Reports and complaints</span>
+        <span class="block wm-meta">{{ unreadNotices ? `${unreadNotices} new ${unreadNotices === 1 ? 'notice' : 'notices'} from WorkMate` : 'Report a problem or follow one you reported' }}</span>
+      </span>
+      <span v-if="unreadNotices" class="wm-pill wm-pill-warning !py-0 !text-[11px]">New</span>
+      <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+    </router-link>
+
     <!-- Document verification -->
     <router-link to="/account/verification" class="wm-card wm-card-link mt-3 flex items-center gap-4">
       <span class="wm-icon-tile !bg-[#F1F5F9] !text-[#94A3B8]" aria-hidden="true"><i class="bi bi-patch-check-fill"></i></span>
@@ -265,11 +276,14 @@ loadSession();
 
 // The provider's document check, if they've started one
 const myVerification = ref(null);
+// Warnings from the safety team not read yet
+const unreadNotices = ref(0);
 const verificationSummary = computed(() => (myVerification.value && myVerification.value.status !== 'draft'
   ? VERIFICATION_STATUS[myVerification.value.status]?.label || myVerification.value.status
   : 'Your National ID and supporting documents'));
 watch(user, (u) => {
   if (u) api('/me/verification').then(r => { myVerification.value = r.data; }).catch(() => {});
+  if (u) api('/me/warnings').then(r => { unreadNotices.value = r.data.filter(w => !w.read).length; }).catch(() => {});
 }, { immediate: true });
 
 const VERIFICATION_RESULTS = {
