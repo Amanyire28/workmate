@@ -139,7 +139,7 @@ Throughout this README:
 |---|---|---|
 | Location matching | Distance ranking and widening run in the browser, from every place in Uganda, using the radii, fallbacks and tie-breaks set in Admin → Settings | Server-side matching for large numbers of providers |
 | Places | GeoNames places loaded automatically, with districts | A few small places are missing from GeoNames (e.g. Najjera); there is no admin screen yet to add a place by hand |
-| Document requirements | Real document checks (ID + supporting + requested documents) | The per-profession Document Requirements admin screen is still a browser-only prototype |
+| Document requirements | Real document checks (ID + profession documents + supporting + requested documents), with versioned per-profession requirements set in the admin | — |
 | Performance tick | Tick display and admin rules screen | Automatic evaluation isn't running; only sample providers carry a blue tick |
 | Push notifications | Per-device opt-in, a reminder pop-up, administrator announcements, and automatic notifications for requests, replies, messages and decisions | No in-app notification list yet, and no per-type choices (one switch covers all) |
 | Email | Branded confirmation and reset emails | Delivery depends on the mail settings in `.env`; check with `php artisan workmate:mail-test` |
@@ -283,7 +283,7 @@ Providers show **one tick**. It is grey once their documents are approved, and t
 
 Files are stored on the private `local` disk under `storage/app/verification`. Photos are re-drawn as JPEG (hidden data such as GPS removed); PDFs are kept as uploaded. Files are served only to their owner and to administrators with `documents.view`, never cached, and every administrator opening is written to the audit log. Replaced documents are kept as a record. Reopening a decision needs `verification.configure`.
 
-**Still a prototype:** the per-profession Document Requirements screen in the admin keeps its changes in the browser only.
+**Profession documents.** On top of the National ID, each provider adds the documents their **main skill's profession** needs, set in Admin → Verification → Document Requirements (`verification.configure` to publish, `documents.review` to view). Each document is mandatory, optional or conditional ("uses their own vehicle" is asked on the Get verified page; "business or team" comes from the provider type), with its own formats (JPG, PNG, PDF), size limit (up to 8 MB), number of documents, front-and-back or multi-page files, and expiry rule; the server enforces all of them. Publishing adds a new version (`document_requirement_versions`); drafts follow the current version, and documents sent for review keep the version they were sent under (`document_verifications.requirement_version_id`). Sending and approval are blocked while a required document is missing. The first ten professions started with sample requirements loaded as version 1, published by "WorkMate", for administrators to review.
 
 ### Performance tick ⬜
 
@@ -350,8 +350,6 @@ Screens for features that aren't built yet (finance, bookings, disputes, videos,
 - **Maintenance mode** shows a notice on the site and pauses new jobs, requests, applications and hiring (HTTP 503 `maintenance`); browsing, messages and the admin keep working. **Accept new provider applications** off stops new applications (`provider_signups_closed`); requested changes can still be sent.
 - Admin screens work with the popular places and the places in use, not all 11,300.
 
-**Still a prototype in the sidebar ⬜:** Document Requirements (changes are kept in the browser only).
-
 ---
 
 ## Technology stack
@@ -411,7 +409,6 @@ The Vue app is mounted by a single Blade view (`resources/views/app.blade.php`).
 **Accessibility.** Skip links, visible focus rings, labelled form errors that receive focus, live regions for status messages, keyboard-usable place search (combobox), reduced-motion support, and data tables behind charts.
 
 **Remaining frontend-only data.** Only these still use local frontend data:
-- `resources/js/data/verificationRequirements.js` and `stores/verification.js` (the Document Requirements prototype)
 - `admin/stores/blueTickRules.js` (the blue tick rules prototype)
 
 ---
@@ -493,7 +490,7 @@ Sample accounts use the reserved `@workmate.invalid` domain and random unknown p
 
 ### Planned data architecture ⬜
 
-Not yet in the schema: bookings and booking event history; versioned document requirements per profession; performance-tick rules, evaluations and award history; payments, ledger entries, commissions, refunds and payouts; in-app notifications and notification preferences; provider videos and moderation; saved providers and saved locations.
+Not yet in the schema: bookings and booking event history; performance-tick rules, evaluations and award history; payments, ledger entries, commissions, refunds and payouts; in-app notifications and notification preferences; provider videos and moderation; saved providers and saved locations.
 
 ---
 

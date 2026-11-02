@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Admin\AdminActionController;
 use App\Http\Controllers\Api\V1\Admin\AdminDataController;
 use App\Http\Controllers\Api\V1\Admin\AuditLogController;
+use App\Http\Controllers\Api\V1\Admin\DocumentRequirementController;
 use App\Http\Controllers\Api\V1\Admin\DocumentVerificationController;
 use App\Http\Controllers\Api\V1\Admin\ProfessionSuggestionController;
 use App\Http\Controllers\Api\V1\Admin\ReportController as AdminReportController;
@@ -167,6 +168,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::post('me/verification/documents/{document}/replace', [VerificationController::class, 'replace'])->name('me.verification.replace');
             Route::delete('me/verification/documents/{document}', [VerificationController::class, 'destroy'])->name('me.verification.destroy');
             Route::post('me/verification/submit', [VerificationController::class, 'submit'])->name('me.verification.submit');
+            Route::put('me/verification/answers', [VerificationController::class, 'answers'])->name('me.verification.answers');
         });
 
         Route::prefix('admin')->name('admin.')->group(function () {
@@ -206,6 +208,12 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::post('profession-suggestions/{suggestion}/match', [ProfessionSuggestionController::class, 'match'])->name('profession-suggestions.match');
                 Route::post('profession-suggestions/{suggestion}/decline', [ProfessionSuggestionController::class, 'decline'])->name('profession-suggestions.decline');
             });
+
+            // Documents each profession needs; publishing adds a version
+            Route::get('document-requirements', [DocumentRequirementController::class, 'index'])
+                ->middleware('can:documents.review')->name('document-requirements.index');
+            Route::post('document-requirements/{category}', [DocumentRequirementController::class, 'publish'])
+                ->middleware('can:verification.configure')->where('category', '[a-z0-9_-]+')->name('document-requirements.publish');
 
             // Document verification (the grey tick)
             Route::middleware('can:documents.review')->prefix('verifications/{verification}')->name('verifications.')->group(function () {

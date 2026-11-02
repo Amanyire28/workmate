@@ -11,6 +11,7 @@ use App\Services\PrivateFiles;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /** The signed-in provider's own documents for verification */
 class VerificationController extends Controller
@@ -40,18 +41,17 @@ class VerificationController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $data = $request->validate([
-            'kind' => ['required', Rule::in(VerificationDocument::KINDS)],
-            'label' => ['exclude_unless:kind,supporting', 'required', 'string', 'min:3', 'max:80'],
-            'request' => ['exclude_unless:kind,requested', 'required', 'integer'],
-            'expires_on' => ['nullable', 'date', 'after:today'],
-            'front' => array_merge(['exclude_unless:kind,national_id', 'required'], self::FILE_RULES),
-            'back' => array_merge(['exclude_unless:kind,national_id', 'required'], self::FILE_RULES),
-            'files' => ['exclude_if:kind,national_id', 'required', 'array', 'min:1', 'max:4'],
-            'files.*' => self::FILE_RULES,
-        ], $this->messages());
+        $kind = $request->validate(['kind' => ['required', Rule::in(VerificationDocument::KINDS)]])['kind'];
+        $spec = $kind === VerificationDocument::KIND_PROFESSION ? $this->spec($request, (string) $request->input('requirement')) : null;
 
-        $this->verifications->upload($request->user(), $data, $this->files($request, $data['kind']));
+        $data = $request->validate(array_merge([
+            'kind' => ['required'],
+            'label' => $kind === VerificationDocument::KIND_SUPPORTING ? ['required', 'string', 'min:3', 'max:80'] : ['exclude'],
+            'request' => $kind === VerificationDocument::KIND_REQUESTED ? ['required', 'integer'] : ['exclude'],
+            'requirement' => $kind === VerificationDocument::KIND_PROFESSION ? ['required', 'string'] : ['exclude'],
+        ], $this->uploadRules($kind, $spec)), $this->messages($spec));
+
+        $this->verifications->upload($request->user(), $data, $this->files($request, $kind, $spec));
 
         return $this->present($request->user()->providerProfile->documentVerification, 201);
     }
@@ -60,19 +60,23 @@ class VerificationController extends Controller
     public function replace(Request $request, string $document): JsonResponse
     {
         $document = $this->own($request, $document);
-        $isId = $document->kind === VerificationDocument::KIND_NATIONAL_ID;
+        $spec = $document->kind === VerificationDocument::KIND_PROFESSION ? $this->spec($request, (string) $document->requirement_key) : null;
 
-        $data = $request->validate([
-            'expires_on' => ['nullable', 'date', 'after:today'],
-            'front' => array_merge($isId ? ['required'] : ['exclude'], self::FILE_RULES),
-            'back' => array_merge($isId ? ['required'] : ['exclude'], self::FILE_RULES),
-            'files' => $isId ? ['exclude'] : ['required', 'array', 'min:1', 'max:4'],
-            'files.*' => self::FILE_RULES,
-        ], $this->messages());
+        $data = $request->validate($this->uploadRules($document->kind, $spec), $this->messages($spec));
 
-        $this->verifications->upload($request->user(), $data, $this->files($request, $document->kind), $document);
+        $this->verifications->upload($request->user(), $data, $this->files($request, $document->kind, $spec), $document);
 
         return $this->present($document->verification->fresh());
+    }
+
+    /** Answers to the questions that decide which documents apply */
+    public function answers(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'own_vehicle' => ['required', 'boolean'],
+        ]);
+
+        return $this->present($this->verifications->answer($request->user(), ['own_vehicle' => (bool) $data['own_vehicle']]));
     }
 
     public function destroy(Request $request, string $document): JsonResponse
@@ -119,10 +123,49 @@ class VerificationController extends Controller
         return $document;
     }
 
-    /** @return array<int, array{0: \Illuminate\Http\UploadedFile, 1: ?string}> */
-    private function files(Request $request, string $kind): array
+    /** The profession document being added, as it applies to this provider */
+    private function spec(Request $request, string $key): array
     {
-        if ($kind === VerificationDocument::KIND_NATIONAL_ID) {
+        $spec = $this->verifications->requirement($request->user(), $key);
+        if (! $spec) {
+            throw ValidationException::withMessages(['requirement' => 'This document isn’t needed for your profession any more.']);
+        }
+
+        return $spec;
+    }
+
+    /** File and expiry rules: fixed for the ID and free documents, set by the profession for its own */
+    private function uploadRules(string $kind, ?array $spec): array
+    {
+        $file = self::FILE_RULES;
+        $expiry = ['nullable', 'date', 'after:today'];
+        $sides = $kind === VerificationDocument::KIND_NATIONAL_ID;
+        $maxFiles = 4;
+
+        if ($spec) {
+            $mimes = str_replace('jpg', 'jpg,jpeg', implode(',', $spec['formats']));
+            $file = ['file', 'mimes:'.$mimes, 'max:'.($spec['maxSizeMb'] * 1024)];
+            $sides = (bool) $spec['frontBack'];
+            $maxFiles = $spec['multiPage'] ? 4 : 1;
+            if ($spec['expiry']['required']) {
+                $months = (int) $spec['expiry']['minMonthsValid'];
+                $expiry = ['required', 'date', $months > 0 ? 'after_or_equal:'.now()->addMonthsNoOverflow($months)->toDateString() : 'after:today'];
+            }
+        }
+
+        return [
+            'expires_on' => $expiry,
+            'front' => $sides ? array_merge(['required'], $file) : ['exclude'],
+            'back' => $sides ? array_merge(['required'], $file) : ['exclude'],
+            'files' => $sides ? ['exclude'] : ['required', 'array', 'min:1', 'max:'.$maxFiles],
+            'files.*' => $sides ? ['exclude'] : $file,
+        ];
+    }
+
+    /** @return array<int, array{0: \Illuminate\Http\UploadedFile, 1: ?string}> */
+    private function files(Request $request, string $kind, ?array $spec = null): array
+    {
+        if ($kind === VerificationDocument::KIND_NATIONAL_ID || ($spec && $spec['frontBack'])) {
             return [[$request->file('front'), 'front'], [$request->file('back'), 'back']];
         }
 
@@ -131,16 +174,23 @@ class VerificationController extends Controller
         }, array_values($request->file('files', [])));
     }
 
-    private function messages(): array
+    private function messages(?array $spec = null): array
     {
+        $what = $spec ? $spec['name'] : 'your ID';
+        $formats = $spec ? implode(', ', array_map('strtoupper', $spec['formats'])) : 'JPG, PNG or PDF';
+        $months = $spec ? (int) $spec['expiry']['minMonthsValid'] : 0;
+
         return [
-            'front.required' => 'Add a photo of the front of your ID.',
-            'back.required' => 'Add a photo of the back of your ID.',
+            'front.required' => 'Add a photo of the front of '.$what.'.',
+            'back.required' => 'Add a photo of the back of '.$what.'.',
             'files.required' => 'Add at least one file.',
-            'files.max' => 'Add up to 4 files (pages) per document.',
-            'mimes' => 'Use a JPG, PNG or PDF file.',
-            'max' => 'Each file can be up to 8 MB.',
+            'files.max' => $spec && ! $spec['multiPage'] ? 'Add one file for this document.' : 'Add up to 4 files (pages) per document.',
+            'mimes' => 'Use a '.$formats.' file.',
+            'max' => 'Each file can be up to '.($spec ? $spec['maxSizeMb'] : 8).' MB.',
             'label.required' => 'Say what this document is.',
+            'expires_on.required' => 'Add the expiry date.',
+            'expires_on.after_or_equal' => 'It must still be valid for at least '.$months.' '.($months === 1 ? 'month' : 'months').'.',
+            'expires_on.after' => 'This document has expired.',
         ];
     }
 

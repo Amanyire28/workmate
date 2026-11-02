@@ -1,24 +1,27 @@
 <template>
   <div class="flex flex-col gap-4">
-    <AdminPageHeader title="Document Requirements" description="Which documents each profession must provide for the WorkMate Verified badge." demo>
-      <template v-if="canEdit" #actions>
+    <AdminPageHeader title="Document Requirements" description="Which documents each profession must provide for the WorkMate Verified badge.">
+      <template v-if="canEdit && !loading && !loadError" #actions>
         <button type="button" class="wm-btn wm-btn-secondary !min-h-10 !rounded-lg !text-[13.5px]" @click="previewOpen = true"><i class="bi bi-eye" aria-hidden="true"></i>Preview for providers</button>
         <button type="button" class="wm-btn wm-btn-secondary !min-h-10 !rounded-lg !text-[13.5px]" :disabled="!changes.length" @click="resetDraft">Discard changes</button>
-        <button type="button" class="wm-btn wm-btn-primary !min-h-10 !rounded-lg !text-[13.5px]" :disabled="!changes.length" @click="startPublish">Publish version {{ current.version + 1 }}</button>
+        <button type="button" class="wm-btn wm-btn-primary !min-h-10 !rounded-lg !text-[13.5px]" :disabled="!changes.length || publishBusy" @click="startPublish">Publish version {{ current.version + 1 }}</button>
       </template>
     </AdminPageHeader>
 
     <p class="wm-notice wm-notice-info">
       <i class="bi bi-info-circle" aria-hidden="true"></i>
-      <span>Sample requirements, not legal ones: set what each profession genuinely needs. Publishing creates a new version for new applications; submitted applications keep the version they were made under.</span>
-    </p>
-    <p class="wm-notice wm-notice-warning">
-      <i class="bi bi-plug" aria-hidden="true"></i>
-      <span><strong class="font-semibold">Not connected yet.</strong> Document requirements aren’t stored by the server, so changes here are kept only until you reload.</span>
+      <span>Providers add the documents their main skill’s profession needs, on top of the National ID everyone gives. The first ten professions started with sample requirements: check each one against what the profession genuinely needs. Publishing creates a new version for new applications; submitted applications keep the version they were sent under.</span>
     </p>
     <p v-if="!canEdit" class="wm-notice wm-notice-info"><i class="bi bi-lock" aria-hidden="true"></i><span>Your role can view requirements but not change them.</span></p>
 
-    <div class="grid grid-cols-1 gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
+    <div v-if="loadError" class="rounded-xl wm-surface">
+      <StateBlock kind="error" title="Requirements couldn’t load" :message="loadError">
+        <button type="button" class="wm-btn wm-btn-secondary !min-h-10 !rounded-lg" @click="load">Try again</button>
+      </StateBlock>
+    </div>
+    <div v-else-if="loading" class="wm-skeleton h-[420px] !rounded-xl" aria-busy="true"></div>
+
+    <div v-else class="grid grid-cols-1 gap-4 xl:grid-cols-[260px_minmax(0,1fr)]">
       <!-- Professions -->
       <nav class="rounded-xl wm-surface p-2" aria-label="Professions">
         <ul class="flex gap-1 overflow-x-auto xl:flex-col">
@@ -43,7 +46,13 @@
         <div class="flex flex-wrap items-baseline justify-between gap-2">
           <h2 class="text-[16px] font-semibold text-ink">{{ categoryLabel(profession) }}</h2>
           <p v-if="current.version" class="text-[12.5px] text-[#64748B]">Current: v{{ current.version }}, published {{ formatDateTime(current.publishedAt) }} by {{ current.publishedBy }}</p>
-          <p v-else class="text-[12.5px] text-[#64748B]">No requirements published yet. Add documents below, then publish version 1.</p>
+          <p v-else class="text-[12.5px] text-[#64748B]">No requirements published yet: providers only give the National ID. Add documents below, then publish version 1.</p>
+        </div>
+
+        <!-- Everyone's ID, not part of a profession's list -->
+        <div class="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+          <p class="text-[13.5px] text-ink"><span class="font-semibold">National ID</span><span class="text-[#64748B]"> · front and back · required for every provider</span></p>
+          <span class="inline-flex items-center gap-1 text-[12px] text-[#64748B]"><i class="bi bi-lock" aria-hidden="true"></i>Always required</span>
         </div>
 
         <!-- Document requirements -->
@@ -52,7 +61,7 @@
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0 flex-1">
               <label :for="`${uid}-${i}-name`" class="text-[12px] font-medium text-[#64748B]">Document</label>
-              <input :id="`${uid}-${i}-name`" v-model="d.name" type="text" class="mt-0.5 h-9 w-full max-w-[360px] rounded-lg border border-[#CBD5E1] px-2.5 text-[14px] font-medium text-ink focus:outline-none focus:ring-2 focus:ring-primary" />
+              <input :id="`${uid}-${i}-name`" v-model="d.name" type="text" maxlength="80" class="mt-0.5 h-9 w-full max-w-[360px] rounded-lg border border-[#CBD5E1] px-2.5 text-[14px] font-medium text-ink focus:outline-none focus:ring-2 focus:ring-primary" />
             </div>
             <div class="flex items-center gap-2">
               <label class="inline-flex items-center gap-2 text-[13px] text-ink"><input v-model="d.enabled" type="checkbox" class="h-4 w-4 accent-[#1769D2]" />Enabled</label>
@@ -73,15 +82,15 @@
               </select>
             </label>
             <label class="block text-[12px] font-medium text-[#64748B]">Number of documents
-              <input v-model.number="d.count" type="number" min="1" max="10" class="mt-0.5 h-9 w-full rounded-lg border border-[#CBD5E1] px-2 text-[13.5px] text-ink focus:outline-none focus:ring-2 focus:ring-primary" />
+              <input v-model.number="d.count" type="number" min="1" :max="MAX_COUNT" class="mt-0.5 h-9 w-full rounded-lg border border-[#CBD5E1] px-2 text-[13.5px] text-ink focus:outline-none focus:ring-2 focus:ring-primary" />
             </label>
             <label class="block text-[12px] font-medium text-[#64748B]">Max file size (MB)
-              <input v-model.number="d.maxSizeMb" type="number" min="1" max="50" class="mt-0.5 h-9 w-full rounded-lg border border-[#CBD5E1] px-2 text-[13.5px] text-ink focus:outline-none focus:ring-2 focus:ring-primary" />
+              <input v-model.number="d.maxSizeMb" type="number" min="1" :max="MAX_SIZE_MB" class="mt-0.5 h-9 w-full rounded-lg border border-[#CBD5E1] px-2 text-[13.5px] text-ink focus:outline-none focus:ring-2 focus:ring-primary" />
             </label>
           </div>
 
           <label class="mt-3 block text-[12px] font-medium text-[#64748B]">Instructions for the provider
-            <textarea v-model="d.instructions" rows="2" class="mt-0.5 w-full rounded-lg border border-[#CBD5E1] px-2.5 py-1.5 text-[13.5px] text-ink focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
+            <textarea v-model="d.instructions" rows="2" maxlength="500" class="mt-0.5 w-full rounded-lg border border-[#CBD5E1] px-2.5 py-1.5 text-[13.5px] text-ink focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
           </label>
 
           <div class="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-ink">
@@ -105,6 +114,7 @@
           <label :for="`${uid}-add`" class="text-[13px] font-medium text-ink">Add a document</label>
           <select :id="`${uid}-add`" v-model="addType" class="h-9 rounded-lg border border-[#CBD5E1] bg-white px-2 text-[13.5px] focus:outline-none focus:ring-2 focus:ring-primary">
             <option v-for="(lib, key) in available" :key="key" :value="key">{{ lib.name }}</option>
+            <option value="custom">Another document…</option>
           </select>
           <button type="button" class="wm-btn wm-btn-secondary !min-h-9 !rounded-lg !px-3 !text-[13px]" :disabled="!addType" @click="add"><i class="bi bi-plus-lg" aria-hidden="true"></i>Add</button>
         </div>
@@ -112,18 +122,20 @@
         <section v-if="changes.length" class="rounded-xl border border-[#FDE7C2] bg-[#FFFBF2] p-4" aria-labelledby="changes-heading">
           <h3 id="changes-heading" class="text-[13.5px] font-semibold text-[#92400E]">Unpublished changes</h3>
           <ul class="mt-1 list-disc pl-5 text-[13px] text-[#92400E]"><li v-for="c in changes" :key="c">{{ c }}</li></ul>
+          <p class="mt-1 text-[12.5px] text-[#92400E]">Nothing changes for providers until you publish.</p>
         </section>
 
         <section class="rounded-xl wm-surface p-4" aria-labelledby="versions-heading">
           <h3 id="versions-heading" class="text-[14px] font-semibold text-ink">Version history</h3>
-          <ol class="mt-2 flex flex-col divide-y divide-[#F1F5F9]">
+          <ol v-if="versionHistory(profession).length" class="mt-2 flex flex-col divide-y divide-[#F1F5F9]">
             <li v-for="v in versionHistory(profession)" :key="v.version" class="py-2 text-[13px]">
               <span class="font-medium text-ink">v{{ v.version }}</span>
               <span class="text-[#64748B]"> · {{ formatDateTime(v.publishedAt) }} · {{ v.publishedBy }}</span>
-              <span v-if="appsPerVersion[v.version]" class="text-[#64748B]"> · {{ appsPerVersion[v.version] }} applications</span>
+              <span v-if="v.applications" class="text-[#64748B]"> · {{ v.applications }} {{ v.applications === 1 ? 'application' : 'applications' }}</span>
               <span class="block text-[#475569]">{{ v.note }}</span>
             </li>
           </ol>
+          <p v-else class="mt-1 text-[13px] text-[#64748B]">Nothing published yet.</p>
         </section>
       </div>
     </div>
@@ -136,6 +148,10 @@
         <label class="inline-flex items-center gap-1.5"><input v-model="previewAnswers[key]" type="checkbox" class="h-4 w-4 accent-[#1769D2]" />Yes</label>
       </div>
       <ul class="mt-4 flex flex-col divide-y divide-[#F1F5F9]">
+        <li class="py-3">
+          <p class="flex flex-wrap items-center gap-2 text-[14px] font-medium text-ink">National ID <span class="wm-pill wm-pill-plain wm-pill-info !h-6 !text-[11.5px]">Required</span></p>
+          <p class="mt-0.5 text-[13px] text-[#64748B]">Clear photos of the front and back, with all four corners visible.</p>
+        </li>
         <li v-for="d in previewDocs" :key="d.id" class="py-3">
           <p class="flex flex-wrap items-center gap-2 text-[14px] font-medium text-ink">
             {{ d.name }}
@@ -161,15 +177,16 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, useId } from 'vue';
+import { onBeforeRouteLeave } from 'vue-router';
 import AdminPageHeader from '../components/AdminPageHeader.vue';
 import DetailDrawer from '../components/DetailDrawer.vue';
 import ActionDialog from '../components/ActionDialog.vue';
+import StateBlock from '../components/StateBlock.vue';
 import { categories } from '../data/liveData.js';
-import { CONDITIONS, FORMAT_OPTIONS, DOCUMENT_LIBRARY, requirement, applicableDocuments, isRequired } from '@/data/verificationRequirements.js';
-import { currentVersion, versionHistory, publishVersion } from '@/stores/verification.js';
-import { fetchDataset } from '../data/adminApi.js';
+import { CONDITIONS, FORMAT_OPTIONS, MAX_SIZE_MB, MAX_COUNT, DOCUMENT_LIBRARY, requirement, applicableDocuments, isRequired } from '@/data/verificationRequirements.js';
+import { api, fieldErrors } from '@/api/client.js';
 import { can } from '../permissions.js';
-import { recordAudit, actorName, toast } from '../stores/prototypeChanges.js';
+import { toast } from '../stores/prototypeChanges.js';
 import { categoryLabel } from '../modules/helpers.js';
 import { formatDateTime } from '../utils/format.js';
 
@@ -177,9 +194,35 @@ const uid = useId();
 const copy = (x) => JSON.parse(JSON.stringify(x));
 const canEdit = computed(() => can('verification.configure'));
 
+/* ---------------- Published versions, from the server ---------------- */
+const versions = ref({});
+const loading = ref(true);
+const loadError = ref('');
+
+async function load() {
+  loading.value = true;
+  loadError.value = '';
+  try {
+    versions.value = (await api('/admin/document-requirements')).data.versions;
+    resetDraft();
+  } catch (e) {
+    loadError.value = e.message;
+  } finally {
+    loading.value = false;
+  }
+}
+onMounted(load);
+
+function currentVersion(professionId) {
+  const list = versions.value[professionId] || [];
+  // Professions without requirements start with nothing published
+  return list[list.length - 1] || { version: 0, publishedAt: null, publishedBy: null, note: null, documents: [] };
+}
+const versionHistory = (professionId) => [...(versions.value[professionId] || [])].reverse();
+
 const profession = ref('driving');
 const current = computed(() => currentVersion(profession.value));
-const draft = ref(copy(current.value.documents));
+const draft = ref([]);
 const errors = reactive({});
 
 function selectProfession(id) {
@@ -195,7 +238,17 @@ function resetDraft() {
 const available = computed(() => Object.fromEntries(Object.entries(DOCUMENT_LIBRARY).filter(([key]) => !draft.value.some(d => d.id === key))));
 const addType = ref('');
 function add() {
-  draft.value.push(requirement(addType.value, 'optional'));
+  if (addType.value === 'custom') {
+    // A key the server accepts, unique within this profession
+    let n = 1;
+    while (draft.value.some(d => d.id === `document_${n}`)) n++;
+    draft.value.push({
+      id: `document_${n}`, type: 'custom', name: 'New document', instructions: '', formats: [...FORMAT_OPTIONS], maxSizeMb: 5, count: 1,
+      frontBack: false, multiPage: true, expiry: { required: false, minMonthsValid: 0 }, requirement: 'optional', condition: null, enabled: true,
+    });
+  } else {
+    draft.value.push(requirement(addType.value, 'optional'));
+  }
   addType.value = '';
 }
 function remove(i) { draft.value.splice(i, 1); }
@@ -203,6 +256,7 @@ function toggleFormat(d, f, on) { d.formats = on ? [...d.formats, f] : d.formats
 
 /* Plain-language list of differences from the published version */
 const FIELD_LABELS = { name: 'name', requirement: 'requirement', condition: 'condition', count: 'number of documents', maxSizeMb: 'maximum size', instructions: 'instructions', formats: 'formats', frontBack: 'front and back', multiPage: 'multiple pages', enabled: 'enabled', expiry: 'expiry rule' };
+const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 const changes = computed(() => {
   const out = [];
   const before = new Map(current.value.documents.map(d => [d.id, d]));
@@ -210,40 +264,56 @@ const changes = computed(() => {
   for (const d of draft.value) {
     const old = before.get(d.id);
     if (!old) { out.push(`Added “${d.name}” (${d.requirement})`); continue; }
-    const fields = Object.keys(FIELD_LABELS).filter(k => JSON.stringify(old[k]) !== JSON.stringify(d[k]));
+    const fields = Object.keys(FIELD_LABELS).filter(k => !same(k === 'formats' ? [...(old[k] || [])].sort() : old[k], k === 'formats' ? [...d[k]].sort() : d[k]));
     if (fields.length) out.push(`Changed “${d.name}”: ${fields.map(k => FIELD_LABELS[k]).join(', ')}`);
   }
   for (const d of current.value.documents) if (!after.has(d.id)) out.push(`Removed “${d.name}”`);
   return out;
 });
 
+// Leaving with unpublished changes asks first
+onBeforeRouteLeave(() => (changes.value.length && canEdit.value ? window.confirm('You have unpublished changes. Leave without publishing?') : true));
+
 function validate() {
   for (const k of Object.keys(errors)) delete errors[k];
   draft.value.forEach((d, i) => {
-    if (!d.name.trim()) errors[`${i}.name`] = 'Give the document a name.';
+    if (d.name.trim().length < 3) errors[`${i}.name`] = 'Give the document a name (at least 3 characters).';
     if (d.requirement === 'conditional' && !d.condition) errors[`${i}.condition`] = 'Choose when this document is required.';
-    if (!(d.count >= 1)) errors[`${i}.count`] = 'At least one document.';
-    if (!(d.maxSizeMb >= 1 && d.maxSizeMb <= 50)) errors[`${i}.size`] = 'Maximum size must be between 1 and 50 MB.';
+    if (!(d.count >= 1 && d.count <= MAX_COUNT)) errors[`${i}.count`] = `Number of documents must be between 1 and ${MAX_COUNT}.`;
+    if (!(d.maxSizeMb >= 1 && d.maxSizeMb <= MAX_SIZE_MB)) errors[`${i}.size`] = `Maximum size must be between 1 and ${MAX_SIZE_MB} MB.`;
     if (!d.formats.length) errors[`${i}.formats`] = 'Accept at least one file format.';
   });
-  if (!draft.value.some(d => d.enabled && d.requirement === 'mandatory')) errors['all.mandatory'] = 'At least one enabled mandatory document is needed.';
   return !Object.keys(errors).length;
 }
 
 const publishing = ref(false);
+const publishBusy = ref(false);
 function startPublish() {
   if (!validate()) {
-    toast(errors['all.mandatory'] || 'Fix the highlighted requirements first.', 'warning');
+    toast('Fix the highlighted requirements first.', 'warning');
     return;
   }
   publishing.value = true;
 }
-function doPublish({ reason }) {
-  const v = publishVersion(profession.value, draft.value, { by: actorName(), note: reason });
-  recordAudit('verification.requirements_published', `${categoryLabel(profession.value)} requirements v${v.version}: ${changes.value.join('; ')}`, `requirements:${profession.value}`, reason);
+async function doPublish({ reason }) {
   publishing.value = false;
-  resetDraft();
-  toast(`Published ${categoryLabel(profession.value)} requirements v${v.version} on this screen only. Not saved to the server yet.`);
+  publishBusy.value = true;
+  const id = profession.value;
+  try {
+    const v = (await api(`/admin/document-requirements/${id}`, { method: 'POST', body: { documents: draft.value, reason } })).data;
+    versions.value = { ...versions.value, [id]: [...(versions.value[id] || []), v] };
+    resetDraft();
+    toast(`Published ${categoryLabel(id)} requirements v${v.version}. New applications use it now.`);
+  } catch (e) {
+    // "documents.2.name" → shown under the third document
+    for (const [key, message] of Object.entries(fieldErrors(e))) {
+      const m = key.match(/^documents\.(\d+)\.(.+)$/);
+      errors[m ? `${m[1]}.${m[2]}` : key] = message;
+    }
+    toast(e.message || 'The requirements couldn’t be published.', 'warning');
+  } finally {
+    publishBusy.value = false;
+  }
 }
 
 /* Preview */
@@ -251,14 +321,4 @@ const previewOpen = ref(false);
 const previewAnswers = reactive({});
 const previewConditions = computed(() => [...new Set(draft.value.filter(d => d.enabled && d.requirement === 'conditional' && d.condition).map(d => d.condition))]);
 const previewDocs = computed(() => applicableDocuments({ documents: draft.value }, previewAnswers));
-
-/* How many applications were made under each version */
-const apps = ref([]);
-onMounted(async () => { try { apps.value = (await fetchDataset('verification-applications')).rows; } catch { /* history counts are optional */ } });
-const appsPerVersion = computed(() => {
-  const out = {};
-  // Real applications aren't tied to a requirements version
-  for (const a of apps.value) if (a.profession === profession.value && a.snapshot?.version) out[a.snapshot.version] = (out[a.snapshot.version] || 0) + 1;
-  return out;
-});
 </script>

@@ -14,9 +14,10 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
- * Document verification: the National ID (front and back, always needed), up
- * to five supporting documents of the provider's choice, and any extra
- * documents an administrator asks for. Approval gives the grey tick.
+ * Document verification: the National ID (front and back, always needed), the
+ * documents their main profession needs (see DocumentRequirements), up to five
+ * supporting documents of the provider's choice, and any extra documents an
+ * administrator asks for. Approval gives the grey tick.
  *
  *   draft → pending_review → under_review → approved
  *                 ↑               ↓     ↘
@@ -39,11 +40,15 @@ class DocumentVerifications
     /** @var PrivateFiles */
     private $files;
 
-    public function __construct(AuditLogger $audit, EventNotifications $notify, PrivateFiles $files)
+    /** @var DocumentRequirements */
+    private $requirements;
+
+    public function __construct(AuditLogger $audit, EventNotifications $notify, PrivateFiles $files, DocumentRequirements $requirements)
     {
         $this->audit = $audit;
         $this->notify = $notify;
         $this->files = $files;
+        $this->requirements = $requirements;
     }
 
     public function forProfile(ProviderProfile $profile): DocumentVerification
@@ -59,10 +64,31 @@ class DocumentVerifications
 
     /* ---------------- The provider ---------------- */
 
+    /** A document the provider's profession needs, as it applies to them now, or null */
+    public function requirement(User $user, string $key): ?array
+    {
+        return $this->requirements->spec($this->forProfile($this->ownProfile($user)), $key);
+    }
+
+    /** Answers to questions such as "Do you use your own vehicle?" */
+    public function answer(User $user, array $answers): DocumentVerification
+    {
+        return DB::transaction(function () use ($user, $answers) {
+            $verification = $this->ownVerificationForUpdate($user);
+            $this->guardEditable($verification);
+
+            $before = $verification->answers ?: [];
+            $verification->forceFill(['answers' => array_merge($before, $answers)])->save();
+            $this->audit->record('verification.answers_changed', $verification, $before, $verification->answers, null, $user);
+
+            return $verification;
+        });
+    }
+
     /**
      * Adds a document, or replaces one when $replacing is given.
      *
-     * @param  array{kind: string, label: ?string, request: ?int, expires_on: ?string}  $data
+     * @param  array{kind: string, label: ?string, request: ?int, requirement: ?string, expires_on: ?string}  $data
      * @param  array<int, array{0: UploadedFile, 1: ?string}>  $files  each file with its side (front/back) or null
      */
     public function upload(User $user, array $data, array $files, ?VerificationDocument $replacing = null): VerificationDocument
@@ -96,7 +122,7 @@ class DocumentVerifications
                 if (! $verification->isEditable() && $replacing->status !== VerificationDocument::STATUS_REPLACEMENT_REQUIRED) {
                     throw new BusinessRuleException('verification_locked', $this->lockedMessage($verification), 409);
                 }
-                $data = ['kind' => $replacing->kind, 'label' => $replacing->label, 'request' => $replacing->document_request_id] + $data;
+                $data = ['kind' => $replacing->kind, 'label' => $replacing->label, 'request' => $replacing->document_request_id, 'requirement' => $replacing->requirement_key] + $data;
             } else {
                 $this->guardEditable($verification);
             }
@@ -111,6 +137,17 @@ class DocumentVerifications
                     throw new BusinessRuleException('request_not_open', 'WorkMate isn’t waiting for this document any more.', 409);
                 }
                 $data['label'] = $request->label;
+            } elseif ($data['kind'] === VerificationDocument::KIND_PROFESSION) {
+                $spec = $this->requirements->spec($verification, (string) ($data['requirement'] ?? ''));
+                if (! $spec) {
+                    throw new BusinessRuleException('requirement_not_needed', 'This document isn’t needed for your profession any more.', 422);
+                }
+                $added = $current->where('kind', VerificationDocument::KIND_PROFESSION)->where('requirement_key', $spec['id'])->count();
+                if (! $replacing && $added >= $spec['count']) {
+                    throw new BusinessRuleException('too_many_documents', 'You’ve already added '.($spec['count'] === 1 ? 'this document' : 'all '.$spec['count'].' of these').'. Remove one first.', 422);
+                }
+                $data['label'] = $spec['name'];
+                $data['requirement'] = $spec['id'];
             } elseif (! $replacing && $current->where('kind', VerificationDocument::KIND_SUPPORTING)->count() >= DocumentVerification::MAX_SUPPORTING) {
                 throw new BusinessRuleException('too_many_documents', 'You can add up to '.DocumentVerification::MAX_SUPPORTING.' supporting documents. Remove one first.', 422);
             }
@@ -124,6 +161,7 @@ class DocumentVerifications
                 'uuid' => (string) Str::uuid(),
                 'document_verification_id' => $verification->id,
                 'kind' => $data['kind'],
+                'requirement_key' => $data['kind'] === VerificationDocument::KIND_PROFESSION ? $data['requirement'] : null,
                 'label' => trim($data['label']),
                 'document_request_id' => $request ? $request->id : null,
                 'files' => $stored,
@@ -136,7 +174,7 @@ class DocumentVerifications
             }
             // Changing documents after a rejection starts a new application
             if ($verification->status === DocumentVerification::STATUS_REJECTED) {
-                $verification->forceFill(['status' => DocumentVerification::STATUS_DRAFT, 'decision_reason' => null])->save();
+                $verification->forceFill(['status' => DocumentVerification::STATUS_DRAFT, 'decision_reason' => null, 'requirement_version_id' => null])->save();
             }
 
             $this->audit->record($replacing ? 'verification.document_replaced' : 'verification.document_added', $document, [], [
@@ -147,16 +185,16 @@ class DocumentVerifications
         });
     }
 
-    /** Takes a supporting document out before it's reviewed */
+    /** Takes a supporting or profession document out before it's reviewed */
     public function remove(User $user, VerificationDocument $document): void
     {
         DB::transaction(function () use ($user, $document) {
             $verification = $this->ownVerificationForUpdate($user);
             $this->guardEditable($verification);
 
-            if ($document->document_verification_id !== $verification->id || $document->kind !== VerificationDocument::KIND_SUPPORTING
+            if ($document->document_verification_id !== $verification->id || ! in_array($document->kind, [VerificationDocument::KIND_SUPPORTING, VerificationDocument::KIND_PROFESSION], true)
                 || $document->status === VerificationDocument::STATUS_ACCEPTED || in_array($document->status, [VerificationDocument::STATUS_REPLACED, VerificationDocument::STATUS_REMOVED], true)) {
-                throw new BusinessRuleException('document_not_removable', 'Only a supporting document that hasn’t been accepted can be removed.', 409);
+                throw new BusinessRuleException('document_not_removable', 'Only a document you added that hasn’t been accepted can be removed.', 409);
             }
 
             $document->forceFill(['status' => VerificationDocument::STATUS_REMOVED])->save();
@@ -181,6 +219,16 @@ class DocumentVerifications
             if (! $id) {
                 throw new BusinessRuleException('national_id_missing', 'Add both sides of your National ID first.', 422);
             }
+            $version = $this->requirements->versionFor($verification);
+            foreach ($this->requirements->questions($verification, $version) as $q) {
+                if ($q['answer'] === null) {
+                    throw new BusinessRuleException('questions_unanswered', 'Answer “'.$q['question'].'” first.', 422);
+                }
+            }
+            $missing = $this->requirements->missing($verification, $documents, $version);
+            if ($missing) {
+                throw new BusinessRuleException('documents_missing', 'Add your '.implode(', ', $missing).' first.', 422);
+            }
             if ($documents->where('status', VerificationDocument::STATUS_REPLACEMENT_REQUIRED)->isNotEmpty()) {
                 throw new BusinessRuleException('replacements_missing', 'Replace the documents WorkMate sent back first.', 422);
             }
@@ -190,6 +238,8 @@ class DocumentVerifications
 
             $before = $verification->status;
             $verification->forceFill([
+                // Sent under these rules from now on, even if they change
+                'requirement_version_id' => $before === DocumentVerification::STATUS_DRAFT ? optional($version)->id : $verification->requirement_version_id,
                 'status' => DocumentVerification::STATUS_PENDING_REVIEW,
                 'submitted_at' => $verification->submitted_at ?: now(),
                 'decision_reason' => null,
@@ -270,6 +320,9 @@ class DocumentVerifications
             }
             if ($v->requests()->where('status', DocumentRequest::STATUS_OPEN)->exists()) {
                 throw new BusinessRuleException('requests_open', 'The provider hasn’t added every requested document yet.', 409);
+            }
+            if ($this->requirements->missing($v, $documents)) {
+                throw new BusinessRuleException('documents_missing', 'The provider hasn’t added every document their profession needs.', 409);
             }
 
             $v->forceFill(['status' => DocumentVerification::STATUS_APPROVED, 'decided_at' => now(), 'decided_by' => $admin->getKey(), 'decision_reason' => null])->save();

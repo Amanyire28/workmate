@@ -85,6 +85,74 @@
         </div>
       </section>
 
+      <!-- What their main profession needs -->
+      <section v-if="rules" class="mt-6" aria-labelledby="profession-heading">
+        <h2 id="profession-heading" class="wm-h3">Documents for {{ rules.profession }}</h2>
+        <p class="wm-meta mb-2">What WorkMate checks for providers whose main skill is in {{ rules.profession }}.</p>
+
+        <fieldset v-for="q in rules.questions" :key="q.key" class="wm-card mb-3" :disabled="!state.can_edit || !!busy">
+          <legend class="sr-only">{{ q.question }}</legend>
+          <p class="text-[15px] font-medium text-ink">{{ q.question }}</p>
+          <div class="mt-2 flex gap-4">
+            <label v-for="opt in [{ v: true, t: 'Yes' }, { v: false, t: 'No' }]" :key="opt.t" class="flex min-h-11 items-center gap-2 text-sm text-ink">
+              <input type="radio" class="wm-check" :name="`q-${q.key}`" :checked="q.answer === opt.v" @change="answer(q.key, opt.v)" />{{ opt.t }}
+            </label>
+          </div>
+        </fieldset>
+
+        <ul class="flex flex-col gap-3">
+          <li v-for="r in rules.documents" :key="r.key" class="wm-card">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+              <p class="text-[15px] font-semibold text-ink">{{ r.name }}<span v-if="r.required" class="text-error" aria-hidden="true"> *</span></p>
+              <span :class="['wm-pill', r.required ? 'wm-pill-info' : 'wm-pill-neutral']">{{ r.required ? 'Required' : 'Optional' }}</span>
+            </div>
+            <p v-if="r.instructions" class="mt-1 text-sm text-muted">{{ r.instructions }}</p>
+            <p class="wm-meta mt-1">{{ ruleHint(r) }}</p>
+
+            <ul v-if="professionDocs(r.key).length" class="mt-3 flex flex-col gap-3">
+              <li v-for="d in professionDocs(r.key)" :key="d.id">
+                <DocumentCard :doc="d" :file-url="fileUrl">
+                  <template v-if="canReplace(d)">
+                    <IdChooser v-if="r.front_back" :key="formKey" :prefix="`replace-${d.id}`" :formats="r.formats" :max-mb="r.max_size_mb" v-model="drafts[`replace-${d.id}`]" />
+                    <FileChooser v-else :key="formKey" :id="`replace-${d.id}`" :multiple="r.multi_page" :formats="r.formats" :max-mb="r.max_size_mb" v-model="drafts[`replace-${d.id}`]" />
+                    <FormField v-if="r.expiry_required" v-model="drafts[`exp-replace-${d.id}`]" class="mt-3" type="date" label="Expiry date" :min="validFrom(r)" />
+                    <PrimaryButton class="mt-3" :loading="busy === `replace-${d.id}`" :disabled="!!busy || !ready(r, drafts[`replace-${d.id}`], drafts[`exp-replace-${d.id}`])"
+                      @click="replace(d, filesFor(r, drafts[`replace-${d.id}`]), `replace-${d.id}`, { expires_on: drafts[`exp-replace-${d.id}`] || null })">
+                      Send replacement
+                    </PrimaryButton>
+                  </template>
+                  <template #actions>
+                    <button v-if="offerReplace(d)" type="button" class="wm-link min-h-11 px-2 text-sm" @click="replacing[d.id] = true">Replace</button>
+                    <button v-if="state.can_edit && d.status !== 'accepted'" type="button" class="wm-link min-h-11 px-2 text-sm text-error" :disabled="!!busy" @click="remove(d)">Remove</button>
+                  </template>
+                </DocumentCard>
+              </li>
+            </ul>
+
+            <div v-if="state.can_edit && r.added < r.count" class="mt-3 flex flex-col gap-3">
+              <IdChooser v-if="r.front_back" :key="formKey" :prefix="`prof-${r.key}`" :formats="r.formats" :max-mb="r.max_size_mb" v-model="drafts[`prof-${r.key}`]" />
+              <FileChooser v-else :key="formKey" :id="`prof-${r.key}`" :multiple="r.multi_page" :formats="r.formats" :max-mb="r.max_size_mb" v-model="drafts[`prof-${r.key}`]" />
+              <FormField v-if="r.expiry_required" v-model="drafts[`exp-${r.key}`]" type="date" label="Expiry date" :min="validFrom(r)" />
+              <PrimaryButton :variant="r.required ? 'primary' : 'secondary'" :loading="busy === `prof-${r.key}`" :disabled="!!busy || !ready(r, drafts[`prof-${r.key}`], drafts[`exp-${r.key}`])"
+                @click="upload({ kind: 'profession', requirement: r.key, expires_on: drafts[`exp-${r.key}`] || null }, filesFor(r, drafts[`prof-${r.key}`]), `prof-${r.key}`)">
+                Add {{ r.count > 1 && r.added ? 'another' : r.name.toLowerCase() }}
+              </PrimaryButton>
+            </div>
+          </li>
+        </ul>
+
+        <!-- Added under an earlier answer or version; no longer needed -->
+        <ul v-if="staleDocs.length" class="mt-3 flex flex-col gap-3">
+          <li v-for="d in staleDocs" :key="d.id">
+            <DocumentCard :doc="d" :file-url="fileUrl">
+              <template #actions>
+                <button v-if="state.can_edit && d.status !== 'accepted'" type="button" class="wm-link min-h-11 px-2 text-sm text-error" :disabled="!!busy" @click="remove(d)">Remove (no longer needed)</button>
+              </template>
+            </DocumentCard>
+          </li>
+        </ul>
+      </section>
+
       <!-- Supporting documents -->
       <section class="mt-6" aria-labelledby="supporting-heading">
         <h2 id="supporting-heading" class="wm-h3">Supporting documents <span class="font-normal text-muted text-sm">(optional, up to {{ state.max_supporting }})</span></h2>
@@ -125,10 +193,11 @@
           <input v-model="confirmed" type="checkbox" class="wm-check mt-0.5" />
           <span>These documents are mine, current and genuine. I understand WorkMate checks them before approving them.</span>
         </label>
-        <PrimaryButton :loading="busy === 'submit'" :disabled="!!busy || !confirmed || !nationalId || !emailVerified" @click="submit">
+        <PrimaryButton :loading="busy === 'submit'" :disabled="!!busy || !confirmed || !nationalId || !emailVerified || !!stillNeeded" @click="submit">
           {{ state.status === 'info_requested' ? 'Send my changes for review' : 'Send for review' }}
         </PrimaryButton>
         <p v-if="!nationalId" class="wm-meta text-center">Add your National ID first.</p>
+        <p v-else-if="stillNeeded" class="wm-meta text-center">{{ stillNeeded }}</p>
         <p v-else-if="!emailVerified" class="wm-meta text-center">Confirm your email address first: use the link we sent you.</p>
       </section>
 
@@ -149,7 +218,6 @@ import { api, fieldErrors } from '@/api/client.js';
 import { auth } from '@/stores/auth.js';
 import { VERIFICATION_STATUS, DOCUMENT_STATUS } from '@/utils/verificationStatus.js';
 
-const ACCEPT = 'image/jpeg,image/png,application/pdf,.jpg,.jpeg,.png,.pdf';
 const MAX_MB = 8;
 
 const loading = ref(true);
@@ -166,8 +234,40 @@ const drafts = reactive({ id: {}, idReplace: {}, idExpiry: '', label: '', suppor
 const emailVerified = computed(() => !!auth.user?.email_verified);
 const statusInfo = computed(() => VERIFICATION_STATUS[state.value?.status] || VERIFICATION_STATUS.draft);
 const nationalId = computed(() => state.value?.documents.find(d => d.kind === 'national_id') || null);
-const supporting = computed(() => state.value?.documents.filter(d => d.kind !== 'national_id') || []);
+const supporting = computed(() => state.value?.documents.filter(d => d.kind === 'supporting' || d.kind === 'requested') || []);
 const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+
+/* ---------------- The documents their profession needs ---------------- */
+const rules = computed(() => state.value?.requirements || null);
+const professionDocs = (key) => state.value.documents.filter(d => d.kind === 'profession' && d.requirement === key);
+const staleDocs = computed(() => (state.value?.documents || []).filter(d => d.kind === 'profession' && !rules.value?.documents.some(r => r.key === d.requirement)));
+const stillNeeded = computed(() => {
+  if (!rules.value) return '';
+  const q = rules.value.questions.find(x => x.answer === null);
+  if (q) return `Answer “${q.question}” first.`;
+  return rules.value.missing.length ? `Add your ${rules.value.missing.join(', ')} first.` : '';
+});
+// The earliest expiry date the profession accepts
+function validFrom(r) {
+  if (!r.min_months_valid) return tomorrow;
+  const d = new Date();
+  d.setMonth(d.getMonth() + r.min_months_valid);
+  return d.toISOString().slice(0, 10);
+}
+function ruleHint(r) {
+  const parts = [r.formats.map(f => f.toUpperCase()).join(', '), `up to ${r.max_size_mb} MB`];
+  if (r.front_back) parts.push('front and back');
+  else if (r.multi_page) parts.push('all pages');
+  if (r.expiry_required) parts.push(r.min_months_valid ? `valid for at least ${r.min_months_valid} ${r.min_months_valid === 1 ? 'month' : 'months'}` : 'with its expiry date');
+  if (r.count > 1) parts.push(`${r.added} of ${r.count} added`);
+  return parts.join(' · ');
+}
+const filesFor = (r, draft) => (r.front_back ? { front: draft?.front, back: draft?.back } : { files: draft });
+const ready = (r, draft, expiry) => (r.front_back ? idComplete(draft) : !!draft?.length) && (!r.expiry_required || !!expiry);
+
+function answer(key, value) {
+  run(`answer-${key}`, () => api('/me/verification/answers', { method: 'PUT', body: { [key]: value } }), 'Answer saved.');
+}
 
 const fileUrl = (doc, index) => `/api/v1/me/verification/documents/${doc.id}/files/${index}`;
 const idComplete = (d) => !!(d?.front && d?.back);
@@ -221,11 +321,14 @@ async function upload(fields, files, key) {
   if (key === 'id') { drafts.id = {}; drafts.idExpiry = ''; }
   if (key === 'supporting') { drafts.label = ''; drafts.supporting = []; }
   delete drafts[key];
+  delete drafts[key.replace(/^prof-/, 'exp-')];
 }
 
-async function replace(doc, files, key) {
-  const ok = await run(key, () => api(`/me/verification/documents/${doc.id}/replace`, { method: 'POST', body: formData({}, files) }), 'Replacement sent.');
-  if (ok) drafts[key === 'id-replace' ? 'idReplace' : key] = key === 'id-replace' ? {} : [];
+async function replace(doc, files, key, fields = {}) {
+  const ok = await run(key, () => api(`/me/verification/documents/${doc.id}/replace`, { method: 'POST', body: formData(fields, files) }), 'Replacement sent.');
+  if (!ok) return;
+  if (key === 'id-replace') drafts.idReplace = {};
+  else { delete drafts[key]; delete drafts[`exp-${key}`]; }
 }
 
 function remove(doc) {
@@ -241,54 +344,67 @@ onMounted(load);
 
 /* ---------------- Small pieces ---------------- */
 
-function checkFiles(list) {
+const ALL_FORMATS = ['jpg', 'png', 'pdf'];
+const EXTENSIONS = { jpg: ['jpg', 'jpeg'], png: ['png'], pdf: ['pdf'] };
+const acceptFor = (formats) => formats.flatMap(f => EXTENSIONS[f].map(x => `.${x}`)).join(',');
+const formatNames = (formats) => formats.map(f => f.toUpperCase()).join(', ').replace(/, ([^,]*)$/, ' or $1');
+
+function checkFiles(list, formats = ALL_FORMATS, maxMb = MAX_MB) {
+  const allowed = formats.flatMap(f => EXTENSIONS[f]);
   for (const f of list) {
-    if (f.size > MAX_MB * 1024 * 1024) return `${f.name} is over ${MAX_MB} MB.`;
-    if (!/\.(jpe?g|png|pdf)$/i.test(f.name)) return `${f.name} isn’t a JPG, PNG or PDF file.`;
+    if (f.size > maxMb * 1024 * 1024) return `${f.name} is over ${maxMb} MB.`;
+    if (!allowed.includes((f.name.split('.').pop() || '').toLowerCase())) return `${f.name} isn’t a ${formatNames(formats)} file.`;
   }
   return '';
 }
 
 /** File input with a list of what's chosen (up to 4 pages) */
 const FileChooser = {
-  props: { modelValue: { type: Array, default: () => [] }, id: String, multiple: Boolean, label: { type: String, default: 'Files' } },
+  props: {
+    modelValue: { type: Array, default: () => [] }, id: String, multiple: Boolean, label: { type: String, default: 'Files' },
+    formats: { type: Array, default: () => ALL_FORMATS }, maxMb: { type: Number, default: MAX_MB },
+  },
   emits: ['update:modelValue'],
   setup(props, { emit }) {
     const problem = ref('');
     const onChange = (e) => {
       const list = [...e.target.files].slice(0, props.multiple ? 4 : 1);
-      problem.value = checkFiles(list);
+      problem.value = checkFiles(list, props.formats, props.maxMb);
       emit('update:modelValue', problem.value ? [] : list);
     };
     return () => h('div', { class: 'flex flex-col gap-1.5' }, [
-      h('label', { class: 'wm-label', for: props.id }, [props.label, h('span', { class: 'font-normal text-muted' }, ` (JPG, PNG or PDF, up to ${MAX_MB} MB${props.multiple ? ', up to 4 pages' : ''})`)]),
-      h('input', { id: props.id, type: 'file', accept: ACCEPT, multiple: props.multiple, class: 'wm-input !py-2', onChange }),
+      h('label', { class: 'wm-label', for: props.id }, [props.label, h('span', { class: 'font-normal text-muted' }, ` (${formatNames(props.formats)}, up to ${props.maxMb} MB${props.multiple ? ', up to 4 pages' : ''})`)]),
+      h('input', { id: props.id, type: 'file', accept: acceptFor(props.formats), multiple: props.multiple, class: 'wm-input !py-2', onChange }),
       problem.value ? h('p', { class: 'wm-field-error', role: 'alert' }, problem.value) : null,
       props.modelValue?.length ? h('p', { class: 'wm-meta' }, props.modelValue.map(f => f.name).join(', ')) : null,
     ]);
   },
 };
 
-/** Front and back of the ID */
+/** Front and back of the ID, or of another card such as a driving permit */
 const IdChooser = {
-  props: { modelValue: { type: Object, default: () => ({}) } },
+  props: {
+    modelValue: { type: Object, default: () => ({}) }, prefix: { type: String, default: 'id' },
+    formats: { type: Array, default: () => ALL_FORMATS }, maxMb: { type: Number, default: MAX_MB },
+  },
   emits: ['update:modelValue'],
   setup(props, { emit }) {
     const problem = ref('');
+    const isId = props.prefix === 'id';
     const side = (key, text) => h('div', { class: 'flex flex-col gap-1.5' }, [
-      h('label', { class: 'wm-label', for: `id-${key}` }, text),
+      h('label', { class: 'wm-label', for: `${props.prefix}-${key}` }, text),
       h('input', {
-        id: `id-${key}`, type: 'file', accept: ACCEPT, class: 'wm-input !py-2',
+        id: `${props.prefix}-${key}`, type: 'file', accept: acceptFor(props.formats), class: 'wm-input !py-2',
         onChange: (e) => {
           const f = e.target.files[0];
-          problem.value = f ? checkFiles([f]) : '';
+          problem.value = f ? checkFiles([f], props.formats, props.maxMb) : '';
           emit('update:modelValue', { ...props.modelValue, [key]: f && !problem.value ? f : null });
         },
       }),
     ]);
     return () => h('div', { class: 'grid grid-cols-1 gap-3 sm:grid-cols-2' }, [
-      side('front', 'Front of your ID'),
-      side('back', 'Back of your ID'),
+      side('front', isId ? 'Front of your ID' : 'Front'),
+      side('back', isId ? 'Back of your ID' : 'Back'),
       problem.value ? h('p', { class: 'wm-field-error sm:col-span-2', role: 'alert' }, problem.value) : null,
     ]);
   },

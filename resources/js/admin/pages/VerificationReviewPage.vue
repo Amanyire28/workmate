@@ -112,6 +112,11 @@
               <dt class="text-[#64748B]">Provider ID</dt><dd class="text-ink">{{ app.providerId }}</dd>
               <dt class="text-[#64748B]">Main skill</dt><dd class="text-ink">{{ app.professionName || categoryLabel(app.profession) }}</dd>
               <template v-if="app.services"><dt class="text-[#64748B]">Services</dt><dd class="text-ink">{{ app.services.map(categoryLabel).join(', ') }}</dd></template>
+              <dt class="text-[#64748B]">Requirements</dt>
+              <dd class="text-ink">
+                <template v-if="app.rules">{{ app.rules.profession }} v{{ app.rules.version }}</template>
+                <template v-else>National ID only</template>
+              </dd>
               <dt class="text-[#64748B]">Registered area</dt><dd class="text-ink">{{ app.area }}</dd>
               <template v-if="app.phoneMasked"><dt class="text-[#64748B]">Phone</dt><dd class="text-ink">{{ app.phoneMasked }}</dd></template>
               <dt class="text-[#64748B]">Reviewer</dt><dd class="text-ink">{{ app.reviewer || 'Unassigned' }}</dd>
@@ -270,6 +275,10 @@ const approvable = computed(() => {
   const nationalId = app.value.documents.find(d => d.kind === 'national_id');
   const checks = [
     { label: 'National ID accepted', ok: nationalId?.status === 'accepted' },
+    ...(app.value.rules ? [{
+      label: app.value.rules.missing.length ? `Missing for ${app.value.rules.profession}: ${app.value.rules.missing.join(', ')}` : `Every document ${app.value.rules.profession} needs added`,
+      ok: !app.value.rules.missing.length,
+    }] : []),
     { label: `Every document accepted (${app.value.documents.filter(d => d.status === 'accepted').length}/${app.value.documents.length})`, ok: app.value.documents.every(d => d.status === 'accepted') },
     { label: 'Every requested document added', ok: !app.value.requests.some(r => r.status === 'open') },
     { label: 'Waiting for a decision (not with the provider)', ok: app.value.status !== 'info_requested' },

@@ -10,7 +10,9 @@ class VerificationDocument extends Model
     public const KIND_NATIONAL_ID = 'national_id';
     public const KIND_SUPPORTING = 'supporting';
     public const KIND_REQUESTED = 'requested';
-    public const KINDS = [self::KIND_NATIONAL_ID, self::KIND_SUPPORTING, self::KIND_REQUESTED];
+    // One of the documents the provider's profession needs (requirement_key says which)
+    public const KIND_PROFESSION = 'profession';
+    public const KINDS = [self::KIND_NATIONAL_ID, self::KIND_SUPPORTING, self::KIND_REQUESTED, self::KIND_PROFESSION];
 
     public const STATUS_AWAITING_REVIEW = 'awaiting_review';
     public const STATUS_ACCEPTED = 'accepted';

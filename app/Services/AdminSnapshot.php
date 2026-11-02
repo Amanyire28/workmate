@@ -243,12 +243,16 @@ class AdminSnapshot
     /** Submitted document verifications, without file paths */
     private function verifications(): Collection
     {
-        return DocumentVerification::with(['profile.owner', 'profile.professions.category', 'profile.baseArea', 'reviewer', 'documents.reviewer', 'requests.requester'])
+        $rules = app(DocumentRequirements::class);
+
+        return DocumentVerification::with(['profile.owner', 'profile.professions.category', 'profile.baseArea', 'reviewer', 'documents.reviewer', 'requests.requester', 'requirementVersion.category'])
             ->whereNotNull('submitted_at')
             ->latest('submitted_at')
             ->get()
-            ->map(function (DocumentVerification $v) {
+            ->map(function (DocumentVerification $v) use ($rules) {
                 $profile = $v->profile;
+                $version = $rules->versionFor($v);
+                $specs = collect($version ? $version->documents : [])->keyBy('id');
                 $main = $profile->professions->first(function ($p) {
                     return (bool) $p->pivot->is_primary;
                 }) ?: $profile->professions->first();
@@ -266,13 +270,17 @@ class AdminSnapshot
                     'decisionReason' => $v->decision_reason,
                     'documents' => $documents->sortBy(function ($d) {
                         return [$d->kind === VerificationDocument::KIND_NATIONAL_ID ? 0 : 1, $d->id];
-                    })->map(function (VerificationDocument $d) {
+                    })->map(function (VerificationDocument $d) use ($specs) {
+                        $spec = $d->kind === VerificationDocument::KIND_PROFESSION ? $specs->get($d->requirement_key) : null;
+                        $optional = $d->kind === VerificationDocument::KIND_SUPPORTING || ($spec && $spec['requirement'] === 'optional');
+
                         return [
                             'reqId' => $d->uuid, 'kind' => $d->kind, 'name' => $d->label,
-                            'requirement' => $d->kind === VerificationDocument::KIND_SUPPORTING ? 'optional' : 'required',
+                            'requirement' => $optional ? 'optional' : 'required',
                             'instructions' => $d->kind === VerificationDocument::KIND_NATIONAL_ID ? 'Front and back of the National ID'
-                                : ($d->kind === VerificationDocument::KIND_REQUESTED ? 'Requested by a reviewer' : 'Added by the provider'),
-                            'expiryRequired' => $d->expires_on !== null, 'expiresAt' => optional($d->expires_on)->toDateString(),
+                                : ($d->kind === VerificationDocument::KIND_REQUESTED ? 'Requested by a reviewer'
+                                : ($spec ? ($spec['instructions'] ?: 'Needed for this profession') : 'Added by the provider')),
+                            'expiryRequired' => $d->expires_on !== null || ($spec && $spec['expiry']['required']), 'expiresAt' => optional($d->expires_on)->toDateString(),
                             'files' => array_map(function ($f) {
                                 return ['index' => $f['index'], 'side' => $f['side'], 'name' => $f['name'], 'type' => $f['type'], 'sizeKb' => $f['size_kb']];
                             }, $d->publicFiles()),
@@ -280,6 +288,11 @@ class AdminSnapshot
                             'reviewedBy' => optional($d->reviewer)->name, 'reviewedAt' => optional($d->reviewed_at)->toIso8601String(),
                         ];
                     })->values(),
+                    // The profession rules it was sent under, and what they still need
+                    'rules' => $version ? [
+                        'profession' => optional($version->category)->name, 'version' => $version->version,
+                        'missing' => $rules->missing($v, $documents, $version),
+                    ] : null,
                     'requests' => $v->requests->map(function ($r) {
                         return ['id' => $r->id, 'label' => $r->label, 'instructions' => $r->instructions, 'status' => $r->status,
                             'requestedBy' => optional($r->requester)->name, 'requestedAt' => $r->created_at->toIso8601String(), 'fulfilledAt' => optional($r->fulfilled_at)->toIso8601String()];

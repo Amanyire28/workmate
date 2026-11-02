@@ -35,6 +35,8 @@ class DocumentVerification extends Model
         'provider_profile_id' => 'integer',
         'reviewer_id' => 'integer',
         'decided_by' => 'integer',
+        'requirement_version_id' => 'integer',
+        'answers' => 'array',
         'submitted_at' => 'datetime',
         'decided_at' => 'datetime',
     ];
@@ -58,6 +60,12 @@ class DocumentVerification extends Model
     public function requests()
     {
         return $this->hasMany(DocumentRequest::class);
+    }
+
+    /** The profession requirements it was sent under */
+    public function requirementVersion()
+    {
+        return $this->belongsTo(DocumentRequirementVersion::class, 'requirement_version_id');
     }
 
     public function reviewer()
