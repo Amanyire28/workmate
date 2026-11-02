@@ -48,7 +48,7 @@
       <input
         v-else
         :id="inputId"
-        :type="type"
+        :type="type === 'password' && revealed ? 'text' : type"
         :value="modelValue"
         :placeholder="placeholder"
         :required="required"
@@ -56,10 +56,21 @@
         :aria-invalid="errorMessage ? 'true' : undefined"
         :aria-describedby="describedBy"
         class="wm-input"
-        :class="{ 'pl-14': prefix }"
+        :class="{ 'pl-14': prefix, '!pr-12': type === 'password' }"
         v-bind="$attrs"
         @input="$emit('update:modelValue', $event.target.value)"
       />
+      <!-- Show or hide what was typed in a password box -->
+      <button
+        v-if="type === 'password'"
+        type="button"
+        class="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 flex items-center justify-center rounded-full text-muted hover:text-ink focus-visible:outline-2 focus-visible:outline-primary"
+        :aria-label="revealed ? 'Hide password' : 'Show password'"
+        :aria-pressed="revealed ? 'true' : 'false'"
+        :aria-controls="inputId"
+        :disabled="disabled"
+        @click="revealed = !revealed"
+      ><i :class="['bi text-[18px]', revealed ? 'bi-eye-slash' : 'bi-eye']" aria-hidden="true"></i></button>
     </div>
 
     <p v-if="errorMessage" :id="`${inputId}-error`" class="wm-field-error" role="alert">
@@ -70,7 +81,7 @@
 </template>
 
 <script setup>
-import { computed, useId } from 'vue';
+import { ref, computed, useId } from 'vue';
 
 defineOptions({ inheritAttrs: false });
 
@@ -92,6 +103,8 @@ defineEmits(['update:modelValue']);
 
 const generatedId = useId();
 const inputId = computed(() => props.id || generatedId);
+// Password boxes: whether the typed text is shown
+const revealed = ref(false);
 const describedBy = computed(() => {
   if (props.errorMessage) return `${inputId.value}-error`;
   if (props.hint) return `${inputId.value}-hint`;

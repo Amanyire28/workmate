@@ -358,6 +358,10 @@
     .wm-input[aria-invalid="true"]:focus { box-shadow: 0 0 0 4px rgba(185, 28, 28, 0.14); }
     .wm-input:disabled { background: rgba(255, 255, 255, 0.4); color: var(--color-muted); }
 
+    /* Password boxes have their own show/hide button; hide Edge's built-in one */
+    .wm-input::-ms-reveal,
+    .wm-input::-ms-clear { display: none; }
+
     textarea.wm-input {
         height: auto;
         min-height: 140px;
