@@ -1,5 +1,8 @@
 import { count, sum, within, kpiCount, statusOptions, statusTabs, setStatus, historySection, categoryLabel, me } from './helpers.js';
 
+// How a reported community post or comment stands now
+const COMMUNITY_STATUS = { published: 'still showing', removed: 'removed by WorkMate', deleted: 'deleted by its author' };
+
 const OPEN = ['new', 'under_review', 'awaiting_information', 'escalated'];
 const severityOrder = { high: 0, medium: 1, low: 2 };
 const REPORT_OPEN = ['new', 'under_review', 'info_requested'];
@@ -90,7 +93,7 @@ export default {
             ...statusTabs(['new', 'under_review', 'info_requested', 'resolved', 'closed']),
         ],
         filters: [
-            { key: 'target', label: 'About', options: [['provider', 'A provider'], ['customer', 'A customer'], ['general', 'Something else']] },
+            { key: 'target', label: 'About', options: [['provider', 'A provider'], ['customer', 'A customer'], ['post', 'A community post'], ['comment', 'A community comment'], ['general', 'Something else']] },
             { key: 'severity', label: 'Severity', options: statusOptions(['high', 'medium', 'low']) },
             { key: 'reporterType', label: 'Reported by', options: [['Customer', 'A customer'], ['Provider', 'A provider']] },
         ],
@@ -118,6 +121,14 @@ export default {
                 { title: 'Report', fields: [['What happened', r.type], ['About', r.subjectId ? `${r.subjectName} (${r.subjectId})` : r.subjectName],
                     ['Reported by', `${r.reporterName} (${r.reporterType.toLowerCase()}${r.reporterId ? `, ${r.reporterId}` : ''})`], ['Job', r.jobTitle],
                     ['Severity', r.severity, 'status'], ['Submitted', r.submittedAt, 'date'], ['Assigned to', r.assignedTo || 'Unassigned']] },
+                ...(r.community ? [
+                    { title: `Reported ${r.community.kind} (${COMMUNITY_STATUS[r.community.status] || r.community.status})`, text: r.community.text || '(Photos only)' },
+                    ...(r.community.removedReason ? [{ title: 'Removal', fields: [['Removed because', r.community.removedReason]] }] : []),
+                    ...(r.community.status === 'published' || r.community.photos.length ? [{ title: 'Look at it', files: [
+                        ...(r.community.status === 'published' ? [{ label: `Open the post in the community`, href: `/community/post/${r.community.postId}` }] : []),
+                        ...r.community.photos.map((href, i) => ({ label: `Photo ${i + 1}`, href })),
+                    ] }] : []),
+                ] : []),
                 { title: 'Their account', text: r.details || 'No details given.' },
                 { title: `Evidence photos (${r.evidence})`, permission: 'trust.view',
                   files: (r.photos || []).map(f => ({ label: f.name, href: `/api/v1/admin/reports/${r.reportId}/files/${f.index}` })) },
@@ -148,6 +159,13 @@ export default {
                   ...(r.canWarn ? [{ key: 'warning', label: 'Warning for the reported person (only if sending a warning)', type: 'textarea', maxLength: 1000, help: 'Shown to them in WorkMate. Never mention who reported them.' }] : []),
                   { key: 'reason', label: 'Reason (for the audit log)', type: 'textarea', required: true, minLength: 5 },
               ] },
+            { id: 'remove-content', label: 'Remove from the community', done: 'Removed', permission: 'content.view', icon: 'bi-eye-slash', tone: 'danger',
+              when: r => r.community?.status === 'published',
+              message: (r) => `The ${r.community.kind} disappears for everyone. Its author is notified and sees your reason; the reporter isn’t named. Resolve the report separately.`,
+              fields: () => [{ key: 'reason', label: 'Reason (shown to the author)', type: 'textarea', required: true, minLength: 5, maxLength: 500, help: 'Say which rule it broke, e.g. “Advertising unrelated to your work”.' }] },
+            { id: 'restore-content', label: 'Restore the post', done: 'Restored', permission: 'content.view', icon: 'bi-arrow-counterclockwise',
+              when: r => r.community?.kind === 'post' && r.community.status === 'removed',
+              fields: () => [{ key: 'reason', label: 'Why it’s being restored', type: 'textarea', required: true, minLength: 5, maxLength: 500 }] },
             { id: 'note', label: 'Add internal note', done: 'Note added', permission: 'trust.view', icon: 'bi-sticky',
               when: r => REPORT_OPEN.includes(r.status),
               fields: () => [{ key: 'note', label: 'Note (safety team only)', type: 'textarea', required: true, minLength: 3 }] },

@@ -93,5 +93,20 @@ class RouteServiceProvider extends ServiceProvider
         RateLimiter::for('account-email', function (Request $request) {
             return Limit::perMinute(6)->by(optional($request->user())->id ?: $request->ip());
         });
+
+        // Community posts, comments, and likes, saves and edits
+        RateLimiter::for('community-post', function (Request $request) {
+            $key = optional($request->user())->id ?: $request->ip();
+
+            return [Limit::perMinute(3)->by('m'.$key), Limit::perDay(40)->by('d'.$key)];
+        });
+        RateLimiter::for('community-comment', function (Request $request) {
+            $key = optional($request->user())->id ?: $request->ip();
+
+            return [Limit::perMinute(10)->by('m'.$key), Limit::perHour(150)->by('h'.$key)];
+        });
+        RateLimiter::for('community-react', function (Request $request) {
+            return Limit::perMinute(90)->by(optional($request->user())->id ?: $request->ip());
+        });
     }
 }

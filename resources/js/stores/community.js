@@ -1,0 +1,155 @@
+import { reactive } from 'vue';
+import { api, upload } from '@/api/client.js';
+import { auth } from '@/stores/auth.js';
+import { showFlash } from '@/stores/flash.js';
+import router from '@/router/index.js';
+
+/**
+ * The WorkMate community: what members share about their work. Posts come
+ * from the Laravel API (/api/v1/community/...); likes and saves change on
+ * screen straight away and go back if the server says no.
+ */
+
+export const POST_CATEGORIES = [
+    { id: 'my_work',     label: 'My Work',       icon: 'bi-hammer',          hint: 'Finished jobs, projects and before-and-afters' },
+    { id: 'tips',        label: 'Work Tips',     icon: 'bi-lightbulb',       hint: 'Techniques and practical advice' },
+    { id: 'experience',  label: 'Experience',    icon: 'bi-journal-text',    hint: 'Lessons and stories from your work' },
+    { id: 'question',    label: 'Questions',     icon: 'bi-question-circle', hint: 'Ask the community for help' },
+    { id: 'opportunity', label: 'Opportunities', icon: 'bi-briefcase',       hint: 'Work and collaboration' },
+];
+
+export const categoryOf = (id) => POST_CATEGORIES.find(c => c.id === id) || POST_CATEGORIES[0];
+
+// The same limits the server checks
+export const LIMITS = { body: 3000, photos: 6, photoMb: 8, comment: 1000 };
+
+/* ---------------- The feed, kept while someone opens a post and comes back ---------------- */
+
+export const feedCache = reactive({ key: '', posts: [], cursor: null, done: false, personalised: false, scrollY: 0, at: 0 });
+
+/** The same post object everywhere it's on screen, so likes and counts stay in step */
+export function cachedPost(id) {
+    return feedCache.posts.find(p => p.id === id) || null;
+}
+
+export function forgetFeed() {
+    feedCache.key = '';
+    feedCache.posts = [];
+}
+
+/* ---------------- Taking part ---------------- */
+
+/** Sends signed-out visitors to sign in, then back here */
+export function needsSignIn() {
+    if (auth.user) return false;
+    router.push({ path: '/sign-in', query: { redirect: router.currentRoute.value.fullPath } });
+    return true;
+}
+
+function complain(e) {
+    showFlash(e?.code === 'email_not_verified' ? 'Confirm your email address to take part. Use the link we sent you.' : (e?.message || 'That didn’t work. Please try again.'), 'error', 5000);
+}
+
+export async function toggleLike(post) {
+    if (needsSignIn()) return;
+    const on = !post.liked;
+    post.liked = on;
+    post.likes_count += on ? 1 : -1;
+    try {
+        const r = await api(`/community/posts/${post.id}/like`, { method: on ? 'POST' : 'DELETE' });
+        post.likes_count = r.data.likes_count;
+    } catch (e) {
+        post.liked = !on;
+        post.likes_count += on ? -1 : 1;
+        complain(e);
+    }
+}
+
+export async function toggleSave(post) {
+    if (needsSignIn()) return;
+    const on = !post.saved;
+    post.saved = on;
+    try {
+        await api(`/community/posts/${post.id}/save`, { method: on ? 'POST' : 'DELETE' });
+        showFlash(on ? 'Saved. Find it under Saved posts.' : 'Removed from your saved posts.');
+    } catch (e) {
+        post.saved = !on;
+        complain(e);
+    }
+}
+
+export function postUrl(post) {
+    return `${window.location.origin}/community/post/${post.id}`;
+}
+
+/** The phone's share menu where there is one, otherwise the link is copied */
+export async function sharePost(post) {
+    const url = postUrl(post);
+    if (navigator.share) {
+        try {
+            await navigator.share({ title: `${post.author.name} on WorkMate`, text: (post.body || '').slice(0, 120), url });
+            return;
+        } catch (e) {
+            if (e?.name === 'AbortError') return;
+        }
+    }
+    try {
+        await navigator.clipboard.writeText(url);
+    } catch {
+        // Older browsers, or a page not served over HTTPS
+        const field = Object.assign(document.createElement('textarea'), { value: url });
+        field.setAttribute('readonly', '');
+        field.style.position = 'fixed';
+        field.style.opacity = '0';
+        document.body.appendChild(field);
+        field.select();
+        document.execCommand('copy');
+        field.remove();
+    }
+    showFlash('Link copied. Paste it anywhere to share.');
+}
+
+export async function deletePost(post) {
+    await api(`/community/posts/${post.id}`, { method: 'DELETE' });
+    feedCache.posts = feedCache.posts.filter(p => p.id !== post.id);
+}
+
+export { complain as showCommunityError };
+
+/* ---------------- Writing a post ---------------- */
+
+const PHOTO_SIDE = 2000;
+
+/**
+ * Shrinks a phone photo before it's sent (saves data on slow connections).
+ * The server checks and re-draws it anyway. Falls back to the original.
+ */
+export async function preparePhoto(file) {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type) || typeof createImageBitmap !== 'function') return file;
+    try {
+        const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+        const scale = Math.min(1, PHOTO_SIDE / Math.max(bitmap.width, bitmap.height));
+        if (scale === 1 && file.size < 1.5 * 1024 * 1024) return file;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(bitmap.width * scale);
+        canvas.height = Math.round(bitmap.height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.86));
+        if (!blob) return file;
+        return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
+    } catch {
+        return file;
+    }
+}
+
+export async function publishPost({ category, body, topic, photos }, onProgress) {
+    const form = new FormData();
+    form.append('category', category);
+    if (body) form.append('body', body);
+    if (topic) form.append('topic', topic);
+    for (const p of photos) form.append('photos[]', p);
+    return (await upload('/community/posts', form, { onProgress })).data;
+}

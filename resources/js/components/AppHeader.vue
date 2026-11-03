@@ -91,6 +91,7 @@ const navItems = [
   { to: '/browse',    label: 'Find Providers',   match: ['/browse', '/workers', '/provider'] },
   { to: '/explore',   label: 'Explore Services', match: ['/explore'] },
   { to: '/find-work', label: 'Find Work',        match: ['/find-work', '/job'] },
+  { to: '/community', label: 'Community',        match: ['/community'] },
   { to: '/activity',  label: 'My Work',          match: ['/activity'] },
 ];
 

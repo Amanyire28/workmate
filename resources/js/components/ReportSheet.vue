@@ -3,7 +3,7 @@
     <div v-if="sent" class="flex flex-col items-center text-center gap-3 py-4" role="status">
       <span class="w-14 h-14 rounded-full bg-[#DCFCE7] text-[#15803D] flex items-center justify-center text-2xl" aria-hidden="true"><i class="bi bi-check-lg"></i></span>
       <p class="text-[15px] text-ink">
-        Thank you. The WorkMate safety team will look into it.<template v-if="name"> {{ name }} won’t be told who reported them.</template>
+        Thank you. The WorkMate safety team will look into it.<template v-if="community"> The author won’t be told who reported it.</template><template v-else-if="name"> {{ name }} won’t be told who reported them.</template>
       </p>
       <router-link to="/account/reports" class="wm-link" @click="close">Follow it in Reports and complaints</router-link>
     </div>
@@ -22,10 +22,11 @@
         </div>
       </fieldset>
 
-      <FormField v-model="details" type="textarea" label="What happened?" required :min-height="110" maxlength="2000"
-        placeholder="When it happened, what was said or done, and anything else that helps us look into it." />
+      <FormField v-model="details" type="textarea" :label="community ? 'Anything else we should know?' : 'What happened?'" :required="!community" :optional="community"
+        :min-height="community ? 80 : 110" maxlength="2000"
+        :placeholder="community ? 'Optional' : 'When it happened, what was said or done, and anything else that helps us look into it.'" />
 
-      <div class="flex flex-col gap-1.5">
+      <div v-if="!community" class="flex flex-col gap-1.5">
         <label for="report-photos" class="wm-label">Photos or screenshots <span class="font-normal text-muted">(optional, up to 3)</span></label>
         <input id="report-photos" :key="inputKey" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" multiple class="wm-input !py-2" @change="pick" />
         <p v-if="photos.length" class="wm-meta">{{ photos.map(f => f.name).join(', ') }}</p>
@@ -60,11 +61,13 @@ import { api, fieldErrors } from '@/api/client.js';
  */
 const props = defineProps({
   open:           { type: Boolean, default: false },
-  about:          { type: String, default: 'provider' },   // provider | customer | general
+  about:          { type: String, default: 'provider' },   // provider | customer | general | post | comment
   name:           { type: String, default: '' },           // who it's about, for the title
   providerId:     { type: Number, default: null },
   requestId:      { type: Number, default: null },
   conversationId: { type: Number, default: null },
+  postId:         { type: String, default: null },
+  commentId:      { type: Number, default: null },
 });
 const emit = defineEmits(['close', 'sent']);
 
@@ -87,6 +90,14 @@ const REASONS = {
     { id: 'fake', label: 'Fake request or pretending to be someone else' },
     { id: 'other', label: 'Something else' },
   ],
+  post: [
+    { id: 'spam', label: 'Spam or advertising' },
+    { id: 'scam', label: 'Scam or fraud', hint: 'Asking for money upfront, fake offers' },
+    { id: 'abusive', label: 'Rude, abusive or hateful' },
+    { id: 'inappropriate', label: 'Inappropriate or offensive' },
+    { id: 'misleading', label: 'Misleading or false' },
+    { id: 'other', label: 'Something else' },
+  ],
   general: [
     { id: 'payment', label: 'A payment problem' },
     { id: 'safety', label: 'A safety concern' },
@@ -95,8 +106,10 @@ const REASONS = {
   ],
 };
 
-const reasons = computed(() => REASONS[props.about] || REASONS.general);
-const title = computed(() => (props.about === 'general' ? 'Report a problem' : `Report ${props.name || (props.about === 'customer' ? 'this customer' : 'this provider')}`));
+const community = computed(() => props.about === 'post' || props.about === 'comment');
+const reasons = computed(() => (community.value ? REASONS.post : REASONS[props.about] || REASONS.general));
+const title = computed(() => (community.value ? `Report this ${props.about}`
+  : props.about === 'general' ? 'Report a problem' : `Report ${props.name || (props.about === 'customer' ? 'this customer' : 'this provider')}`));
 
 const reason = ref('');
 const details = ref('');
@@ -119,7 +132,7 @@ function pick(e) {
 async function submit() {
   if (sending.value) return;
   if (!reason.value) { error.value = 'Choose what the problem is.'; return; }
-  if (details.value.trim().length < 10) { error.value = 'Tell us a little more about what happened.'; return; }
+  if (!community.value && details.value.trim().length < 10) { error.value = 'Tell us a little more about what happened.'; return; }
 
   const body = new FormData();
   body.append('about', props.about);
@@ -128,6 +141,8 @@ async function submit() {
   if (props.providerId) body.append('provider', props.providerId);
   if (props.requestId) body.append('request', props.requestId);
   if (props.conversationId) body.append('conversation', props.conversationId);
+  if (props.postId) body.append('post', props.postId);
+  if (props.commentId) body.append('comment', props.commentId);
   for (const f of photos.value) body.append('photos[]', f);
 
   sending.value = true;

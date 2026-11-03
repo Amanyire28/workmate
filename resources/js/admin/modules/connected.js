@@ -48,6 +48,11 @@ export const CONNECTED = {
         'request-info': (r, v) => post(`/admin/reports/${num(r.id)}/request-information`, { question: v.question }),
         resolve: (r, v) => post(`/admin/reports/${num(r.id)}/resolve`, { outcome: v.outcome, message: v.message, warning: v.warning || null, reason: v.reason }),
         note: (r, v) => post(`/admin/reports/${num(r.id)}/note`, { note: v.note }),
+        // The reported community post or comment
+        'remove-content': (r, v) => (r.community.kind === 'post'
+            ? post(`/admin/community/posts/${r.community.postId}/remove`, { reason: v.reason })
+            : post(`/admin/community/comments/${r.community.commentId}/remove`, { reason: v.reason })),
+        'restore-content': (r, v) => post(`/admin/community/posts/${r.community.postId}/restore`, { reason: v.reason }),
     },
     restricted: {
         lift: (r, v) => (r.id.startsWith('P-')

@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Admin\AdminActionController;
 use App\Http\Controllers\Api\V1\Admin\AdminDataController;
 use App\Http\Controllers\Api\V1\Admin\AuditLogController;
+use App\Http\Controllers\Api\V1\Admin\CommunityModerationController;
 use App\Http\Controllers\Api\V1\Admin\DocumentRequirementController;
 use App\Http\Controllers\Api\V1\Admin\DocumentVerificationController;
 use App\Http\Controllers\Api\V1\Admin\ProfessionSuggestionController;
@@ -18,6 +19,7 @@ use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\CategoryController;
+use App\Http\Controllers\Api\V1\CommunityController;
 use App\Http\Controllers\Api\V1\ConversationController;
 use App\Http\Controllers\Api\V1\DirectoryController;
 use App\Http\Controllers\Api\V1\JobApplicantController;
@@ -77,6 +79,14 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('jobs/{id}', [JobController::class, 'show'])->whereNumber('id')->name('jobs.show');
     Route::post('app-events', [AppEventController::class, 'store'])->middleware('throttle:app-events')->name('app-events.store');
     Route::get('push/config', [PushSubscriptionController::class, 'config'])->name('push.config');
+
+    // The community: anyone can read
+    Route::get('community/posts', [CommunityController::class, 'index'])->name('community.index');
+    Route::get('community/posts/{post}', [CommunityController::class, 'show'])->whereUuid('post')->name('community.show');
+    Route::get('community/posts/{post}/comments', [CommunityController::class, 'comments'])->whereUuid('post')->name('community.comments');
+    Route::get('community/media/{file}', [CommunityController::class, 'media'])
+        ->where('file', '[0-9a-f-]{36}(-t)?\.jpg')
+        ->name('community.media');
 
     // Signing in and out (cookie sessions; call GET /sanctum/csrf-cookie first)
     Route::prefix('auth')->name('auth.')->group(function () {
@@ -171,6 +181,24 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::put('me/verification/answers', [VerificationController::class, 'answers'])->name('me.verification.answers');
         });
 
+        // Taking part in the community
+        Route::get('community/saved', [CommunityController::class, 'saved'])->name('community.saved');
+        Route::middleware('throttle:community-post')->group(function () {
+            Route::post('community/posts', [CommunityController::class, 'store'])->name('community.store');
+        });
+        Route::middleware('throttle:community-comment')->group(function () {
+            Route::post('community/posts/{post}/comments', [CommunityController::class, 'comment'])->whereUuid('post')->name('community.comment');
+        });
+        Route::middleware('throttle:community-react')->group(function () {
+            Route::patch('community/posts/{post}', [CommunityController::class, 'update'])->whereUuid('post')->name('community.update');
+            Route::delete('community/posts/{post}', [CommunityController::class, 'destroy'])->whereUuid('post')->name('community.destroy');
+            Route::post('community/posts/{post}/like', [CommunityController::class, 'like'])->whereUuid('post')->name('community.like');
+            Route::delete('community/posts/{post}/like', [CommunityController::class, 'like'])->whereUuid('post')->name('community.unlike');
+            Route::post('community/posts/{post}/save', [CommunityController::class, 'save'])->whereUuid('post')->name('community.save');
+            Route::delete('community/posts/{post}/save', [CommunityController::class, 'save'])->whereUuid('post')->name('community.unsave');
+            Route::delete('community/comments/{comment}', [CommunityController::class, 'destroyComment'])->whereNumber('comment')->name('community.comment.destroy');
+        });
+
         Route::prefix('admin')->name('admin.')->group(function () {
             // Any administrator; each section inside is limited by permission
             Route::get('data', AdminDataController::class)->middleware('can:admin-access')->name('data');
@@ -207,6 +235,13 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::post('profession-suggestions/{suggestion}/add', [ProfessionSuggestionController::class, 'add'])->name('profession-suggestions.add');
                 Route::post('profession-suggestions/{suggestion}/match', [ProfessionSuggestionController::class, 'match'])->name('profession-suggestions.match');
                 Route::post('profession-suggestions/{suggestion}/decline', [ProfessionSuggestionController::class, 'decline'])->name('profession-suggestions.decline');
+            });
+
+            // Community moderation
+            Route::middleware('can:content.view')->prefix('community')->name('community.')->group(function () {
+                Route::post('posts/{post}/remove', [CommunityModerationController::class, 'removePost'])->whereUuid('post')->name('posts.remove');
+                Route::post('posts/{post}/restore', [CommunityModerationController::class, 'restorePost'])->whereUuid('post')->name('posts.restore');
+                Route::post('comments/{comment}/remove', [CommunityModerationController::class, 'removeComment'])->whereNumber('comment')->name('comments.remove');
             });
 
             // Documents each profession needs; publishing adds a version

@@ -15,17 +15,23 @@ class Report extends Model
     public const SUBJECT_PROVIDER = 'provider';
     public const SUBJECT_CUSTOMER = 'customer';
     public const SUBJECT_GENERAL = 'general';
-    public const SUBJECTS = [self::SUBJECT_PROVIDER, self::SUBJECT_CUSTOMER, self::SUBJECT_GENERAL];
+    // Something posted in the community
+    public const SUBJECT_POST = 'post';
+    public const SUBJECT_COMMENT = 'comment';
+    public const SUBJECTS = [self::SUBJECT_PROVIDER, self::SUBJECT_CUSTOMER, self::SUBJECT_GENERAL, self::SUBJECT_POST, self::SUBJECT_COMMENT];
+    public const COMMUNITY_SUBJECTS = [self::SUBJECT_POST, self::SUBJECT_COMMENT];
 
     /** Reasons offered for each kind of report */
     public const REASONS = [
         self::SUBJECT_PROVIDER => ['scam', 'no_show', 'unsafe', 'abusive', 'fake', 'quality', 'offline', 'other'],
         self::SUBJECT_CUSTOMER => ['no_show', 'unsafe', 'abusive', 'not_paid', 'fake', 'other'],
         self::SUBJECT_GENERAL => ['payment', 'safety', 'app_problem', 'other'],
+        self::SUBJECT_POST => ['spam', 'scam', 'abusive', 'inappropriate', 'misleading', 'other'],
+        self::SUBJECT_COMMENT => ['spam', 'scam', 'abusive', 'inappropriate', 'misleading', 'other'],
     ];
 
     public const HIGH_SEVERITY = ['scam', 'unsafe', 'fake', 'safety'];
-    public const MEDIUM_SEVERITY = ['no_show', 'abusive', 'not_paid', 'payment'];
+    public const MEDIUM_SEVERITY = ['no_show', 'abusive', 'not_paid', 'payment', 'inappropriate'];
 
     public const STATUS_OPEN = 'open';
     public const STATUS_UNDER_REVIEW = 'under_review';
@@ -46,6 +52,8 @@ class Report extends Model
         'subject_user_id' => 'integer',
         'service_request_id' => 'integer',
         'conversation_id' => 'integer',
+        'community_post_id' => 'integer',
+        'community_comment_id' => 'integer',
         'assigned_to' => 'integer',
         'resolved_by' => 'integer',
         'attachments' => 'array',
@@ -73,6 +81,16 @@ class Report extends Model
     public function serviceRequest()
     {
         return $this->belongsTo(ServiceRequest::class)->withTrashed();
+    }
+
+    public function communityPost()
+    {
+        return $this->belongsTo(CommunityPost::class)->withTrashed();
+    }
+
+    public function communityComment()
+    {
+        return $this->belongsTo(CommunityComment::class)->withTrashed();
     }
 
     public function assignee()

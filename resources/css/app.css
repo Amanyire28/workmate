@@ -591,6 +591,40 @@
         animation: wm-spin 0.65s linear infinite;
     }
 
+    /* ---- Community posts ---- */
+    .wm-post-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 44px;
+        border-radius: 12px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--color-muted);
+        transition: background-color 0.15s, color 0.15s;
+    }
+    .wm-post-action:hover { background: rgba(15, 23, 42, 0.05); color: var(--color-ink); }
+    .wm-post-action.text-primary { color: var(--color-primary); }
+    .wm-post-action .bi { font-size: 1.05rem; }
+    @media (max-width: 359px) {
+        .wm-post-action span { display: none; }
+    }
+    .wm-menu-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        min-height: 44px;
+        padding: 0 12px;
+        border-radius: 10px;
+        font-size: 0.875rem;
+        text-align: left;
+        color: var(--color-ink);
+    }
+    .wm-menu-item:hover, .wm-menu-item:focus-visible { background: #F1F5F9; }
+    .wm-menu-item.text-error { color: var(--color-error); }
+
     /* Space reserved under page content for the floating mobile tab bar */
     .wm-bottom-nav-spacer {
         height: var(--wm-nav-clearance);

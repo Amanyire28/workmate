@@ -200,6 +200,19 @@ class EventNotifications
         ]);
     }
 
+    /* ---------------- Community ---------------- */
+
+    /** The reason is shown on the post in WorkMate, not on the lock screen */
+    public function communityContentRemoved(int $userId, string $what, string $url): void
+    {
+        $this->push->toUsers([$userId], [
+            'title' => 'Your '.$what.' was removed',
+            'body' => 'WorkMate removed your '.$what.' from the community. See why in WorkMate.',
+            'url' => $url,
+            'tag' => 'community-removed-'.$what.'-'.md5($url),
+        ]);
+    }
+
     /* ---------------- Helpers ---------------- */
 
     private function toCustomer(ServiceRequest $request, string $title, string $body): void

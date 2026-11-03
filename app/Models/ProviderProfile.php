@@ -135,4 +135,15 @@ class ProviderProfile extends Model
     {
         return $this->members()->where('user_id', $user->getKey())->exists();
     }
+
+    /** The profession (category) of the first, main skill */
+    public function mainCategoryId(): ?int
+    {
+        $professions = $this->professions()->get();
+        $main = $professions->first(function ($p) {
+            return (bool) $p->pivot->is_primary;
+        }) ?: $professions->first();
+
+        return $main ? (int) $main->category_id : null;
+    }
 }

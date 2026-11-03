@@ -54,7 +54,7 @@ class Reviews
                 'provider_profile_id' => $request->provider_profile_id,
                 'reviewer_id' => $customer->getKey(),
                 'service_request_id' => $request->id,
-                'reviewer_name' => $this->shortName($customer->name),
+                'reviewer_name' => User::shortNameOf($customer->name),
                 'job_title' => $request->title,
                 'area_name' => $request->area_name,
                 'rating' => $data['rating'],
@@ -87,15 +87,5 @@ class Reviews
         return ServiceRequest::where('customer_id', $customer->getKey())
             ->whereNotNull('provider_profile_id')
             ->where('status', ServiceRequest::STATUS_COMPLETED);
-    }
-
-    /** "Aisha Nakato" → "Aisha N." */
-    private function shortName(string $name): string
-    {
-        $parts = preg_split('/\s+/', trim($name)) ?: [];
-        $first = $parts[0] ?? 'Customer';
-        $last = count($parts) > 1 ? mb_substr(end($parts), 0, 1).'.' : '';
-
-        return mb_substr(trim($first.' '.$last), 0, 60);
     }
 }

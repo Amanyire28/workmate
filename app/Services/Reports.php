@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Exceptions\BusinessRuleException;
 use App\Models\AccountWarning;
+use App\Models\CommunityComment;
+use App\Models\CommunityPost;
 use App\Models\Conversation;
 use App\Models\ProviderProfile;
 use App\Models\Report;
@@ -45,7 +47,7 @@ class Reports
     /* ---------------- The reporter ---------------- */
 
     /**
-     * @param  array{about: string, provider: ?int, request: ?int, conversation: ?int, reason: string, details: ?string}  $data
+     * @param  array{about: string, provider: ?int, request: ?int, conversation: ?int, post: ?string, comment: ?int, reason: string, details: ?string}  $data
      * @param  UploadedFile[]  $photos
      */
     public function submit(User $reporter, array $data, array $photos = []): Report
@@ -203,6 +205,9 @@ class Reports
      */
     private function resolveSubject(User $reporter, array $data): array
     {
+        if (in_array($data['about'], Report::COMMUNITY_SUBJECTS, true)) {
+            return $this->communitySubject($reporter, $data);
+        }
         $request = null;
         if (! empty($data['request'])) {
             $request = ServiceRequest::withTrashed()->whereKey($data['request'])
@@ -255,6 +260,35 @@ class Reports
 
         return $base + ['provider_profile_id' => null, 'subject_user_id' => null,
             'reporter_role' => $reporter->providerProfile && $reporter->providerProfile->isApproved() ? 'provider' : 'customer'];
+    }
+
+    /** A post or comment someone else wrote, that can still be seen */
+    private function communitySubject(User $reporter, array $data): array
+    {
+        $comment = null;
+        if ($data['about'] === Report::SUBJECT_COMMENT) {
+            $comment = CommunityComment::find($data['comment'] ?? 0);
+            $post = $comment ? $comment->post : null;
+            if (! $comment || ! $comment->isVisible()) {
+                throw new BusinessRuleException('not_found', 'The requested item was not found.', 404);
+            }
+        } else {
+            $post = CommunityPost::where('uuid', (string) ($data['post'] ?? ''))->first();
+        }
+        if (! $post || ! $post->isVisible()) {
+            throw new BusinessRuleException('not_found', 'The requested item was not found.', 404);
+        }
+
+        $author = $comment ? $comment->user_id : $post->user_id;
+        if ($author === $reporter->getKey()) {
+            throw new BusinessRuleException('own_content', 'You can’t report something you posted. You can delete it instead.', 422);
+        }
+
+        return [
+            'community_post_id' => $post->id, 'community_comment_id' => $comment ? $comment->id : null,
+            'subject_user_id' => $author, 'provider_profile_id' => null, 'service_request_id' => null, 'conversation_id' => null,
+            'reporter_role' => $reporter->providerProfile && $reporter->providerProfile->isApproved() ? 'provider' : 'customer',
+        ];
     }
 
     /** The account a warning or suspension applies to */

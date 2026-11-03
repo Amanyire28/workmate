@@ -56,6 +56,7 @@ class AdminSnapshot
         'unsafe' => 'Unsafe behaviour', 'fake' => 'Fake profile or request', 'quality' => 'Poor or damaging work',
         'abusive' => 'Rude or abusive', 'not_paid' => 'Didn’t pay', 'payment' => 'Payment problem', 'safety' => 'Safety concern',
         'app_problem' => 'Problem with the app', 'other' => 'Other',
+        'spam' => 'Spam or advertising', 'inappropriate' => 'Inappropriate content', 'misleading' => 'Misleading or false',
     ];
 
     private const REPORT_OUTCOMES = [
@@ -371,10 +372,11 @@ class AdminSnapshot
         $statuses = [Report::STATUS_OPEN => 'new', Report::STATUS_UNDER_REVIEW => 'under_review', Report::STATUS_INFO_REQUESTED => 'info_requested',
             Report::STATUS_RESOLVED => 'resolved', Report::STATUS_CLOSED => 'closed'];
 
-        return Report::with(['reporter', 'provider', 'subjectUser', 'serviceRequest', 'assignee'])->latest()->get()->map(function (Report $r) use ($statuses) {
+        return Report::with(['reporter', 'provider', 'subjectUser', 'serviceRequest', 'assignee', 'communityPost.media', 'communityComment'])->latest()->get()->map(function (Report $r) use ($statuses) {
+            $community = in_array($r->subject_type, Report::COMMUNITY_SUBJECTS, true);
             $about = $r->subject_type === Report::SUBJECT_PROVIDER
                 ? ['P-'.$r->provider_profile_id, optional($r->provider)->display_name ?: 'Provider']
-                : ($r->subject_type === Report::SUBJECT_CUSTOMER ? ['C-'.$r->subject_user_id, optional($r->subjectUser)->name ?: 'Customer'] : [null, 'Something else']);
+                : ($r->subject_type === Report::SUBJECT_CUSTOMER || $community ? ['C-'.$r->subject_user_id, optional($r->subjectUser)->name ?: 'Member'] : [null, 'Something else']);
 
             return [
                 'id' => 'RP-'.$r->id, 'reportId' => $r->id, 'reason' => $r->reason, 'type' => self::REPORT_TYPES[$r->reason] ?? $r->reason,
@@ -390,9 +392,30 @@ class AdminSnapshot
                 'outcome' => $r->outcome, 'resolution' => $r->outcome ? (self::REPORT_OUTCOMES[$r->outcome] ?? $r->outcome) : null,
                 'outcomeMessage' => $r->outcome_message, 'resolvedAt' => optional($r->resolved_at)->toIso8601String(),
                 'canWarn' => $r->subject_user_id !== null, 'canSuspendProvider' => $r->provider_profile_id !== null,
+                // What was reported in the community, as it stands now
+                'community' => $community ? $this->reportedContent($r) : null,
                 'notes' => [], 'history' => $this->historyFor(Report::class, $r->id),
             ];
         });
+    }
+
+    private function reportedContent(Report $r): ?array
+    {
+        $post = $r->communityPost;
+        $comment = $r->communityComment;
+        if (! $post) {
+            return null;
+        }
+        $item = $comment ?: $post;
+
+        return [
+            'kind' => $comment ? 'comment' : 'post', 'postId' => $post->uuid, 'commentId' => $comment ? $comment->id : null,
+            'text' => $item->body, 'photos' => $comment ? [] : $post->media->map(function ($m) {
+                return $m->url(true);
+            })->values()->all(),
+            // published | removed | deleted (by its author)
+            'status' => $item->trashed() ? 'deleted' : $item->status, 'removedReason' => $item->removed_reason,
+        ];
     }
 
     private function areaRows(Collection $areas, Collection $providers, Collection $jobs): Collection

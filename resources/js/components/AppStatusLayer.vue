@@ -6,6 +6,16 @@
     aria-live="polite"
   >
     <Transition name="wm-pop">
+      <div v-if="flash.message" :key="flash.id" class="wm-app-notice" :role="flash.tone === 'error' ? 'alert' : 'status'">
+        <i :class="['bi text-xl', flash.tone === 'error' ? 'bi-exclamation-circle-fill text-error' : 'bi-check-circle-fill text-[#16A34A]']" aria-hidden="true"></i>
+        <p class="flex-1 text-sm text-ink">{{ flash.message }}</p>
+        <button type="button" class="wm-icon-btn -mr-1" aria-label="Close" @click="hideFlash">
+          <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+      </div>
+    </Transition>
+
+    <Transition name="wm-pop">
       <div v-if="pwa.offline" class="wm-app-notice">
         <i class="bi bi-wifi-off text-muted text-lg" aria-hidden="true"></i>
         <p class="flex-1 text-sm text-ink">You’re offline. Some things won’t load until you reconnect.</p>
@@ -66,6 +76,7 @@ import {
   pwa, isMobile, applyUpdate, dismissUpdate, dismissUpdated,
   openInstall, promptInstall, installBannerDismissed, dismissInstallBanner, reportInstallEvent,
 } from '@/stores/pwa.js';
+import { flash, hideFlash } from '@/stores/flash.js';
 
 const props = defineProps({
   withNav:       { type: Boolean, default: true },   // the mobile tab bar is on screen

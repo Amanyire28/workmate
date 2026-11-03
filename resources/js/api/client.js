@@ -83,3 +83,35 @@ export async function api(path, { method = 'GET', body, signal } = {}, retried =
     if (!response.ok) throw new ApiError(response.status, data || undefined);
     return data;
 }
+
+/**
+ * POSTs FormData and reports upload progress (0–1) as it goes, which fetch
+ * can't do. Same cookies, CSRF header and errors as api().
+ */
+export async function upload(path, body, { onProgress, method = 'POST' } = {}, retried = false) {
+    await ensureCsrfCookie();
+
+    const { status, data } = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open(method, `${BASE}${path}`);
+        xhr.withCredentials = true;
+        xhr.setRequestHeader('Accept', 'application/json');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        xhr.setRequestHeader('X-XSRF-TOKEN', readCookie(XSRF_COOKIE));
+        if (onProgress) xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+        xhr.onload = () => {
+            let parsed = null;
+            try { parsed = JSON.parse(xhr.responseText); } catch { /* not JSON */ }
+            resolve({ status: xhr.status, data: parsed });
+        };
+        xhr.onerror = () => reject(new ApiError(0, { code: 'network_error', message: 'We can’t reach WorkMate. Check your internet connection and try again.' }));
+        xhr.send(body);
+    });
+
+    if (status === 419 && !retried) {
+        await ensureCsrfCookie(true);
+        return upload(path, body, { onProgress, method }, true);
+    }
+    if (status < 200 || status >= 300) throw new ApiError(status, data || undefined);
+    return data;
+}

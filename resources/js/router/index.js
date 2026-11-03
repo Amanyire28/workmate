@@ -33,6 +33,9 @@ const routes = [
     { path: '/account',              component: AccountPage,            meta: { title: 'My Account – WorkMate' } },
     { path: '/account/reports',      component: () => import('@/pages/ReportsPage.vue'), meta: { title: 'Reports and complaints – WorkMate', requiresAuth: true } },
     { path: '/account/verification', component: () => import('@/pages/GetVerifiedPage.vue'), meta: { title: 'Get Verified – WorkMate', requiresAuth: true } },
+    { path: '/community',            component: () => import('@/pages/CommunityPage.vue'), meta: { title: 'Community – WorkMate' } },
+    { path: '/community/saved',      component: () => import('@/pages/CommunityPage.vue'), meta: { title: 'Saved posts – WorkMate', requiresAuth: true } },
+    { path: '/community/post/:id',   component: () => import('@/pages/CommunityPostPage.vue'), meta: { title: 'Community post – WorkMate' } },
     { path: '/messages',             component: MessagesPage,           meta: { title: 'Messages – WorkMate', requiresAuth: true } },
     { path: '/messages/:id',         component: ChatPage,               meta: { title: 'Chat – WorkMate', requiresAuth: true } },
     // A chat opened from the provider side (customers reach chats by provider id)

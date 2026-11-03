@@ -33,8 +33,11 @@ class ReportController extends Controller
             'provider' => ['nullable', 'integer'],
             'request' => ['nullable', 'integer'],
             'conversation' => ['nullable', 'integer'],
+            'post' => ['nullable', 'string', 'max:36'],
+            'comment' => ['nullable', 'integer'],
             'reason' => ['required', Rule::in(Report::REASONS[$about] ?? [])],
-            'details' => ['required', 'string', 'min:10', 'max:2000'],
+            // A post or comment speaks for itself; other reports need the story
+            'details' => in_array($about, Report::COMMUNITY_SUBJECTS, true) ? ['nullable', 'string', 'max:2000'] : ['required', 'string', 'min:10', 'max:2000'],
             'photos' => ['nullable', 'array', 'max:'.Report::MAX_ATTACHMENTS],
             'photos.*' => self::PHOTO_RULES,
         ], $this->messages());
@@ -107,7 +110,8 @@ class ReportController extends Controller
             'about' => $r->subject_type,
             'about_name' => $r->subject_type === Report::SUBJECT_PROVIDER
                 ? optional($r->provider)->display_name
-                : ($r->subject_type === Report::SUBJECT_CUSTOMER ? $this->firstName(optional($r->subjectUser)->name) : null),
+                : ($r->subject_type === Report::SUBJECT_CUSTOMER ? $this->firstName(optional($r->subjectUser)->name)
+                : (in_array($r->subject_type, Report::COMMUNITY_SUBJECTS, true) ? 'A community '.$r->subject_type : null)),
             'request' => $r->serviceRequest ? ['id' => $r->serviceRequest->id, 'title' => $r->serviceRequest->title] : null,
             'reason' => $r->reason,
             'details' => $r->details,

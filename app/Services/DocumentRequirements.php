@@ -6,7 +6,6 @@ use App\Exceptions\BusinessRuleException;
 use App\Models\Category;
 use App\Models\DocumentRequirementVersion;
 use App\Models\DocumentVerification;
-use App\Models\ProviderProfile;
 use App\Models\User;
 use App\Models\VerificationDocument;
 use Illuminate\Support\Collection;
@@ -62,23 +61,12 @@ class DocumentRequirements
     {
         // Not sent yet (or starting again after a rejection): the current rules
         if (in_array($verification->status, [DocumentVerification::STATUS_DRAFT, DocumentVerification::STATUS_REJECTED], true)) {
-            $category = $this->mainCategoryId($verification->profile);
+            $category = $verification->profile->mainCategoryId();
 
             return $category ? $this->current($category) : null;
         }
 
         return $verification->requirementVersion;
-    }
-
-    /** The profession of the provider's first (main) skill */
-    public function mainCategoryId(ProviderProfile $profile): ?int
-    {
-        $professions = $profile->professions()->get();
-        $main = $professions->first(function ($p) {
-            return (bool) $p->pivot->is_primary;
-        }) ?: $professions->first();
-
-        return $main ? (int) $main->category_id : null;
     }
 
     /** @return array<string, bool|null> */

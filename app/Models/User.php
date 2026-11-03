@@ -70,6 +70,16 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->belongsToMany(Role::class)->withPivot('assigned_by')->withTimestamps();
     }
 
+    /** "Aisha Nakato" → "Aisha N.", for places where the full name isn't needed */
+    public static function shortNameOf(?string $name): string
+    {
+        $parts = preg_split('/\s+/', trim((string) $name)) ?: [];
+        $first = ($parts[0] ?? '') ?: 'Customer';
+        $last = count($parts) > 1 ? mb_substr(end($parts), 0, 1).'.' : '';
+
+        return mb_substr(trim($first.' '.$last), 0, 60);
+    }
+
     /** Web address of the profile photo, or null when there isn't one */
     public function avatarUrl(): ?string
     {
