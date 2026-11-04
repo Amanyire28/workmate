@@ -148,8 +148,19 @@ class Community
                     'likes_count' => DB::raw($on ? 'likes_count + 1' : 'GREATEST(likes_count, 1) - 1'),
                 ]);
             }
+            $count = (int) CommunityPost::withTrashed()->whereKey($post->id)->value('likes_count');
 
-            return (int) CommunityPost::withTrashed()->whereKey($post->id)->value('likes_count');
+            // The author hears about likes at most once an hour per post
+            if ($changed && $on && $post->user_id !== $user->getKey()) {
+                $claimed = CommunityPost::whereKey($post->id)->where(function ($q) {
+                    $q->whereNull('likes_notified_at')->orWhere('likes_notified_at', '<', now()->subHour());
+                })->update(['likes_notified_at' => now()]);
+                if ($claimed) {
+                    $this->notify->liked($post, $user, $count);
+                }
+            }
+
+            return $count;
         });
     }
 
@@ -196,6 +207,7 @@ class Community
                 'body' => $body,
             ])->save();
             CommunityPost::whereKey($post->id)->increment('comments_count');
+            $this->notify->commented($post, $comment, $user);
 
             return $comment;
         });

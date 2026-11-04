@@ -86,6 +86,22 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->avatar_path ? url('/api/v1/avatars/'.basename($this->avatar_path)) : null;
     }
 
+    /** Community: the accounts following this one, and the ones it follows */
+    public function followers()
+    {
+        return $this->belongsToMany(self::class, 'follows', 'followed_id', 'follower_id');
+    }
+
+    public function following()
+    {
+        return $this->belongsToMany(self::class, 'follows', 'follower_id', 'followed_id');
+    }
+
+    public function communityPosts()
+    {
+        return $this->hasMany(CommunityPost::class);
+    }
+
     /** The provider profile this account owns, if it has applied. */
     public function providerProfile()
     {

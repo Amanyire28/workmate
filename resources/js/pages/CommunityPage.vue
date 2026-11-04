@@ -47,9 +47,17 @@
             <h1 class="wm-h1">{{ saved ? 'Saved posts' : 'Community' }}</h1>
             <p v-if="!saved" class="wm-meta mt-1">Work, tips and questions from people across WorkMate.</p>
           </div>
-          <router-link v-if="!saved && auth.user" to="/community/saved" class="lg:hidden wm-icon-btn" aria-label="Saved posts">
-            <i class="bi bi-bookmark text-lg" aria-hidden="true"></i>
-          </router-link>
+          <div v-if="!saved" class="lg:hidden flex shrink-0 -mr-2">
+            <router-link to="/community/people" class="wm-icon-btn" aria-label="Discover people">
+              <i class="bi bi-person-plus text-lg" aria-hidden="true"></i>
+            </router-link>
+            <router-link v-if="auth.user" :to="`/community/people/${auth.user.id}`" class="wm-icon-btn" aria-label="My community page">
+              <i class="bi bi-person-circle text-lg" aria-hidden="true"></i>
+            </router-link>
+            <router-link v-if="auth.user" to="/community/saved" class="wm-icon-btn" aria-label="Saved posts">
+              <i class="bi bi-bookmark text-lg" aria-hidden="true"></i>
+            </router-link>
+          </div>
           <router-link v-else-if="saved" to="/community" class="lg:hidden wm-btn wm-btn-ghost !min-h-10">Community</router-link>
         </div>
 
@@ -67,8 +75,8 @@
 
         <!-- Feed and filters -->
         <template v-if="!saved">
-          <div v-if="canPersonalise" class="wm-segmented mt-4 grid grid-cols-2 sm:inline-grid" role="tablist" aria-label="Feed">
-            <button v-for="t in TABS" :key="t.id" type="button" role="tab" class="wm-segment" :aria-selected="tab === t.id" @click="setQuery({ tab: t.id === 'for_you' ? '' : t.id })">{{ t.label }}</button>
+          <div v-if="tabs.length > 1" class="wm-segmented mt-4 grid sm:inline-grid" :style="{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }" role="tablist" aria-label="Feed">
+            <button v-for="t in tabs" :key="t.id" type="button" role="tab" class="wm-segment" :aria-selected="tab === t.id" @click="setQuery({ tab: t.id === defaultTab ? '' : t.id })">{{ t.label }}</button>
           </div>
           <div class="mt-3 wm-scroll-row lg:hidden" role="group" aria-label="Kind of post">
             <button type="button" class="wm-chip" :aria-pressed="!!(filters.topic || filters.area)" @click="filtersOpen = true">
@@ -98,6 +106,15 @@
           <button type="button" class="wm-btn wm-btn-primary !min-h-12" @click="load(true)">Try again</button>
         </EmptyState>
 
+        <section v-else-if="!state.posts.length && tab === 'following' && !filtered" class="wm-card mt-4" aria-labelledby="follow-heading">
+          <h2 id="follow-heading" class="text-[17px] font-semibold text-ink">{{ me.card?.following_count ? 'Nothing new from people you follow' : 'Follow people to see their posts here' }}</h2>
+          <p class="mt-1 text-sm text-muted">Providers and members who share their work. Follow a few to start.</p>
+          <ul v-if="suggested.length" class="mt-4 flex flex-col gap-3">
+            <li v-for="p in suggested" :key="p.id"><PersonRow :person="p" /></li>
+          </ul>
+          <router-link to="/community/people" class="wm-btn wm-btn-secondary mt-4 !min-h-11">Discover more people</router-link>
+        </section>
+
         <EmptyState v-else-if="!state.posts.length" class="mt-4" :icon="empty.icon" :title="empty.title" :message="empty.message">
           <button v-if="empty.action === 'compose'" type="button" class="wm-btn wm-btn-primary !min-h-12" @click="compose()">Share your work</button>
           <button v-else-if="empty.action === 'clear'" type="button" class="wm-btn wm-btn-primary !min-h-12" @click="clearFilters">Clear filters</button>
@@ -106,7 +123,7 @@
         </EmptyState>
 
         <template v-else>
-          <p v-if="state.personalised && tab === 'for_you'" class="mt-4 wm-meta">Posts about your work and your area, newest first.</p>
+          <p v-if="state.personalised && tab === 'for_you'" class="mt-4 wm-meta">From people you follow, your profession and your area, newest first.</p>
           <ul class="mt-4 flex flex-col gap-4">
             <li v-for="post in state.posts" :key="post.id">
               <PostCard :post="post" @edit="editing = $event" @delete="remove" @report="reporting = { about: 'post', postId: $event.id }" />
@@ -129,6 +146,29 @@
       <!-- ============ Right: open jobs and the ground rules (wide screens) ============ -->
       <aside class="hidden xl:block" aria-label="More from WorkMate">
         <div class="sticky top-[calc(var(--wm-header-h)+16px)] flex flex-col gap-4">
+          <section v-if="suggested.length" class="wm-card" aria-labelledby="suggested-heading">
+            <div class="flex items-center justify-between">
+              <h2 id="suggested-heading" class="text-[15px] font-semibold text-ink">People to follow</h2>
+              <router-link to="/community/people" class="wm-link text-sm">See more</router-link>
+            </div>
+            <ul class="mt-3 flex flex-col gap-3">
+              <li v-for="p in suggested" :key="p.id"><PersonRow :person="p" compact /></li>
+            </ul>
+          </section>
+
+          <section v-if="topics.length" class="wm-card" aria-labelledby="topics-heading">
+            <h2 id="topics-heading" class="text-[15px] font-semibold text-ink">Active this week</h2>
+            <ul class="mt-2 flex flex-col">
+              <li v-for="t in topics" :key="t.slug">
+                <button type="button" class="flex w-full min-h-10 items-center justify-between gap-3 rounded-lg px-1 text-left text-[14px] hover:bg-white/60"
+                  :aria-pressed="filters.topic === t.slug" @click="setQuery({ topic: filters.topic === t.slug ? '' : t.slug })">
+                  <span class="font-medium" :class="filters.topic === t.slug ? 'text-primary' : 'text-ink'">{{ t.name }}</span>
+                  <span class="text-[12.5px] text-muted">{{ t.posts }} {{ t.posts === 1 ? 'post' : 'posts' }}</span>
+                </button>
+              </li>
+            </ul>
+          </section>
+
           <section class="wm-card" aria-labelledby="jobs-heading">
             <div class="flex items-center justify-between">
               <h2 id="jobs-heading" class="text-[15px] font-semibold text-ink">Open jobs</h2>
@@ -196,29 +236,46 @@ import BottomSheet from '@/components/BottomSheet.vue';
 import ReportSheet from '@/components/ReportSheet.vue';
 import PostCard from '@/components/community/PostCard.vue';
 import PostComposer from '@/components/community/PostComposer.vue';
+import PersonRow from '@/components/community/PersonRow.vue';
 import { api } from '@/api/client.js';
 import { auth, isProvider } from '@/stores/auth.js';
 import { categories, jobs, loadCatalog } from '@/stores/catalog.js';
 import { categoryLabel } from '@/utils/ui.js';
-import { POST_CATEGORIES, feedCache, needsSignIn, deletePost, showCommunityError } from '@/stores/community.js';
+import { POST_CATEGORIES, feedCache, needsSignIn, deletePost, showCommunityError, me, loadMe } from '@/stores/community.js';
 import { showFlash } from '@/stores/flash.js';
 
 const route = useRoute();
 const router = useRouter();
 
-const TABS = [{ id: 'for_you', label: 'For you' }, { id: 'latest', label: 'Latest' }];
 const saved = computed(() => route.path === '/community/saved');
 const filters = computed(() => ({ category: route.query.category || '', topic: route.query.topic || '', area: route.query.area || '' }));
 const filtered = computed(() => !!(filters.value.category || filters.value.topic || filters.value.area));
-// "For you" needs to know someone's work: providers
+// "For you" mixes the people a provider follows with their profession and area; for
+// everyone else it would be the same as Following, so they get Following and Latest
 const canPersonalise = computed(() => isProvider.value);
-const tab = computed(() => (canPersonalise.value && route.query.tab !== 'latest' ? 'for_you' : 'latest'));
+const tabs = computed(() => [
+  ...(canPersonalise.value ? [{ id: 'for_you', label: 'For you' }] : []),
+  ...(auth.user ? [{ id: 'following', label: 'Following' }] : []),
+  { id: 'latest', label: 'Latest' },
+]);
+const defaultTab = computed(() => (canPersonalise.value ? 'for_you' : 'latest'));
+const tab = computed(() => (tabs.value.some(t => t.id === route.query.tab) ? route.query.tab : defaultTab.value));
 
 const sideLinks = computed(() => [
-  { to: '/community', label: 'Feed', icon: 'bi-house', active: !saved.value },
+  { to: '/community', label: 'Feed', icon: 'bi-house', active: !saved.value && tab.value !== 'following' },
+  ...(auth.user ? [{ to: '/community?tab=following', label: 'Following', icon: 'bi-people', active: !saved.value && tab.value === 'following' }] : []),
+  { to: '/community/people', label: 'Discover people', icon: 'bi-person-plus', active: false },
   ...(auth.user ? [{ to: '/community/saved', label: 'Saved posts', icon: 'bi-bookmark', active: saved.value }] : []),
-  ...(auth.user ? [{ to: isProvider.value && auth.user.provider_ids?.length ? `/provider/${auth.user.provider_ids[0]}` : '/account', label: 'My profile', icon: 'bi-person-circle', active: false }] : []),
+  ...(auth.user ? [{ to: `/community/people/${auth.user.id}`, label: 'My profile', icon: 'bi-person-circle', active: false }] : []),
 ]);
+
+/* People to follow and what's being talked about, both from real activity */
+const suggested = ref([]);
+const topics = ref([]);
+async function loadSidebar() {
+  try { suggested.value = (await api('/community/people/suggested')).data; } catch { /* optional */ }
+  try { topics.value = (await api('/community/topics')).data; } catch { /* optional */ }
+}
 
 const openJobs = computed(() => jobs.filter(j => (!j.status || j.status === 'open') && !j.isSample).slice(0, 4));
 
@@ -288,6 +345,8 @@ function watchSentinel() {
 
 onMounted(async () => {
   loadCatalog().catch(() => {});
+  loadSidebar();
+  loadMe();
   if (feedCache.key === feedKey.value && Date.now() - feedCache.at < 10 * 60 * 1000 && feedCache.posts.length) {
     Object.assign(state, { posts: feedCache.posts, cursor: feedCache.cursor, done: feedCache.done, personalised: feedCache.personalised, page: feedCache.page || 2 });
     await nextTick();

@@ -170,6 +170,41 @@
         <p v-else class="mt-2 text-sm text-muted">No completed jobs on WorkMate yet.</p>
       </section>
 
+      <!-- Community: what they share themselves, separate from jobs done through WorkMate -->
+      <section v-if="community" class="wm-card wm-card-lg" aria-labelledby="community-heading">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="min-w-0">
+            <h2 id="community-heading" class="text-[19px] lg:text-xl font-semibold text-ink">In the community</h2>
+            <p class="wm-meta mt-1">
+              {{ community.followers_count }} {{ community.followers_count === 1 ? 'follower' : 'followers' }} ·
+              {{ community.posts_count }} {{ community.posts_count === 1 ? 'post' : 'posts' }}
+            </p>
+          </div>
+          <button v-if="!isOwn" type="button" class="wm-btn !min-h-11" :class="community.following ? 'wm-btn-secondary' : 'wm-btn-primary'" :aria-pressed="community.following" @click="toggleFollow(community)">
+            <i :class="['bi', community.following ? 'bi-check2' : 'bi-person-plus']" aria-hidden="true"></i>{{ community.following ? 'Following' : 'Follow' }}
+          </button>
+        </div>
+
+        <ul v-if="communityPosts.length" class="mt-4 flex flex-col divide-y divide-line">
+          <li v-for="p in communityPosts" :key="p.id">
+            <router-link :to="`/community/post/${p.id}`" class="flex gap-3 py-3 first:pt-0 group">
+              <img v-if="p.media.length" :src="p.media[0].thumb_url" alt="" loading="lazy" class="h-16 w-16 shrink-0 rounded-xl object-cover bg-[#E2E8F0]" />
+              <span class="min-w-0 flex-1">
+                <span class="block text-[12.5px] font-medium text-primary">{{ categoryOf(p.category).label }}</span>
+                <span class="block text-[14.5px] text-ink line-clamp-2 group-hover:underline">{{ p.body || 'Photos' }}</span>
+                <span class="block text-[12.5px] text-muted">{{ agoLabel(p.created_at) }}<template v-if="p.likes_count"> · {{ p.likes_count }} {{ p.likes_count === 1 ? 'like' : 'likes' }}</template><template v-if="p.comments_count"> · {{ p.comments_count }} {{ p.comments_count === 1 ? 'comment' : 'comments' }}</template></span>
+              </span>
+            </router-link>
+          </li>
+        </ul>
+        <p v-else-if="communityError" class="mt-2 text-sm text-muted">Their posts couldn’t load. <button type="button" class="wm-link" @click="loadCommunity(route.params.id)">Try again</button></p>
+        <p v-else class="mt-2 text-sm text-muted">{{ isOwn ? 'You haven’t shared anything yet.' : 'Nothing shared yet.' }}</p>
+        <p class="mt-3 text-[12.5px] text-muted">Posts are shared by the provider. The jobs and reviews above come from customers who hired them through WorkMate.</p>
+        <router-link :to="`/community/people/${community.id}`" class="wm-btn wm-btn-secondary mt-3 !min-h-11">
+          {{ community.posts_count > 3 ? `See all ${community.posts_count} posts` : 'Open their community page' }}
+        </router-link>
+      </section>
+
       <!-- Trust & safety -->
       <section class="wm-card wm-card-lg" aria-labelledby="trust-heading">
         <h2 id="trust-heading" class="text-[19px] lg:text-xl font-semibold text-ink">Trust &amp; safety</h2>
@@ -199,7 +234,9 @@ import UserAvatar from '@/components/UserAvatar.vue';
 import AvailabilityBadge from '@/components/AvailabilityBadge.vue';
 import VerifiedBadge from '@/components/VerifiedBadge.vue';
 import ReportSheet from '@/components/ReportSheet.vue';
-import { providers, loadProviderReviews } from '@/stores/catalog.js';
+import { providers, loadProviderReviews, agoLabel } from '@/stores/catalog.js';
+import { api } from '@/api/client.js';
+import { categoryOf, toggleFollow } from '@/stores/community.js';
 import {
   displayName, tradeLabel, formatPrice, categoryIcon, categoryLabel, providerTypeLabels,
 } from '@/utils/ui.js';
@@ -217,6 +254,27 @@ const isOwn = computed(() => !!provider.value && isOwnProvider(provider.value.id
 // The shared catalog holds only recent reviews; fetch this provider's full list
 watch(() => route.params.id, (id) => {
   if (id) loadProviderReviews(Number(id)).catch(() => { /* the recent reviews still show */ });
+}, { immediate: true });
+
+/* Their community page: followers, and their three latest posts */
+const community = ref(null);
+const communityPosts = ref([]);
+const communityError = ref(false);
+async function loadCommunity(id) {
+  communityError.value = false;
+  if (!id) return;
+  try {
+    if (!community.value) community.value = (await api(`/community/providers/${id}/person`)).data;
+    if (community.value.posts_count) communityPosts.value = (await api(`/community/posts?tab=latest&author=${community.value.id}`)).data.slice(0, 3);
+  } catch {
+    // The rest of the profile still shows
+    communityError.value = !!community.value;
+  }
+}
+watch(() => route.params.id, (id) => {
+  community.value = null;
+  communityPosts.value = [];
+  loadCommunity(id);
 }, { immediate: true });
 
 const typeIcon = computed(() => ({

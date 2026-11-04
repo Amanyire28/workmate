@@ -35,6 +35,7 @@
         <ul v-if="menuOpen" :id="`${uid}-menu`" class="absolute right-0 top-11 z-40 w-52 rounded-2xl bg-white p-1.5 shadow-[0_12px_32px_rgba(15,23,42,0.16)] ring-1 ring-black/5" @keydown.esc="menuOpen = false">
           <li v-if="post.mine && !post.removed"><button type="button" class="wm-menu-item" @click="act('edit')"><i class="bi bi-pencil" aria-hidden="true"></i>Edit post</button></li>
           <li v-if="post.mine"><button type="button" class="wm-menu-item text-error" @click="act('delete')"><i class="bi bi-trash" aria-hidden="true"></i>Delete post</button></li>
+          <li v-if="!post.mine && !post.removed"><button type="button" class="wm-menu-item" @click="act('follow')"><i :class="['bi', post.author.following ? 'bi-person-dash' : 'bi-person-plus']" aria-hidden="true"></i>{{ post.author.following ? 'Unfollow' : 'Follow' }} {{ post.author.name }}</button></li>
           <li v-if="!post.removed"><button type="button" class="wm-menu-item" @click="act('copy')"><i class="bi bi-link-45deg" aria-hidden="true"></i>Copy link</button></li>
           <li v-if="!post.mine"><button type="button" class="wm-menu-item" @click="act('report')"><i class="bi bi-flag" aria-hidden="true"></i>Report post</button></li>
         </ul>
@@ -107,7 +108,7 @@ import UserAvatar from '@/components/UserAvatar.vue';
 import VerifiedBadge from '@/components/VerifiedBadge.vue';
 import PhotoViewer from './PhotoViewer.vue';
 import { agoLabel } from '@/stores/catalog.js';
-import { categoryOf, toggleLike, toggleSave, sharePost, postUrl, needsSignIn } from '@/stores/community.js';
+import { categoryOf, toggleLike, toggleSave, toggleFollow, sharePost, postUrl, needsSignIn, personLink } from '@/stores/community.js';
 import { showFlash } from '@/stores/flash.js';
 
 const props = defineProps({
@@ -119,7 +120,8 @@ const emit = defineEmits(['edit', 'delete', 'report', 'comment']);
 
 const uid = useId();
 const category = computed(() => categoryOf(props.post.category));
-const profileLink = computed(() => (props.post.author.provider_id ? `/provider/${props.post.author.provider_id}` : null));
+// A listed provider's profile, otherwise their community page
+const profileLink = computed(() => personLink(props.post.author));
 
 const long = computed(() => {
   const body = props.post.body || '';
@@ -154,6 +156,10 @@ async function act(what) {
     } catch {
       sharePost(props.post);
     }
+    return;
+  }
+  if (what === 'follow') {
+    toggleFollow(props.post.author);
     return;
   }
   if (what === 'report' && needsSignIn()) return;

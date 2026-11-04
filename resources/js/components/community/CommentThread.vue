@@ -62,7 +62,7 @@ import VerifiedBadge from '@/components/VerifiedBadge.vue';
 import { api, fieldErrors } from '@/api/client.js';
 import { auth } from '@/stores/auth.js';
 import { agoLabel } from '@/stores/catalog.js';
-import { LIMITS, needsSignIn, showCommunityError } from '@/stores/community.js';
+import { LIMITS, needsSignIn, showCommunityError, personLink } from '@/stores/community.js';
 
 const props = defineProps({
   post: { type: Object, required: true },
@@ -162,7 +162,7 @@ const CommentItem = {
       const c = p.comment;
       if (c.gone) return h('p', { class: 'text-sm italic text-muted' }, 'This comment was deleted.');
       const a = c.author;
-      const link = a.provider_id ? `/provider/${a.provider_id}` : null;
+      const link = personLink(a);
       const name = link
         ? h(RouterLink, { to: link, class: 'font-semibold text-ink hover:underline' }, () => a.name)
         : h('span', { class: 'font-semibold text-ink' }, a.name);

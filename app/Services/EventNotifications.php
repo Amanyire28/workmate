@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Http\Resources\CommunityPostResource;
 use App\Models\AccountWarning;
+use App\Models\CommunityComment;
+use App\Models\CommunityPost;
 use App\Models\Conversation;
 use App\Models\DocumentVerification;
 use App\Models\Message;
@@ -202,6 +205,53 @@ class EventNotifications
 
     /* ---------------- Community ---------------- */
 
+    // A post's notifications share a tag, so a phone shows the latest one instead of a pile
+
+    public function newFollower(User $follower, int $followedId): void
+    {
+        $this->push->toUsers([$followedId], [
+            'title' => 'New follower',
+            'body' => $this->communityName($follower).' started following you on WorkMate.',
+            'url' => '/community/people/'.$follower->id,
+            'tag' => 'community-followers',
+        ]);
+    }
+
+    /** A comment on someone's post, or a reply to their comment. The words stay in WorkMate. */
+    public function commented(CommunityPost $post, CommunityComment $comment, User $by): void
+    {
+        $name = $this->communityName($by);
+        $url = '/community/post/'.$post->uuid.'#comments';
+        $tag = 'community-post-'.$post->uuid;
+        $toParent = $comment->parent_id ? optional($comment->parent)->user_id : null;
+
+        if ($toParent && $toParent !== $by->id) {
+            $this->push->toUsers([$toParent], ['title' => 'New reply', 'body' => $name.' replied to your comment.', 'url' => $url, 'tag' => $tag.'-reply']);
+        }
+        if ($post->user_id !== $by->id && $post->user_id !== $toParent) {
+            $this->push->toUsers([$post->user_id], [
+                'title' => $post->category === 'question' ? 'New answer' : 'New comment',
+                'body' => $name.($post->category === 'question' ? ' answered your question.' : ' commented on your post.'),
+                'url' => $url, 'tag' => $tag,
+            ]);
+        }
+    }
+
+    /** At most once an hour per post (CommunityPost::likes_notified_at) */
+    public function liked(CommunityPost $post, User $by, int $likes): void
+    {
+        if ($post->user_id === $by->id) {
+            return;
+        }
+        $others = $likes - 1;
+        $this->push->toUsers([$post->user_id], [
+            'title' => 'Your post was liked',
+            'body' => $this->communityName($by).($others > 0 ? ' and '.$others.' '.($others === 1 ? 'other' : 'others') : '').' liked your post.',
+            'url' => '/community/post/'.$post->uuid,
+            'tag' => 'community-post-'.$post->uuid.'-likes',
+        ]);
+    }
+
     /** The reason is shown on the post in WorkMate, not on the lock screen */
     public function communityContentRemoved(int $userId, string $what, string $url): void
     {
@@ -249,6 +299,12 @@ class EventNotifications
     private function service(ServiceRequest $request): string
     {
         return mb_strtolower(optional($request->category)->name ?: 'service');
+    }
+
+    /** How someone appears in the community: a listed provider's name, or "Aisha N." */
+    private function communityName(User $user): string
+    {
+        return CommunityPostResource::author($user, $user->providerProfile)['name'];
     }
 
     private function firstName(?User $user): string

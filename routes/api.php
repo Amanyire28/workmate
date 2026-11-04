@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\V1\Auth\PasswordController;
 use App\Http\Controllers\Api\V1\Auth\SessionController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\CommunityController;
+use App\Http\Controllers\Api\V1\CommunityPeopleController;
 use App\Http\Controllers\Api\V1\ConversationController;
 use App\Http\Controllers\Api\V1\DirectoryController;
 use App\Http\Controllers\Api\V1\JobApplicantController;
@@ -84,6 +85,13 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('community/posts', [CommunityController::class, 'index'])->name('community.index');
     Route::get('community/posts/{post}', [CommunityController::class, 'show'])->whereUuid('post')->name('community.show');
     Route::get('community/posts/{post}/comments', [CommunityController::class, 'comments'])->whereUuid('post')->name('community.comments');
+    Route::get('community/people', [CommunityPeopleController::class, 'index'])->name('community.people');
+    Route::get('community/people/suggested', [CommunityPeopleController::class, 'suggested'])->name('community.people.suggested');
+    Route::get('community/people/{user}', [CommunityPeopleController::class, 'show'])->whereNumber('user')->name('community.people.show');
+    Route::get('community/people/{user}/followers', [CommunityPeopleController::class, 'followers'])->whereNumber('user')->name('community.people.followers');
+    Route::get('community/people/{user}/following', [CommunityPeopleController::class, 'following'])->whereNumber('user')->name('community.people.following');
+    Route::get('community/providers/{provider}/person', [CommunityPeopleController::class, 'provider'])->whereNumber('provider')->name('community.providers.person');
+    Route::get('community/topics', [CommunityPeopleController::class, 'topics'])->name('community.topics');
     Route::get('community/media/{file}', [CommunityController::class, 'media'])
         ->where('file', '[0-9a-f-]{36}(-t)?\.jpg')
         ->name('community.media');
@@ -183,6 +191,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
         // Taking part in the community
         Route::get('community/saved', [CommunityController::class, 'saved'])->name('community.saved');
+        Route::get('community/me', [CommunityPeopleController::class, 'me'])->name('community.me');
         Route::middleware('throttle:community-post')->group(function () {
             Route::post('community/posts', [CommunityController::class, 'store'])->name('community.store');
         });
@@ -197,6 +206,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::post('community/posts/{post}/save', [CommunityController::class, 'save'])->whereUuid('post')->name('community.save');
             Route::delete('community/posts/{post}/save', [CommunityController::class, 'save'])->whereUuid('post')->name('community.unsave');
             Route::delete('community/comments/{comment}', [CommunityController::class, 'destroyComment'])->whereNumber('comment')->name('community.comment.destroy');
+            Route::post('community/people/{user}/follow', [CommunityPeopleController::class, 'follow'])->whereNumber('user')->name('community.follow');
+            Route::delete('community/people/{user}/follow', [CommunityPeopleController::class, 'follow'])->whereNumber('user')->name('community.unfollow');
         });
 
         Route::prefix('admin')->name('admin.')->group(function () {

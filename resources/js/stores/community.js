@@ -109,6 +109,49 @@ export async function sharePost(post) {
     showFlash('Link copied. Paste it anywhere to share.');
 }
 
+/* ---------------- People ---------------- */
+
+/** The signed-in member's own card (counts), loaded on first use */
+export const me = reactive({ card: null, loading: null });
+
+export function loadMe({ force = false } = {}) {
+    if (!auth.user) { me.card = null; return Promise.resolve(null); }
+    if (me.card && me.card.id === auth.user.id && !force) return Promise.resolve(me.card);
+    me.loading ??= api('/community/me').then(r => { me.card = r.data; return me.card; }).catch(() => null).finally(() => { me.loading = null; });
+    return me.loading;
+}
+
+/**
+ * Follows or unfollows straight away on screen. `person` is a card or a post's
+ * author ({ id, following, followers_count? }); every post by them updates too.
+ */
+export async function toggleFollow(person) {
+    if (needsSignIn()) return;
+    const on = !person.following;
+    const sync = (value) => {
+        person.following = value;
+        for (const p of feedCache.posts) if (p.author.id === person.id) p.author.following = value;
+    };
+    sync(on);
+    if (typeof person.followers_count === 'number') person.followers_count += on ? 1 : -1;
+    try {
+        const r = await api(`/community/people/${person.id}/follow`, { method: on ? 'POST' : 'DELETE' });
+        if (typeof person.followers_count === 'number') person.followers_count = r.data.followers_count;
+        if (me.card) me.card.following_count += on ? 1 : -1;
+        showFlash(on ? `You’re following ${person.name}.` : `You unfollowed ${person.name}.`);
+    } catch (e) {
+        sync(!on);
+        if (typeof person.followers_count === 'number') person.followers_count += on ? -1 : 1;
+        complain(e);
+    }
+}
+
+/** Where someone's name leads: a listed provider's profile, otherwise their community page */
+export function personLink(person) {
+    if (person.provider_id) return `/provider/${person.provider_id}`;
+    return person.linkable === false ? null : `/community/people/${person.id}`;
+}
+
 export async function deletePost(post) {
     await api(`/community/posts/${post.id}`, { method: 'DELETE' });
     feedCache.posts = feedCache.posts.filter(p => p.id !== post.id);

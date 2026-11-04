@@ -33,7 +33,7 @@ class CommunityPostResource extends JsonResource
             'body' => $this->body,
             'created_at' => $this->created_at->toIso8601String(),
             'edited_at' => optional($this->edited_at)->toIso8601String(),
-            'author' => self::author($this->author, $this->provider),
+            'author' => self::author($this->author, $this->provider) + ['following' => (bool) $this->viewer_follows_author],
             'topic' => $this->topic ? ['slug' => $this->topic->slug, 'name' => $this->topic->name] : null,
             'area' => $this->area ? $this->area->name : null,
             'media' => $this->media->map(function (CommunityPostMedia $m) {
@@ -58,6 +58,8 @@ class CommunityPostResource extends JsonResource
         }) ?: $provider->professions->first()) : null;
 
         return [
+            // Their community page: /community/people/{id}
+            'id' => $user->id,
             'name' => $listed ? $provider->display_name : User::shortNameOf($user->name),
             'avatar_url' => $user->avatarUrl(),
             'title' => $main ? $main->name : null,

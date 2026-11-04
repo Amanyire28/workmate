@@ -12,6 +12,7 @@ use App\Models\CommunityPost;
 use App\Models\CommunityPostMedia;
 use App\Models\User;
 use App\Services\Community;
+use App\Services\CommunityPeople;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -36,13 +37,15 @@ class CommunityController extends Controller
     /* ---------------- Reading ---------------- */
 
     /**
-     * Newest first. "For you" narrows to the viewer's professions and area when
-     * WorkMate knows them; filters narrow by category, profession and area.
+     * Newest first. "For you" narrows to the people the viewer follows, their
+     * professions and their area when WorkMate knows them; "Following" to the
+     * people they follow. Filters narrow by kind, profession, area and author.
      */
     public function index(Request $request): JsonResponse
     {
         $filters = $request->validate([
-            'tab' => ['nullable', Rule::in(['for_you', 'latest'])],
+            'tab' => ['nullable', Rule::in(['for_you', 'following', 'latest'])],
+            'author' => ['nullable', 'integer'],
             'category' => ['nullable', Rule::in(array_keys(CommunityPost::CATEGORIES))],
             'topic' => ['nullable', 'string', 'max:50'],
             'area' => ['nullable', 'string', 'max:60'],
@@ -60,11 +63,18 @@ class CommunityController extends Controller
         if (! empty($filters['area'])) {
             $query->where('area_id', Area::where('slug', $filters['area'])->value('id') ?: 0);
         }
+        if (! empty($filters['author'])) {
+            $query->where('user_id', $filters['author']);
+        }
 
-        $personal = ($filters['tab'] ?? 'for_you') === 'for_you' ? $this->interests($viewer) : null;
-        if ($personal) {
+        $tab = $filters['tab'] ?? 'for_you';
+        $interests = $this->interests($viewer);
+        $personal = $tab === 'for_you' && empty($filters['author']) ? $interests : null;
+        if ($tab === 'following') {
+            $query->whereIn('user_id', $interests ? ($interests['people'] ?: [0]) : [0]);
+        } elseif ($personal) {
             $query->where(function ($q) use ($personal) {
-                $q->whereIn('topic_category_id', $personal['topics'] ?: [0]);
+                $q->whereIn('topic_category_id', $personal['topics'] ?: [0])->orWhereIn('user_id', $personal['people'] ?: [0]);
                 if ($personal['area']) {
                     $q->orWhere('area_id', $personal['area']);
                 }
@@ -75,7 +85,7 @@ class CommunityController extends Controller
 
         return response()->json([
             'data' => CommunityPostResource::collection($this->withViewerFlags(collect($page->items()), $viewer)),
-            'meta' => ['next_cursor' => optional($page->nextCursor())->encode(), 'personalised' => (bool) $personal],
+            'meta' => ['next_cursor' => optional($page->nextCursor())->encode(), 'personalised' => (bool) $personal, 'can_personalise' => (bool) $interests],
         ]);
     }
 
@@ -287,25 +297,27 @@ class CommunityController extends Controller
         $liked = DB::table('community_post_likes')->where('user_id', $viewer->getKey())->whereIn('community_post_id', $ids)->pluck('community_post_id')->flip();
         $saved = DB::table('community_post_saves')->where('user_id', $viewer->getKey())->whereIn('community_post_id', $ids)->pluck('community_post_id')->flip();
 
-        return $posts->each(function (CommunityPost $p) use ($liked, $saved) {
+        $follows = app(CommunityPeople::class)->followedBy($viewer, $posts->pluck('user_id')->unique()->values()->all());
+
+        return $posts->each(function (CommunityPost $p) use ($liked, $saved, $follows) {
             $p->viewer_liked = isset($liked[$p->id]);
             $p->viewer_saved = isset($saved[$p->id]);
+            $p->viewer_follows_author = isset($follows[$p->user_id]);
         });
     }
 
-    /** The professions and area WorkMate knows the viewer works in, or null */
+    /** The people the viewer follows, and the professions and area they work in, or null when there's nothing */
     private function interests(?User $viewer): ?array
     {
-        $profile = $viewer ? $viewer->providerProfile : null;
-        if (! $profile) {
+        if (! $viewer) {
             return null;
         }
-        $topics = $profile->professions()->pluck('category_id')->unique()->values()->all();
-        if (! $topics && ! $profile->base_area_id) {
-            return null;
-        }
+        $profile = $viewer->providerProfile;
+        $people = DB::table('follows')->where('follower_id', $viewer->getKey())->pluck('followed_id')->all();
+        $topics = $profile ? $profile->professions()->pluck('category_id')->unique()->values()->all() : [];
+        $area = $profile ? $profile->base_area_id : null;
 
-        return ['topics' => $topics, 'area' => $profile->base_area_id];
+        return $people || $topics || $area ? ['people' => $people, 'topics' => $topics, 'area' => $area] : null;
     }
 
     private function messages(): array

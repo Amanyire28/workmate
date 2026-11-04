@@ -43,6 +43,7 @@ class CommunityPost extends Model
         'comments_count' => 'integer',
         'removed_at' => 'datetime',
         'edited_at' => 'datetime',
+        'likes_notified_at' => 'datetime',
     ];
 
     public function getRouteKeyName()

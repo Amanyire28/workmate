@@ -131,7 +131,7 @@ Throughout this README:
 - **Settings** that change the app straight away: nearby search (radii, maximum distance, fallbacks, GPS, tie-breaks), the default place, support phone and email, accepting provider applications, maintenance mode, and presence timings
 
 **Quality**
-- **181 automated tests** (feature and unit) on a separate MariaDB test database
+- **188 automated tests** (feature and unit) on a separate MariaDB test database
 
 ### 🟡 In development
 
@@ -271,17 +271,19 @@ Implemented ✅. A report is an allegation until the safety team acts on it: it 
 
 ## Community
 
-Release A implemented ✅ (follows, profile integration and community notifications come in release B ⬜).
+Implemented ✅ (releases A and B).
 
 A place for members to share their work: **My Work** (finished jobs and before-and-afters), **Work Tips**, **Experience**, **Questions** and **Opportunities**. It's a tab of its own (`/community`, the sixth tab on phones).
 
-- **Reading:** anyone, signed in or not. Newest first, 10 posts at a time as you scroll (cursor pagination). **For you** (providers) narrows to their professions and base place; **Latest** shows everything. Filters: kind of post, profession and place. Signed-out visitors are asked to sign in only when they act.
+- **Reading:** anyone, signed in or not. Newest first, 10 posts at a time as you scroll (cursor pagination). **For you** (providers) shows the people they follow, their professions and their base place; **Following** shows the people you follow; **Latest** shows everything. Filters: kind of post, profession and place. Signed-out visitors are asked to sign in only when they act.
 - **Posting:** signed-in members with a confirmed email. Text up to 3,000 characters and up to **6 photos** (JPG, PNG or WebP, up to 8 MB). Phones shrink photos before sending; the server re-draws every photo as JPEG in two sizes (1600 px and a 720 px thumbnail), which removes hidden data such as GPS, stores them under `storage/app/community` and serves them through `/api/v1/community/media/…` only while the post can be seen. Upload progress is shown and double submissions are blocked. Authors edit their words, kind and profession (`edited` is shown) and delete their posts.
 - **Taking part:** like, comment and reply (one level), save (Saved posts), share (the phone's share menu, or the link is copied), report. Likes and saves update on screen at once and go back if the server refuses. A post's author can delete comments on it. Maintenance mode pauses new posts and comments.
-- **Who's who:** approved providers show their business name, main profession, base place and the tick, and link to their profile (with **View profile** on their work). Other members show as "Aisha N.". No contact details are ever shown. Posts are labelled as shared by members; reviews on profiles are the ones that come from WorkMate jobs.
+- **Who's who:** approved providers show their business name, main profession, base place and the tick, and link to their profile (with **View profile** on their work). Other members show as "Aisha N." and link to their community page. No contact details are ever shown. Posts are labelled as shared by members; reviews on profiles are the ones that come from WorkMate jobs.
+- **People:** follow and unfollow (from a person's page, Discover people, suggestions or a post's menu). **Discover people** (`/community/people`) searches by name or business and filters by profession; only listed providers and members who have posted can be found. Each member has a community page (`/community/people/{id}`) with their posts and follower and following lists. Provider profiles show **In the community**: followers, a Follow button and their latest posts, kept apart from the jobs and reviews that come from WorkMate. The desktop feed suggests **People to follow** and shows the professions **Active this week** (real post counts).
+- **Notifications (push):** a new follower (once a week per person, however often they re-follow), every comment on your post or answer to your question, replies to your comment, and likes at most once an hour per post ("Grace A. and 3 others liked your post"). A post's notifications replace each other on the phone. They never include the words of a comment.
 - **Safety:** reports about posts and comments go into the existing Reports and Abuse queue, with the content, its photos and its status. Moderators with `content.view` **remove** a post or comment (the author is notified and sees the reason on their post) or **restore** a post. Suspended accounts' posts disappear. Rate limits: 3 posts a minute and 40 a day, 10 comments a minute and 150 an hour, 90 likes, saves and edits a minute.
 
-**Data:** `community_posts` (soft deletes, removal fields, like and comment counts), `community_post_media`, `community_comments` (`parent_id` for replies), `community_post_likes`, `community_post_saves`, and `reports.community_post_id` / `community_comment_id`.
+**Data:** `community_posts` (soft deletes, removal fields, like and comment counts, `likes_notified_at`), `community_post_media`, `community_comments` (`parent_id` for replies), `community_post_likes`, `community_post_saves`, `follows`, and `reports.community_post_id` / `community_comment_id`.
 
 ---
 
@@ -484,6 +486,7 @@ Request → middleware (auth:sanctum, active, can:<permission>, throttle)
 | `community_posts`, `community_post_media` | Community posts (kind, text, profession, place, status and removal reason, counts) and their photos |
 | `community_comments` | Comments and one level of replies, with removal fields |
 | `community_post_likes`, `community_post_saves` | One like and one save per person per post |
+| `follows` | Who follows whom in the community, one row per pair |
 | `provider_reports` | Earlier reports about providers, copied into `reports`; kept unchanged until removal is approved |
 | `push_subscriptions`, `push_announcements` | Devices that turned on notifications, and announcements sent with their delivery counts |
 | `app_install_events` | Anonymous install prompts, installs and first launches per device and day |
