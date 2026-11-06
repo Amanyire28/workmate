@@ -33,6 +33,7 @@ const routes = [
     { path: '/account',              component: AccountPage,            meta: { title: 'My Account – WorkMate' } },
     { path: '/account/reports',      component: () => import('@/pages/ReportsPage.vue'), meta: { title: 'Reports and complaints – WorkMate', requiresAuth: true } },
     { path: '/account/verification', component: () => import('@/pages/GetVerifiedPage.vue'), meta: { title: 'Get Verified – WorkMate', requiresAuth: true } },
+    { path: '/notifications',        component: () => import('@/pages/NotificationsPage.vue'), meta: { title: 'Notifications – WorkMate', requiresAuth: true } },
     { path: '/community',            component: () => import('@/pages/CommunityPage.vue'), meta: { title: 'Community – WorkMate' } },
     { path: '/community/saved',      component: () => import('@/pages/CommunityPage.vue'), meta: { title: 'Saved posts – WorkMate', requiresAuth: true } },
     { path: '/community/people',     component: () => import('@/pages/CommunityPeoplePage.vue'), meta: { title: 'Discover people – WorkMate' } },

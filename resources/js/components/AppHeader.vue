@@ -22,6 +22,16 @@
           <i class="bi bi-plus-lg" aria-hidden="true"></i> Post a Job
         </router-link>
         <router-link
+          v-if="auth.user"
+          to="/notifications"
+          class="hidden lg:inline-flex wm-icon-btn"
+          :class="{ 'text-primary bg-primary/10': route.path.startsWith('/notifications') }"
+          :aria-label="notifications.unread ? `Notifications, ${notifications.unread} unread` : 'Notifications'"
+        >
+          <i class="bi bi-bell" aria-hidden="true"></i>
+          <span v-if="notifications.unread" class="wm-count-badge" aria-hidden="true">{{ notifications.unread > 99 ? '99+' : notifications.unread }}</span>
+        </router-link>
+        <router-link
           to="/messages"
           class="hidden lg:inline-flex wm-icon-btn"
           :class="{ 'text-primary bg-primary/10': route.path.startsWith('/messages') }"
@@ -59,6 +69,18 @@
           <i class="bi bi-download" aria-hidden="true"></i>
         </button>
 
+        <!-- Mobile: notifications -->
+        <router-link
+          v-if="auth.user"
+          to="/notifications"
+          class="lg:hidden wm-icon-btn"
+          :class="{ 'text-primary bg-primary/10': route.path.startsWith('/notifications') }"
+          :aria-label="notifications.unread ? `Notifications, ${notifications.unread} unread` : 'Notifications'"
+        >
+          <i class="bi bi-bell" aria-hidden="true"></i>
+          <span v-if="notifications.unread" class="wm-count-badge" aria-hidden="true">{{ notifications.unread > 99 ? '99+' : notifications.unread }}</span>
+        </router-link>
+
         <!-- Mobile: quick search -->
         <router-link to="/browse" class="lg:hidden wm-icon-btn -mr-2" aria-label="Search service providers">
           <i class="bi bi-search" aria-hidden="true"></i>
@@ -77,6 +99,7 @@ import { navIsActive } from './navItems.js';
 import { unreadTotal } from '@/stores/messages.js';
 import { auth } from '@/stores/auth.js';
 import { pwa, openInstall, promptInstall } from '@/stores/pwa.js';
+import { notifications } from '@/stores/notifications.js';
 
 const route = useRoute();
 

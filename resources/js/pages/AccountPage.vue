@@ -224,6 +224,14 @@
     </router-link>
 
     <PushNotificationSetting v-if="user" />
+    <router-link v-if="user" to="/notifications?settings=1" class="wm-card wm-card-link mt-3 flex items-center gap-4">
+      <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-sliders"></i></span>
+      <span class="min-w-0 flex-1">
+        <span class="block text-[15px] font-semibold text-ink">What you’re notified about</span>
+        <span class="block wm-meta">Requests, messages, comments, likes and followers</span>
+      </span>
+      <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+    </router-link>
 
     <!-- Support contact from Admin → Settings -->
     <section v-if="appSettings.supportPhone || appSettings.supportEmail" class="mt-6" aria-labelledby="account-help-heading">

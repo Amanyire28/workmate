@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\V1\DirectoryController;
 use App\Http\Controllers\Api\V1\JobApplicantController;
 use App\Http\Controllers\Api\V1\JobController;
 use App\Http\Controllers\Api\V1\MyActivityController;
+use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\HealthController;
 use App\Http\Controllers\Api\V1\MeController;
 use App\Http\Controllers\Api\V1\PresenceController;
@@ -140,6 +141,13 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
         // The open app checks in so administrators can see who is online
         Route::post('me/heartbeat', [PresenceController::class, 'heartbeat'])->middleware('throttle:heartbeat')->name('me.heartbeat');
+
+        // The notification list (the bell) and which kinds the account wants
+        Route::get('me/notifications', [NotificationController::class, 'index'])->name('me.notifications');
+        Route::post('me/notifications/read', [NotificationController::class, 'read'])->name('me.notifications.read-all');
+        Route::post('me/notifications/{notification}/read', [NotificationController::class, 'read'])->whereNumber('notification')->name('me.notifications.read');
+        Route::get('me/notification-settings', [NotificationController::class, 'settings'])->name('me.notification-settings');
+        Route::put('me/notification-settings', [NotificationController::class, 'updateSettings'])->name('me.notification-settings.update');
 
         // The account's own reports and complaints, and warnings sent to it
         Route::get('me/reports', [ReportController::class, 'index'])->name('me.reports');

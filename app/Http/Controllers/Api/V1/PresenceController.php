@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\UserNotifications;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -14,7 +15,8 @@ use Illuminate\Http\Request;
  */
 class PresenceController extends Controller
 {
-    public function heartbeat(Request $request): JsonResponse
+    /** Also returns the unread notification count, so the bell stays current without polling of its own */
+    public function heartbeat(Request $request, UserNotifications $notifications): JsonResponse
     {
         // At most one write every 20 seconds, without touching updated_at
         User::whereKey($request->user()->getKey())
@@ -24,6 +26,6 @@ class PresenceController extends Controller
             ->toBase()
             ->update(['last_seen_at' => now()]);
 
-        return response()->json(['data' => ['ok' => true]]);
+        return response()->json(['data' => ['ok' => true, 'unread_notifications' => $notifications->unreadCount($request->user())]]);
     }
 }
