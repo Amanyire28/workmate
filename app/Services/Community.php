@@ -9,6 +9,7 @@ use App\Models\CommunityPost;
 use App\Models\CommunityPostMedia;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -81,6 +82,7 @@ class Community
                 $this->audit->record('community.post_published', $post, [], [
                     'category' => $post->category, 'photos' => count($stored),
                 ], null, $author);
+                $this->tellFollowers($post, $author);
 
                 return $post;
             });
@@ -281,6 +283,23 @@ class Community
     }
 
     /* ---------------- Helpers ---------------- */
+
+    // Followers hear about an author's posts at most this often
+    private const FOLLOWER_ALERT_HOURS = 3;
+    private const FOLLOWER_ALERT_MAX = 1000;
+
+    /** Followers hear about a new post, but not about every post a busy author makes */
+    private function tellFollowers(CommunityPost $post, User $author): void
+    {
+        if (! Cache::add('community:followers-told:'.$author->getKey(), 1, now()->addHours(self::FOLLOWER_ALERT_HOURS))) {
+            return;
+        }
+        $followers = DB::table('follows')->where('followed_id', $author->getKey())
+            ->latest('created_at')->limit(self::FOLLOWER_ALERT_MAX)->pluck('follower_id');
+        if ($followers->isNotEmpty()) {
+            $this->notify->followedPosted($post, $author, $followers);
+        }
+    }
 
     /** Signed-in members with a confirmed email take part; maintenance pauses new posts and comments */
     private function guardCanTakePart(User $user, bool $writing = true): void

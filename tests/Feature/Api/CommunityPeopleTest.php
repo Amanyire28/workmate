@@ -158,6 +158,37 @@ class CommunityPeopleTest extends ApiTestCase
         $this->getJson('/api/v1/community/topics')->assertOk()->assertExactJson(['data' => [['slug' => 'plumbing', 'name' => 'Plumbing', 'posts' => 2]]]);
     }
 
+    public function test_followers_hear_about_new_posts_without_being_flooded()
+    {
+        $author = $this->provider();
+        $fan = $this->member('Grace Achieng');
+        $this->postJson("/api/v1/community/people/{$author->id}/follow")->assertOk();
+        $stranger = $this->member('Not Following');
+
+        $this->signIn($author);
+        $this->publish('First tip');
+        $this->publish('Second tip, an hour later');
+
+        $told = \App\Models\UserNotification::where('user_id', $fan->id)->where('kind', 'community_posts');
+        $this->assertSame(['New post from Okello Plumbing'], (clone $told)->pluck('title')->all());
+        $this->assertStringStartsWith('/community/post/', (clone $told)->value('url'));
+        $this->assertSame(0, \App\Models\UserNotification::where('user_id', $stranger->id)->count());
+
+        // Some hours later the next post is news again (the earlier one was read)
+        \App\Models\UserNotification::where('user_id', $fan->id)->update(['read_at' => now()]);
+        $this->travel(4)->hours();
+        $this->publish('Third tip');
+        $this->assertSame(2, (clone $told)->count());
+
+        // Turned off, nothing more arrives
+        $this->signIn($fan);
+        $this->putJson('/api/v1/me/notification-settings', ['community_posts' => false])->assertOk();
+        $this->signIn($author);
+        $this->travel(4)->hours();
+        $this->publish('Fourth tip');
+        $this->assertSame(2, (clone $told)->count());
+    }
+
     public function test_notifications_are_sent_without_repeating()
     {
         $notify = $this->spy(EventNotifications::class);

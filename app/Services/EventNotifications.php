@@ -81,6 +81,17 @@ class EventNotifications
         ]);
     }
 
+    /** A new job a provider could take (JobAlerts chooses who); the job is public, so its title can show */
+    public function jobPosted(ServiceRequest $job, iterable $userIds): void
+    {
+        $this->send('job_alerts', $userIds, [
+            'title' => 'New '.$this->service($job).' job near you',
+            'body' => '“'.mb_substr($job->title, 0, 80).'” in '.$job->area_name.'. Apply in WorkMate.',
+            'url' => '/job/'.$job->id,
+            'tag' => 'job-alert-'.$job->id,
+        ]);
+    }
+
     public function hired(ServiceRequest $job, Quotation $quotation): void
     {
         $this->toProvider('requests', $quotation->provider_profile_id, $job->customer_id, [
@@ -216,6 +227,17 @@ class EventNotifications
             'body' => $this->communityName($follower).' started following you on WorkMate.',
             'url' => '/community/people/'.$follower->id,
             'tag' => 'community-followers',
+        ]);
+    }
+
+    /** Someone you follow shared a post (Community::publish limits how often) */
+    public function followedPosted(CommunityPost $post, User $author, iterable $followerIds): void
+    {
+        $this->send('community_posts', $followerIds, [
+            'title' => 'New post from '.$this->communityName($author),
+            'body' => $this->communityName($author).' shared a new post. See it in the community.',
+            'url' => '/community/post/'.$post->uuid,
+            'tag' => 'community-author-'.$author->id,
         ]);
     }
 

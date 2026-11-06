@@ -18,8 +18,10 @@ class UserNotifications
     /** Kinds an account can turn off, as shown in its settings */
     public const CHOICES = [
         'requests' => ['Requests and jobs', 'New requests, replies, applications and hiring'],
+        'job_alerts' => ['New jobs near you', 'Jobs posted near you in your line of work'],
         'messages' => ['Messages', 'New messages in your chats'],
         'community_comments' => ['Comments and replies', 'On your posts and comments in the community'],
+        'community_posts' => ['Posts from people you follow', 'When someone you follow shares something (at most every few hours each)'],
         'community_likes' => ['Likes', 'When people like your posts'],
         'community_follows' => ['New followers', 'When someone follows you in the community'],
     ];
@@ -68,6 +70,10 @@ class UserNotifications
         $prefs = $user->notification_preferences ?: [];
         $out = [];
         foreach (self::CHOICES as $kind => [$label, $hint]) {
+            // Only providers are told about new jobs
+            if ($kind === 'job_alerts' && ! $user->isProvider()) {
+                continue;
+            }
             $out[$kind] = ['label' => $label, 'hint' => $hint, 'on' => ($prefs[$kind] ?? true) !== false];
         }
 

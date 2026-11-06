@@ -19,8 +19,10 @@ export const notifications = reactive({
 
 export const KIND_ICONS = {
     requests: 'bi-briefcase',
+    job_alerts: 'bi-geo-alt',
     messages: 'bi-chat',
     community_comments: 'bi-chat-square-text',
+    community_posts: 'bi-file-earmark-richtext',
     community_likes: 'bi-hand-thumbs-up',
     community_follows: 'bi-person-plus',
     account: 'bi-shield-check',

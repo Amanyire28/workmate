@@ -131,7 +131,7 @@ Throughout this README:
 - **Settings** that change the app straight away: nearby search (radii, maximum distance, fallbacks, GPS, tie-breaks), the default place, support phone and email, accepting provider applications, maintenance mode, and presence timings
 
 **Quality**
-- **201 automated tests** (feature and unit) on a separate MariaDB test database
+- **205 automated tests** (feature and unit) on a separate MariaDB test database
 
 ### 🟡 In development
 
@@ -329,7 +329,9 @@ The blue tick is separate from document checks and is awarded **automatically**.
 - People turn on notifications per device under **Account → Notifications**, or from a reminder pop-up (at most weekly, three times per device). iPhones receive them only when WorkMate is installed on the home screen (iOS 16.4+).
 - **Automatic notifications** (`EventNotifications`): a provider hears about new requests; a customer hears when their request is accepted, declined or done (with a prompt to rate) and when someone applies to their posted job; both sides hear about new chat messages; applicants hear decisions on their provider application and documents. They never include message text, reasons or contact details, and the person who caused the event isn't notified.
 - **Notification list (the bell) ✅:** every automatic notification is also saved for the account (`user_notifications`) and listed at **/notifications** (the bell in the header), newest first, grouped Today / This week / Earlier, so people with push off still see what happened. An unread notification with the same subject (for example one chat, or one post's likes) is updated and moved to the top rather than repeated. Tapping one marks it read and opens it; **Mark all as read**. The unread count comes back with the presence heartbeat, so the bell needs no polling of its own. Kept for 90 days.
-- **Choices per kind ✅:** Requests and jobs, Messages, Comments and replies, Likes, New followers can each be turned off (bell → settings, or **Account → What you're notified about**); off stops both the push and the list entry. Account and safety notices (application and document decisions, reports, warnings, removed posts) always arrive. Stored in `users.notification_preferences`.
+- **New jobs near you ✅** (`JobAlerts`): when a job is posted, approved providers with a skill in its profession who are within the wider search radius (`search.extended_km`) or list its place among the places they serve are told ("New plumbing job near you"), closest first: at most 40 providers per job and 10 alerts per provider a day. The customer's own business isn't told, and a retried post doesn't alert twice. A failure here never stops the job being posted.
+- **Posts from people you follow ✅:** followers are told when someone they follow shares a post, at most once every 3 hours per author.
+- **Choices per kind ✅:** Requests and jobs, New jobs near you (providers only), Messages, Comments and replies, Posts from people you follow, Likes, New followers can each be turned off (bell → settings, or **Account → What you're notified about**); off stops both the push and the list entry. Account and safety notices (application and document decisions, reports, warnings, removed posts) always arrive. Stored in `users.notification_preferences`.
 - Administrators with `comms.send` send announcements from **Communications → Push Announcements**. Sending happens after the response, with no queue worker; devices that unsubscribed are removed automatically.
 - Requires VAPID keys in `.env` (see [Environment variables](#environment-variables)). Without them the switch is hidden.
 

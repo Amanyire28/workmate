@@ -31,11 +31,15 @@ class Marketplace
     /** @var PhotoVariants */
     private $photos;
 
-    public function __construct(AuditLogger $audit, EventNotifications $notify, PhotoVariants $photos)
+    /** @var JobAlerts */
+    private $alerts;
+
+    public function __construct(AuditLogger $audit, EventNotifications $notify, PhotoVariants $photos, JobAlerts $alerts)
     {
         $this->audit = $audit;
         $this->notify = $notify;
         $this->photos = $photos;
+        $this->alerts = $alerts;
     }
 
     /**
@@ -48,7 +52,13 @@ class Marketplace
     {
         $this->guardOpenForBusiness();
 
-        return $this->createRequest($customer, null, $data, $photos);
+        $job = $this->createRequest($customer, null, $data, $photos);
+        // Providers nearby who could take it hear about it; a retried post doesn't tell them twice
+        if ($job->wasRecentlyCreated) {
+            $this->alerts->jobPosted($job);
+        }
+
+        return $job;
     }
 
     /**
