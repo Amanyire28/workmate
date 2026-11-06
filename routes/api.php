@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Admin\AdminActionController;
 use App\Http\Controllers\Api\V1\Admin\AdminDataController;
 use App\Http\Controllers\Api\V1\Admin\AdminPulseController;
+use App\Http\Controllers\Api\V1\Admin\CatalogueController;
 use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\CommunityModerationController;
 use App\Http\Controllers\Api\V1\Admin\DocumentRequirementController;
@@ -35,6 +36,7 @@ use App\Http\Controllers\Api\V1\ProviderApplicationController;
 use App\Http\Controllers\Api\V1\ReceivedRequestController;
 use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\ReviewController;
+use App\Http\Controllers\Api\V1\SavedProviderController;
 use App\Http\Controllers\Api\V1\VerificationController;
 use App\Http\Controllers\Api\V1\ProfilePhotoController;
 use App\Http\Controllers\Api\V1\ProviderReportController;
@@ -202,6 +204,12 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         });
 
         // Taking part in the community
+        // Providers the account saved to come back to
+        Route::get('me/saved-providers', [SavedProviderController::class, 'index'])->name('me.saved-providers');
+        Route::middleware('throttle:community-react')->group(function () {
+            Route::post('providers/{provider}/save', [SavedProviderController::class, 'store'])->whereNumber('provider')->name('providers.save');
+            Route::delete('providers/{provider}/save', [SavedProviderController::class, 'destroy'])->whereNumber('provider')->name('providers.unsave');
+        });
         Route::get('community/saved', [CommunityController::class, 'saved'])->name('community.saved');
         Route::get('community/me', [CommunityPeopleController::class, 'me'])->name('community.me');
         Route::middleware('throttle:community-post')->group(function () {
@@ -260,6 +268,19 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::post('profession-suggestions/{suggestion}/add', [ProfessionSuggestionController::class, 'add'])->name('profession-suggestions.add');
                 Route::post('profession-suggestions/{suggestion}/match', [ProfessionSuggestionController::class, 'match'])->name('profession-suggestions.match');
                 Route::post('profession-suggestions/{suggestion}/decline', [ProfessionSuggestionController::class, 'decline'])->name('profession-suggestions.decline');
+            });
+
+            // Service categories and professions
+            Route::middleware('can:catalogue.manage')->name('catalogue.')->group(function () {
+                Route::post('categories', [CatalogueController::class, 'storeCategory'])->name('categories.store');
+                Route::patch('categories/{category}', [CatalogueController::class, 'updateCategory'])->name('categories.update');
+                Route::post('categories/{category}/hide', [CatalogueController::class, 'categoryVisibility'])->name('categories.hide');
+                Route::post('categories/{category}/show', [CatalogueController::class, 'categoryVisibility'])->name('categories.show');
+                Route::post('categories/{category}/move', [CatalogueController::class, 'moveCategory'])->name('categories.move');
+                Route::post('professions', [CatalogueController::class, 'storeProfession'])->name('professions.store');
+                Route::patch('professions/{profession}', [CatalogueController::class, 'updateProfession'])->name('professions.update');
+                Route::post('professions/{profession}/hide', [CatalogueController::class, 'professionVisibility'])->name('professions.hide');
+                Route::post('professions/{profession}/show', [CatalogueController::class, 'professionVisibility'])->name('professions.show');
             });
 
             // Community moderation

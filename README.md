@@ -131,7 +131,7 @@ Throughout this README:
 - **Settings** that change the app straight away: nearby search (radii, maximum distance, fallbacks, GPS, tie-breaks), the default place, support phone and email, accepting provider applications, maintenance mode, and presence timings
 
 **Quality**
-- **205 automated tests** (feature and unit) on a separate MariaDB test database
+- **211 automated tests** (feature and unit) on a separate MariaDB test database
 
 ### 🟡 In development
 
@@ -151,8 +151,8 @@ Throughout this README:
 - Bookings: payment-linked booking status tracking and booking history
 - Payments with Ugandan mobile money (MTN MoMo, Airtel Money), commission, refunds, payouts and reconciliation
 - In-app and email notifications
-- Saved providers and saved locations
-- Admin management of categories, professions and places
+- Saved locations
+- Admin management of places
 - Real-time messaging (the chat currently checks for new messages every few seconds)
 - "WorkMate in Action" short provider videos with moderation
 - Luganda interface translations
@@ -228,6 +228,10 @@ The intended matching order is:
 - Live provider availability and online presence
 
 ---
+
+## Saved providers
+
+Implemented ✅. Signed-in customers tap the heart on a provider card (or **Save for later** on a profile) to keep them in **Account → Saved providers** (`/saved`). Saving twice keeps one entry; nobody can save their own profile. A saved provider who stops being listed stays in the list as "no longer available" so it can be removed. Lists are private to each account.
 
 ## Requests, completion and ratings
 
@@ -371,6 +375,7 @@ Screens for features that aren't built yet (finance, bookings, disputes, videos,
   - admin roles: grant and remove
 - Sample records are listed with "(sample)" after the name but left out of every figure.
 - Anything not recorded yet (payments, bookings, disputes, the automatic blue tick) is shown as **Not tracked yet**, never as zero.
+- **Service categories and professions** (Marketplace → Service Categories and Professions, `catalogue.manage`: Super Administrators and Operations): add, rename, change the icon, reorder (move up or down) and hide or show categories; add, rename, move to another category and hide or show professions. Nothing is deleted (providers, jobs and history refer to them), and slugs never change, so links keep working. A new category starts hidden and can't be shown until it has a visible profession. Hidden ones disappear from customers' choices and new provider applications; providers who already offer them keep them. Every change is audited.
 - **What the dashboard counts, per day:** registrations, jobs posted, requests sent, jobs marked done (from the audit log), daily active users, messages sent (counted only, never read), community posts, comments and follows, reports received, notifications, and anonymous searches (with how they turned out) and provider profile views. Also: who is online now, verification and install figures, and failed sign-ins.
 - **Daily active users:** the presence heartbeat adds one row per account per day to `user_activity_days`.
 - **Searches and profile views** are anonymous daily totals in `app_daily_counts` (`POST /api/v1/app-events/count`): no person, device, place or search text is stored, and repeated profile views in one visit count once, so the figures are approximate.
@@ -504,6 +509,7 @@ Request → middleware (auth:sanctum, active, can:<permission>, throttle)
 | `community_comments` | Comments and one level of replies, with removal fields |
 | `community_post_likes`, `community_post_saves` | One like and one save per person per post |
 | `follows` | Who follows whom in the community, one row per pair |
+| `saved_providers` | Providers a customer saved to come back to |
 | `user_notifications` | Each account's notification list: kind, title, text, link, grouping tag and when it was read |
 | `user_activity_days` | One row per account per day it used the app, for daily active users |
 | `app_daily_counts` | Anonymous daily totals: searches and their outcomes, provider profile views |

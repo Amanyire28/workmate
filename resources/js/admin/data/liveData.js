@@ -28,6 +28,7 @@ export const daily = reactive([]);
 export const categories = reactive([]);          // [{ id, label, description, visible }]
 export const categoryLabels = reactive({});      // id → label
 export const professions = reactive([]);         // [{ id: slug, label, category }] active professions
+export const catalogueProfessions = reactive([]); // every profession, hidden ones too, with provider counts
 export const categoryWeights = reactive({});     // id → 1 (kept for code that lists every category)
 export const AREAS = reactive([]);               // [[name, weight, town]] as the demo shaped it
 export const townOf = reactive({});              // area name → town
@@ -86,6 +87,7 @@ export function loadAdminData({ force = false } = {}) {
             fill(daily, data.daily);
             fill(categories, data.categories);
             fill(professions, data.professions || []);
+            fill(catalogueProfessions, data.catalogueProfessions || []);
             for (const k of Object.keys(categoryLabels)) delete categoryLabels[k];
             for (const k of Object.keys(categoryWeights)) delete categoryWeights[k];
             for (const c of data.categories) { categoryLabels[c.id] = c.label; categoryWeights[c.id] = 1; }

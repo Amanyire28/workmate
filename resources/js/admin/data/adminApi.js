@@ -10,7 +10,7 @@
  */
 import {
     core, ops, daily, COMMISSION_RATE, PROCESSING_FEE_RATE, categoryLabels, categoryWeights, NOW, DAY, townOf,
-    categories, installs, presenceNow, signIns, loadAdminData, onReload,
+    categories, installs, presenceNow, signIns, loadAdminData, onReload, catalogueProfessions,
 } from './liveData.js';
 import { patches, created, settings } from '../stores/prototypeChanges.js';
 import { api } from '@/api/client.js';
@@ -473,8 +473,10 @@ function categoryRows() {
     return categories.map((cat, i) => {
         const jobs30 = c.jobs.filter(j => j.category === cat.id && new Date(j.createdAt).getTime() >= since(30));
         const completed = c.bookings.filter(b => b.service === cat.id && b.status === 'completed');
+        const inCategory = catalogueProfessions.filter(p => p.category === cat.id);
         return {
-            id: cat.id, name: cat.label, description: cat.description, position: i + 1, visible: true,
+            id: cat.id, name: cat.label, description: cat.description, position: i + 1, visible: !!cat.visible, icon: cat.icon || 'bi-briefcase',
+            professions: inCategory.filter(p => p.visible).length, hiddenProfessions: inCategory.filter(p => !p.visible).length,
             providers: c.providers.filter(p => p.status === 'active' && p.services.includes(cat.id)).length,
             jobs30: jobs30.length,
             avgPrice: completed.length ? Math.round(completed.reduce((s, b) => s + b.price, 0) / completed.length) : null,
@@ -543,6 +545,7 @@ const DATASETS = {
     quotations: () => core().quotations,
     bookings: () => core().bookings,
     categories: categoryRows,
+    professions: () => catalogueProfessions.map(p => ({ ...p })),
     portfolios: () => ops().portfolio,
     reviews: () => core().reviews,
     'location-overview': () => ops().areas,

@@ -38,7 +38,8 @@ export function categoryColor(id) {
 }
 
 export function categoryIcon(id) {
-    return categoryIcons[id] || 'bi-briefcase';
+    // Categories added in the admin bring their own icon
+    return categoryIcons[id] || getCategoryById(id).icon || 'bi-briefcase';
 }
 
 export function categoryLabel(id) {

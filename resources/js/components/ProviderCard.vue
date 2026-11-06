@@ -24,6 +24,7 @@
           </span>
         </p>
       </div>
+      <SaveProviderButton :provider-id="provider.id" :name="displayName(provider)" class="-mr-2 -mt-1.5" />
     </div>
 
     <div class="flex flex-wrap gap-1.5">
@@ -55,6 +56,7 @@
 
 <script setup>
 import UserAvatar from './UserAvatar.vue';
+import SaveProviderButton from './SaveProviderButton.vue';
 import AvailabilityBadge from './AvailabilityBadge.vue';
 import VerifiedBadge from './VerifiedBadge.vue';
 import { displayName, tradeLabel, formatPrice } from '@/utils/ui.js';

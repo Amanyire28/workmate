@@ -43,6 +43,20 @@ export const CONNECTED = {
         hide: review('hidden'),
         restore: review('published'),
     },
+    categories: {
+        create: (v) => post('/admin/categories', { name: v.name, description: v.description || null, icon: v.icon }),
+        edit: (r, v) => patch(`/admin/categories/${r.id}`, { name: v.name, description: v.description || null, icon: v.icon }),
+        'move-up': (r) => post(`/admin/categories/${r.id}/move`, { direction: 'up' }),
+        'move-down': (r) => post(`/admin/categories/${r.id}/move`, { direction: 'down' }),
+        hide: (r, v) => post(`/admin/categories/${r.id}/hide`, { reason: v.reason }),
+        show: (r, v) => post(`/admin/categories/${r.id}/show`, { reason: v.reason || null }),
+    },
+    professions: {
+        create: (v) => post('/admin/professions', { category: v.category, name: v.name, plural_name: v.plural_name }),
+        edit: (r, v) => patch(`/admin/professions/${r.id}`, { name: v.name, plural_name: v.plural_name, category: v.category }),
+        hide: (r, v) => post(`/admin/professions/${r.id}/hide`, { reason: v.reason }),
+        show: (r, v) => post(`/admin/professions/${r.id}/show`, { reason: v.reason || null }),
+    },
     reports: {
         assign: (r) => post(`/admin/reports/${num(r.id)}/assign`, {}),
         'request-info': (r, v) => post(`/admin/reports/${num(r.id)}/request-information`, { question: v.question }),
@@ -77,6 +91,8 @@ export function connectActions(modules) {
         const def = modules[moduleId];
         if (!def?.actions) continue;
         def.actions = def.actions.map(a => (runs[a.id] ? { ...a, run: runs[a.id] } : a));
+        // The screen's "New …" button
+        if (runs.create && def.create) def.create = { ...def.create, run: runs.create };
     }
     return modules;
 }

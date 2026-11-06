@@ -410,7 +410,8 @@ function openCreate() {
   dialog.value = {
     kind: 'create', title: def.create.label,
     message: (typeof def.create.message === 'function' ? def.create.message() : def.create.message) || '',
-    confirmLabel: def.create.confirmLabel || 'Create', tone: 'primary', fields: def.create.fields,
+    confirmLabel: def.create.confirmLabel || 'Create', tone: 'primary',
+    fields: typeof def.create.fields === 'function' ? def.create.fields() : def.create.fields,
   };
 }
 

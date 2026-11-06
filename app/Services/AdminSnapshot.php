@@ -110,8 +110,10 @@ class AdminSnapshot
             'generatedAt' => now()->toIso8601String(),
             'trackedSeries' => self::TRACKED_SERIES,
             'categories' => $categories->map(function ($c) {
-                return ['id' => $c->slug, 'label' => $c->name, 'description' => $c->description, 'visible' => $c->is_active];
+                return ['id' => $c->slug, 'label' => $c->name, 'description' => $c->description, 'visible' => $c->is_active, 'icon' => $c->icon, 'sortOrder' => $c->sort_order];
             })->values(),
+            // Every profession, hidden ones too, for managing the catalogue
+            'catalogueProfessions' => $can('marketplace.view', 'catalogue.manage') ? $this->catalogueProfessions() : [],
             'professions' => Profession::active()->with('category')->orderBy('name')->get()->map(function ($p) {
                 return ['id' => $p->slug, 'label' => $p->name, 'category' => $p->category->slug];
             })->values(),
@@ -317,6 +319,23 @@ class AdminSnapshot
                         ->sortBy('at')->values()->all(),
                 ];
             });
+    }
+
+    private function catalogueProfessions(): Collection
+    {
+        // Approved providers offering each profession
+        $providers = DB::table('provider_professions')
+            ->join('provider_profiles', 'provider_profiles.id', '=', 'provider_professions.provider_profile_id')
+            ->where('provider_profiles.status', ProviderProfile::STATUS_APPROVED)->where('provider_profiles.is_sample', false)
+            ->select('profession_id', DB::raw('count(*) as total'))->groupBy('profession_id')->pluck('total', 'profession_id');
+
+        return Profession::with('category')->orderBy('name')->get()->map(function (Profession $p) use ($providers) {
+            return [
+                'id' => $p->slug, 'name' => $p->name, 'pluralName' => $p->plural_name, 'category' => $p->category->slug,
+                'visible' => (bool) $p->is_active, 'categoryVisible' => (bool) $p->category->is_active,
+                'providers' => (int) ($providers[$p->id] ?? 0), 'history' => $this->historyFor(Profession::class, $p->id),
+            ];
+        })->values();
     }
 
     /** Professions applicants typed under "Other" */
@@ -674,7 +693,7 @@ class AdminSnapshot
         }
 
         $map = ['account' => 'accounts', 'provider' => 'providers', 'marketplace' => 'marketplace', 'trust' => 'trust', 'settings' => 'admin', 'comms' => 'notifications',
-            'verification' => 'providers', 'profession' => 'providers', 'community' => 'community', 'admin' => 'admin'];
+            'verification' => 'providers', 'profession' => 'providers', 'community' => 'community', 'admin' => 'admin', 'catalogue' => 'admin'];
 
         return $map[Str::before($action, '.')] ?? 'system';
     }
@@ -733,6 +752,8 @@ class AdminSnapshot
                 return ['type' => 'verification', 'id' => $s ? 'VA-'.$s->document_verification_id : '—', 'label' => $s ? '“'.$s->label.'”' : 'A document'];
             case ProfessionSuggestion::class:
                 return ['type' => 'suggestion', 'id' => 'PS-'.$id, 'label' => $s ? '“'.$s->name.'”' : 'A typed profession'];
+            case Category::class:
+                return ['type' => 'category', 'id' => $s ? $s->slug : '—', 'label' => $s ? '“'.$s->name.'”' : 'A category'];
             case Profession::class:
                 return ['type' => 'profession', 'id' => $s ? $s->slug : '—', 'label' => $s ? '“'.$s->name.'”' : 'A profession'];
             case Review::class:
@@ -818,6 +839,14 @@ class AdminSnapshot
             'community.post_restored' => "{$who} restored a post: {$what}",
             'community.comment_deleted' => "{$who} deleted a comment: {$what}",
             'community.comment_removed' => "{$who} removed a comment: {$what}",
+            'catalogue.category_created' => "{$who} added the category {$what} (hidden until shown)",
+            'catalogue.category_updated' => "{$who} edited the category {$what}",
+            'catalogue.category_shown' => "{$who} showed the category {$what} to customers",
+            'catalogue.category_hidden' => "{$who} hid the category {$what} from customers",
+            'catalogue.category_moved' => "{$who} moved the category {$what}",
+            'catalogue.profession_updated' => "{$who} edited the profession {$what}",
+            'catalogue.profession_shown' => "{$who} showed the profession {$what} to customers",
+            'catalogue.profession_hidden' => "{$who} hid the profession {$what} from customers",
             'auth.signed_in' => "{$who} signed in",
             'auth.sign_in_failed' => 'A sign-in failed'.($log->subject_id ? " for {$what}" : ' (no such account)'),
             'auth.sign_in_blocked' => "{$who} tried to sign in to an account that isn’t active",

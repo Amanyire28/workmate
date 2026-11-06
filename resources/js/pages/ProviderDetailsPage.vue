@@ -86,6 +86,10 @@
           <router-link :to="`/messages/${provider.id}`" class="wm-btn wm-btn-secondary wm-btn-lg wm-btn-block">
             <i class="bi bi-chat-dots" aria-hidden="true"></i> Message
           </router-link>
+          <button type="button" class="wm-btn wm-btn-ghost wm-btn-block !min-h-11" :aria-pressed="isSaved(provider.id)" @click="toggleSaved(provider.id, name)">
+            <i :class="['bi', isSaved(provider.id) ? 'bi-heart-fill text-[#E11D48]' : 'bi-heart']" aria-hidden="true"></i>
+            {{ isSaved(provider.id) ? 'Saved' : 'Save for later' }}
+          </button>
         </div>
 
         <p class="wm-notice wm-notice-warning mt-4 !text-[13px]">
@@ -238,6 +242,7 @@ import { providers, loadProviderReviews, agoLabel } from '@/stores/catalog.js';
 import { api } from '@/api/client.js';
 import { categoryOf, toggleFollow } from '@/stores/community.js';
 import { countProfileView } from '@/utils/usage.js';
+import { isSaved, toggleSaved } from '@/stores/saved.js';
 import {
   displayName, tradeLabel, formatPrice, categoryIcon, categoryLabel, providerTypeLabels,
 } from '@/utils/ui.js';

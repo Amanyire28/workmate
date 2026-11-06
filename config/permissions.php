@@ -22,6 +22,7 @@ return [
         'activity.view' => 'View the operational event log',
         'marketplace.view' => 'View customers, providers, jobs and bookings',
         'providers.review' => 'Review provider applications and verification',
+        'catalogue.manage' => 'Add, rename, reorder and hide service categories and professions',
         'location.view' => 'View location intelligence (no precise provider positions)',
         'location.configure' => 'Change matching configuration',
         'trust.view' => 'Work trust and safety cases',
@@ -54,7 +55,7 @@ return [
         'operations' => [
             'name' => 'Operations Administrator',
             'description' => 'Runs the marketplace day to day.',
-            'permissions' => ['dashboard.view', 'activity.view', 'marketplace.view', 'providers.review', 'location.view', 'trust.view', 'finance.summary', 'comms.view', 'analytics.view', 'documents.review', 'reputation.view', 'bluetick.configure', 'verification.configure', 'usage.view', 'activity.users'],
+            'permissions' => ['dashboard.view', 'activity.view', 'marketplace.view', 'providers.review', 'catalogue.manage', 'location.view', 'trust.view', 'finance.summary', 'comms.view', 'analytics.view', 'documents.review', 'reputation.view', 'bluetick.configure', 'verification.configure', 'usage.view', 'activity.users'],
         ],
         'provider_review' => [
             'name' => 'Provider Review Administrator',

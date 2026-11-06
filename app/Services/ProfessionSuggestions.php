@@ -8,7 +8,6 @@ use App\Models\Profession;
 use App\Models\ProfessionSuggestion;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 /**
  * Administrators' decisions on professions applicants typed under "Other".
@@ -45,7 +44,7 @@ class ProfessionSuggestions
             $category = Category::where('slug', $data['category'])->firstOrFail();
             $profession = Profession::create([
                 'category_id' => $category->id,
-                'slug' => $this->uniqueSlug($name),
+                'slug' => Catalogue::professionSlug($name),
                 'name' => $name,
                 'plural_name' => trim($data['plural_name']),
                 'sort_order' => ((int) Profession::where('category_id', $category->id)->max('sort_order')) + 10,
@@ -146,16 +145,5 @@ class ProfessionSuggestions
         if ($suggestion->profile->hasMember($admin)) {
             throw new BusinessRuleException('conflict_of_interest', 'You cannot decide on a provider you belong to.', 403);
         }
-    }
-
-    private function uniqueSlug(string $name): string
-    {
-        $base = Str::limit(Str::slug($name, '_'), 44, '') ?: 'profession';
-        $slug = $base;
-        for ($i = 2; Profession::where('slug', $slug)->exists(); $i++) {
-            $slug = $base.'_'.$i;
-        }
-
-        return $slug;
     }
 }

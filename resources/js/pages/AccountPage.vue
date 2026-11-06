@@ -77,6 +77,16 @@
       <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
     </router-link>
 
+    <!-- Providers kept for later -->
+    <router-link v-if="user" to="/saved" class="wm-card wm-card-link mt-3 flex items-center gap-4">
+      <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-heart"></i></span>
+      <span class="min-w-0 flex-1">
+        <span class="block text-[15px] font-semibold text-ink">Saved providers</span>
+        <span class="block wm-meta">{{ saved.ids.size ? `${saved.ids.size} saved` : 'Tap the heart on a provider to keep them here' }}</span>
+      </span>
+      <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+    </router-link>
+
     <!-- Reports, complaints and notices from WorkMate -->
     <router-link v-if="user" to="/account/reports" class="wm-card wm-card-link mt-3 flex items-center gap-4">
       <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-flag"></i></span>
@@ -283,6 +293,7 @@ import FormField from '@/components/FormField.vue';
 import PrimaryButton from '@/components/PrimaryButton.vue';
 import ProviderApplicationPanel from '@/components/ProviderApplicationPanel.vue';
 import PushNotificationSetting from '@/components/PushNotificationSetting.vue';
+import { saved } from '@/stores/saved.js';
 import PlacePicker from '@/components/PlacePicker.vue';
 import { appSettings } from '@/stores/catalog.js';
 import { selectedArea } from '@/stores/location.js';

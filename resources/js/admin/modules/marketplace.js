@@ -3,7 +3,18 @@ import {
     categoryOptions, areaOptions, categoryLabel,
 } from './helpers.js';
 import { ranking } from '../components/charts/builders.js';
-import { professions } from '../data/liveData.js';
+import { professions, categories as liveCategories } from '../data/liveData.js';
+
+// Icons a category can use (Bootstrap Icons)
+const CATEGORY_ICONS = [
+    ['bi-tools', 'Tools'], ['bi-hammer', 'Hammer'], ['bi-wrench', 'Wrench'], ['bi-bricks', 'Bricks'], ['bi-house', 'House'],
+    ['bi-droplet', 'Water drop'], ['bi-lightning-charge', 'Electricity'], ['bi-sun', 'Sun'], ['bi-brush', 'Brush'], ['bi-palette', 'Palette'],
+    ['bi-stars', 'Sparkles'], ['bi-flower1', 'Flower'], ['bi-tree', 'Tree'], ['bi-truck', 'Truck'], ['bi-car-front', 'Car'],
+    ['bi-scissors', 'Scissors'], ['bi-camera', 'Camera'], ['bi-music-note', 'Music'], ['bi-laptop', 'Laptop'], ['bi-phone', 'Phone'],
+    ['bi-shield-check', 'Shield'], ['bi-heart-pulse', 'Health'], ['bi-book', 'Book'], ['bi-cup-hot', 'Cup'], ['bi-basket', 'Basket'],
+    ['bi-briefcase', 'Briefcase'],
+];
+const categoryChoices = () => liveCategories.map(c => [c.id, `${c.label}${c.visible ? '' : ' (hidden)'}`]);
 
 const newest = (list) => [...list].reverse();
 const bookingCols = [
@@ -500,7 +511,9 @@ export default {
         ],
         charts: (rows) => [ranking({ id: 'cat-supply', title: 'Active providers per category', summary: `${rows.slice().sort((a, b) => b.providers - a.providers)[0]?.name} has the most active providers.`, rows: rows.map(r => ({ label: r.name, value: r.providers })).sort((a, b) => b.value - a.value), columnLabel: 'Active providers' })],
         columns: [
+            { key: 'position', label: '#', format: 'number', sortable: true },
             { key: 'name', label: 'Category', sortable: true, sub: r => r.description },
+            { key: 'professions', label: 'Professions', format: 'number', align: 'right', sortable: true },
             { key: 'providers', label: 'Active providers', format: 'number', align: 'right', sortable: true },
             { key: 'jobs30', label: 'Jobs (30 days)', format: 'number', align: 'right', sortable: true },
             { key: 'avgPrice', label: 'Average booking', format: 'money', align: 'right', sortable: true },
@@ -508,24 +521,90 @@ export default {
         ],
         detail: {
             sections: (r) => [
-                { title: 'Category', fields: [['Name', r.name], ['Description', r.description], ['Display order', r.position, 'number'], ['Visible', r.visible, 'bool'],
+                { title: 'Category', fields: [['Name', r.name], ['Web address', r.id], ['Description', r.description], ['Icon', r.icon], ['Display order', r.position, 'number'], ['Visible', r.visible, 'bool'],
+                    ['Visible professions', r.professions, 'number'], ['Hidden professions', r.hiddenProfessions, 'number'],
                     ['Active providers', r.providers, 'number'], ['Job requests (30 days)', r.jobs30, 'number'], ['Average completed booking', r.avgPrice, 'money']] },
+                { title: 'Professions in it', text: 'Add, rename or move professions under Marketplace → Professions.' },
                 historySection,
             ],
         },
         actions: [
-            { id: 'hide', label: 'Hide from customers', done: 'Hidden', permission: 'admin.manage', reason: 'required', when: r => r.visible, tone: 'danger',
-              message: () => 'Existing bookings are not affected; new searches won’t show this category.', apply: () => ({ patch: { visible: false } }) },
-            { id: 'show', label: 'Show to customers', done: 'Made visible', permission: 'admin.manage', reason: 'optional', when: r => !r.visible, tone: 'primary',
-              apply: () => ({ patch: { visible: true } }) },
+            { id: 'edit', label: 'Edit', done: 'Saved', permission: 'catalogue.manage', icon: 'bi-pencil',
+              message: () => 'Its web address stays the same, so links and existing jobs keep working.',
+              fields: (r) => [
+                  { key: 'name', label: 'Name', type: 'text', required: true, initial: r.name, maxLength: 60 },
+                  { key: 'description', label: 'Short description', type: 'text', initial: r.description || '', maxLength: 255 },
+                  { key: 'icon', label: 'Icon', type: 'select', options: CATEGORY_ICONS, initial: r.icon },
+              ] },
+            { id: 'move-up', label: 'Move up', done: 'Moved up', permission: 'catalogue.manage', icon: 'bi-arrow-up', when: r => r.position > 1, fields: () => [] },
+            { id: 'move-down', label: 'Move down', done: 'Moved down', permission: 'catalogue.manage', icon: 'bi-arrow-down', fields: () => [] },
+            { id: 'hide', label: 'Hide from customers', done: 'Hidden', permission: 'catalogue.manage', reason: 'required', when: r => r.visible, tone: 'danger', icon: 'bi-eye-slash',
+              message: () => 'Customers can’t choose it for new jobs or requests, and new providers can’t pick its professions. Providers who already offer it, and past jobs, aren’t changed.' },
+            { id: 'show', label: 'Show to customers', done: 'Shown', permission: 'catalogue.manage', reason: 'optional', when: r => !r.visible, tone: 'primary', icon: 'bi-eye',
+              message: (r) => (r.professions ? 'Customers can choose it straight away.' : 'Add a visible profession under Professions first: an empty category can’t be shown.') },
         ],
         create: {
-            label: 'New category', done: 'Category created', permission: 'admin.manage',
+            label: 'New category', done: 'Category created (hidden until you show it)', permission: 'catalogue.manage',
+            message: 'It starts hidden, so you can add its professions first. Show it when it’s ready.',
             fields: [
-                { key: 'name', label: 'Name', type: 'text', required: true },
-                { key: 'description', label: 'Short description', type: 'text', required: true },
+                { key: 'name', label: 'Name', type: 'text', required: true, maxLength: 60 },
+                { key: 'description', label: 'Short description', type: 'text', maxLength: 255 },
+                { key: 'icon', label: 'Icon', type: 'select', options: CATEGORY_ICONS, initial: 'bi-briefcase' },
             ],
-            build: (v, rows) => ({ id: v.name.toLowerCase().replace(/[^a-z]+/g, '-'), name: v.name, description: v.description, position: rows.length + 1, visible: false, providers: 0, jobs30: 0, avgPrice: null }),
+        },
+    },
+
+    /* ================= Professions ================= */
+    professions: {
+        type: 'records', entity: 'Profession', statusKey: false,
+        description: 'What providers offer within each category. Hidden professions can’t be chosen by new providers; providers who already offer one keep it.',
+        search: { keys: ['id', 'name', 'pluralName'], placeholder: 'Search professions' },
+        tabs: [
+            { id: 'all', label: 'All' },
+            { id: 'visible', label: 'Visible', filter: r => r.visible && r.categoryVisible },
+            { id: 'hidden', label: 'Hidden', filter: r => !r.visible || !r.categoryVisible },
+        ],
+        filters: [{ key: 'category', label: 'Category', options: categoryOptions }],
+        defaultSort: { key: 'name', dir: 'asc' },
+        kpis: (rows) => [
+            kpiCount('Professions', rows.length),
+            kpiCount('Visible to customers', count(rows, r => r.visible && r.categoryVisible)),
+            kpiCount('With no approved providers', count(rows, r => r.visible && !r.providers)),
+        ],
+        columns: [
+            { key: 'name', label: 'Profession', sortable: true, sub: r => r.pluralName },
+            { key: 'category', label: 'Category', format: 'category', sortable: true },
+            { key: 'providers', label: 'Approved providers', format: 'number', align: 'right', sortable: true },
+            { key: 'visible', label: 'Visible', format: 'bool', sortable: true },
+        ],
+        detail: {
+            title: r => r.name,
+            sections: (r) => [
+                { title: 'Profession', fields: [['Name', r.name], ['Plural (for headings)', r.pluralName], ['Web address', r.id], ['Category', r.category, 'category'],
+                    ['Visible', r.visible, 'bool'], ['Category visible', r.categoryVisible, 'bool'], ['Approved providers', r.providers, 'number']] },
+                historySection,
+            ],
+        },
+        actions: [
+            { id: 'edit', label: 'Edit', done: 'Saved', permission: 'catalogue.manage', icon: 'bi-pencil',
+              message: () => 'Its web address stays the same. Moving it to another category moves it for every provider who offers it.',
+              fields: (r) => [
+                  { key: 'name', label: 'Name', type: 'text', required: true, initial: r.name, maxLength: 60 },
+                  { key: 'plural_name', label: 'Plural, for headings (e.g. “plumbers”)', type: 'text', required: true, initial: r.pluralName, maxLength: 60 },
+                  { key: 'category', label: 'Category', type: 'select', options: categoryChoices(), initial: r.category },
+              ] },
+            { id: 'hide', label: 'Hide', done: 'Hidden', permission: 'catalogue.manage', reason: 'required', when: r => r.visible, tone: 'danger', icon: 'bi-eye-slash',
+              message: () => 'New providers can’t choose it and customers won’t see it. Providers who already offer it keep it.' },
+            { id: 'show', label: 'Show', done: 'Shown', permission: 'catalogue.manage', reason: 'optional', when: r => !r.visible, tone: 'primary', icon: 'bi-eye' },
+        ],
+        create: {
+            label: 'New profession', done: 'Profession added', permission: 'catalogue.manage',
+            // Read when the form opens, so it lists the categories as they are now
+            fields: () => [
+                { key: 'category', label: 'Category', type: 'select', required: true, options: categoryChoices() },
+                { key: 'name', label: 'Name (e.g. “Solar technician”)', type: 'text', required: true, maxLength: 60 },
+                { key: 'plural_name', label: 'Plural, for headings (e.g. “solar technicians”)', type: 'text', required: true, maxLength: 60 },
+            ],
         },
     },
 

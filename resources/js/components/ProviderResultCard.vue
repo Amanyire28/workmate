@@ -17,6 +17,7 @@
       >
         {{ distanceText }}<span v-if="origin.kind !== 'gps'" class="sr-only"> from {{ origin.name }}</span>
       </span>
+      <SaveProviderButton :provider-id="provider.id" :name="displayName(provider)" class="-mr-2 -mt-1.5" />
     </div>
 
     <ul class="wm-meta flex flex-col gap-1">
@@ -46,6 +47,7 @@
 <script setup>
 import { computed } from 'vue';
 import UserAvatar from './UserAvatar.vue';
+import SaveProviderButton from './SaveProviderButton.vue';
 import AvailabilityBadge from './AvailabilityBadge.vue';
 import { displayName, tradeLabel } from '@/utils/ui.js';
 import { formatKm } from '@/utils/nearbySearch.js';
