@@ -10,7 +10,7 @@
  */
 import {
     core, ops, daily, COMMISSION_RATE, PROCESSING_FEE_RATE, categoryLabels, categoryWeights, NOW, DAY, townOf,
-    categories, installs, loadAdminData, onReload,
+    categories, installs, presenceNow, signIns, loadAdminData, onReload,
 } from './liveData.js';
 import { patches, created, settings } from '../stores/prototypeChanges.js';
 import { api } from '@/api/client.js';
@@ -190,8 +190,11 @@ function usageRows() {
 
 function usageSnapshot() {
     return {
-        installsTotal: installs.devicesWithApp, dauToday: 0, launchesToday: 0, onlineNow: 0, onlineProviders: 0, offlineUsers: 0,
-        analyticsFailures: 1,   // app usage and presence collection isn't connected yet
+        installsTotal: installs.devicesWithApp, dauToday: presenceNow.activeToday, launchesToday: 0,
+        onlineNow: presenceNow.onlineNow, onlineProviders: presenceNow.onlineProviders, offlineUsers: 0,
+        // Presence and daily activity come from the heartbeat; nothing is failing to collect
+        analyticsFailures: 0,
+        failedSignIns24h: signIns.failedSignIns24h, accountsTargeted24h: signIns.accountsTargeted24h,
     };
 }
 
@@ -262,13 +265,15 @@ export function getVerificationApplication(id) {
 /* ---------------- Series ---------------- */
 const FLOW_KEYS = ['customersNew', 'providersNew', 'activeUsers', 'searches', 'searchNearby', 'searchWider', 'searchNone', 'gpsDenied', 'gpsTimeout',
     'profileViews', 'enquiries', 'jobsCreated', 'jobsCompleted', 'bookingsCreated', 'bookingsCompleted', 'bookingsCancelled',
-    'gtv', 'commission', 'fees', 'refunds', 'disputesOpened', 'disputesResolved'];
+    'gtv', 'commission', 'fees', 'refunds', 'disputesOpened', 'disputesResolved',
+    'messagesSent', 'communityPosts', 'communityComments', 'follows', 'reportsOpened', 'notificationsSent'];
 
 export function totals(rows) {
     const out = Object.fromEntries(FLOW_KEYS.map(k => [k, 0]));
     for (const r of rows) for (const k of FLOW_KEYS) out[k] += r[k];
-    // Active users is a distinct-user count: a daily average stands in until real tracking exists
-    out.activeUsers = rows.length ? Math.round(out.activeUsers / rows.length) : 0;
+    // Active users is a distinct count per day, so a period shows the daily average
+    // One decimal, so a quiet week doesn't round to nobody
+    out.activeUsers = rows.length ? Math.round((out.activeUsers / rows.length) * 10) / 10 : 0;
     return out;
 }
 
@@ -375,6 +380,9 @@ function priorities() {
         { id: 'replacements', severity: 'info', count: s.docsAwaitingReplacement, title: 'Rejected documents awaiting replacement', detail: 'Waiting on providers', to: '/admin/verification/applications', permission: 'documents.review' },
         { id: 'rules-draft', severity: 'warning', count: s.blueTickDraft, title: 'Blue tick rule changes awaiting publication', detail: 'A saved draft hasn’t been published', to: '/admin/reputation/rules', permission: 'reputation.view' },
         { id: 'reassess', severity: 'info', count: s.blueTickReassess, title: 'Providers needing eligibility reassessment', detail: 'Under review or awaiting the next run', to: '/admin/reputation/blue-tick', permission: 'reputation.view' },
+        { id: 'signins', severity: s.accountsTargeted24h ? 'critical' : (s.failedSignIns24h >= 20 ? 'warning' : 'info'), count: s.failedSignIns24h,
+          title: 'Failed sign-ins in the last 24 hours', detail: s.accountsTargeted24h ? `${s.accountsTargeted24h} account${s.accountsTargeted24h === 1 ? '' : 's'} with 5 or more failures: someone may be guessing a password` : 'Wrong passwords and unknown addresses',
+          to: '/admin/activity?category=security', permission: 'security.view' },
         { id: 'analytics', severity: 'warning', count: s.analyticsFailures, title: 'Activity collection not connected', detail: 'App usage and online presence aren’t being recorded yet', to: '/admin/system/integrations', permission: 'system.view' },
     ];
     const rank = { critical: 0, warning: 1, info: 2 };
@@ -385,7 +393,7 @@ function priorities() {
 export const EVENT_CATEGORIES = {
     accounts: 'Accounts', providers: 'Providers', search: 'Search and matching', marketplace: 'Jobs and bookings',
     finance: 'Payments and payouts', trust: 'Disputes and reports', content: 'Videos and content',
-    notifications: 'Notifications', security: 'Security', admin: 'Admin actions', system: 'System',
+    notifications: 'Notifications', security: 'Security', admin: 'Admin actions', community: 'Community', system: 'System',
 };
 const severityRank = { critical: 0, warning: 1, info: 2 };
 

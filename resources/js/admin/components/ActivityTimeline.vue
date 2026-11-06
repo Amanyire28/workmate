@@ -37,7 +37,7 @@ defineEmits(['select']);
 const icons = {
   accounts: 'bi-person-plus', providers: 'bi-person-badge', search: 'bi-search', marketplace: 'bi-briefcase',
   finance: 'bi-cash-coin', trust: 'bi-shield-exclamation', content: 'bi-camera-video', notifications: 'bi-bell',
-  security: 'bi-shield-lock', admin: 'bi-sliders', system: 'bi-cpu',
+  security: 'bi-shield-lock', admin: 'bi-sliders', community: 'bi-people', system: 'bi-cpu',
 };
 const iconFor = (e) => icons[e.category] || 'bi-dot';
 function toneClass(e) {

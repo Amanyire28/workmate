@@ -35,6 +35,10 @@ export const areaOptions = reactive([]);         // [[slug, label]] places for p
 export const installs = reactive({ available: false, trackingSince: null, devicesWithApp: 0, daily: [] });
 // Push notification set-up and subscribed devices, for administrators with comms.view
 export const push = reactive({ configured: false, subscribers: 0, byPlatform: {} });
+// Who is on WorkMate now and how many used it today (from the presence heartbeat)
+export const presenceNow = reactive({ available: false, onlineNow: 0, onlineProviders: 0, activeToday: 0 });
+// Sign-ins in the last 24 hours, for administrators with security.view
+export const signIns = reactive({ available: false, signIns24h: 0, failedSignIns24h: 0, accountsTargeted24h: 0 });
 
 const emptyCore = () => ({
     customers: [], providers: [], applicants: [], jobs: [], quotations: [], reviews: [],
@@ -94,6 +98,8 @@ export function loadAdminData({ force = false } = {}) {
             push.configured = !!data.push?.configured;
             push.subscribers = data.push?.subscribers || 0;
             push.byPlatform = data.push?.byPlatform || {};
+            Object.assign(presenceNow, { available: !!data.presenceNow, onlineNow: 0, onlineProviders: 0, activeToday: 0 }, data.presenceNow || {});
+            Object.assign(signIns, { available: !!data.security, signIns24h: 0, failedSignIns24h: 0, accountsTargeted24h: 0 }, data.security || {});
             live.trackedSeries = data.trackedSeries;
             live.generatedAt = data.generatedAt;
             live.status = 'ready';

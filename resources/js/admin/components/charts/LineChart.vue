@@ -64,7 +64,7 @@
 import { computed } from 'vue';
 import ChartTooltip from './ChartTooltip.vue';
 import { useChartFrame } from './useChartFrame.js';
-import { CHART_INK, niceScale, xTickIndices } from './chartUtils.js';
+import { CHART_INK, niceScale, allWhole, xTickIndices } from './chartUtils.js';
 
 const props = defineProps({
   labels:        { type: Array, required: true },              // x labels, one per point
@@ -79,7 +79,7 @@ const props = defineProps({
 const n = () => props.labels.length;
 const { wrap, width, active, keyboard, onKeydown, onFocus, clear } = useChartFrame(n);
 
-const scale = computed(() => niceScale(Math.max(0, ...props.series.flatMap(s => s.values))));
+const scale = computed(() => niceScale(Math.max(0, ...props.series.flatMap(s => s.values)), 4, allWhole(props.series)));
 // Left padding fits the widest tick label
 const pad = computed(() => ({
   l: Math.max(...scale.value.ticks.map(t => props.formatTick(t).length)) * 6.6 + 14,

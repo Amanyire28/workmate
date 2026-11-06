@@ -2,8 +2,7 @@
   <div class="flex flex-col gap-5">
     <AdminPageHeader
       title="Executive Dashboard"
-      description="Marketplace health at a glance: growth, bookings, money, matching and the issues that need an administrator."
-      demo
+      description="Marketplace health at a glance: growth, activity, matching and the issues that need an administrator."
     >
       <template #actions>
         <div class="flex flex-wrap items-center justify-end gap-2">
@@ -22,8 +21,8 @@
     <p class="flex items-start gap-2 rounded-lg border border-[#DCE7F5] bg-[#F5F9FF] px-3.5 py-2.5 text-[13px] text-[#1E4E8C]">
       <i class="bi bi-database mt-px" aria-hidden="true"></i>
       <span>
-        Figures come from the WorkMate database and leave out sample records.
-        Payments, bookings, searches, disputes and app usage aren’t recorded yet, so they show as <strong class="font-semibold">Not tracked yet</strong> rather than zero.
+        Figures come from the WorkMate database and leave out sample records. Searches and profile views are anonymous daily counts, so they’re approximate.
+        Payments, bookings and disputes aren’t built yet, so they show as <strong class="font-semibold">Not tracked yet</strong> rather than zero.
       </span>
     </p>
 
@@ -169,7 +168,7 @@ import { getDashboard } from '../data/adminApi.js';
 import { can } from '../permissions.js';
 import {
   formatNumber, formatUGX, formatUGXCompact, formatCompact, formatPercent,
-  percentChange, formatDay, formatAge, formatRelative,
+  percentChange, formatDay, formatAge, formatRelative, formatAverage,
 } from '../utils/format.js';
 
 /* ---------------- Data ---------------- */
@@ -222,7 +221,7 @@ const t = computed(() => data.value.totals);
 const prev = computed(() => data.value.previous);
 const s = computed(() => data.value.snapshot);
 const delta = (key) => (prev.value ? percentChange(t.value[key], prev.value[key]) : null);
-const isEmpty = computed(() => data.value && data.value.daily.every(d => d.searches === 0 && d.jobsCreated === 0));
+const isEmpty = computed(() => data.value && data.value.daily.every(d => d.searches === 0 && d.jobsCreated === 0 && d.activeUsers === 0));
 
 const rangeText = computed(() => (data.value
   ? `${formatDay(data.value.range.start)} – ${formatDay(data.value.range.end)} (${data.value.range.days} days)`
@@ -260,8 +259,10 @@ const kpis = computed(() => {
       permission: 'finance.summary',
     },
     {
-      label: 'Searches with no match', value: '', available: false,
-      unavailableReason: 'Search tracking isn’t connected yet.',
+      label: 'Searches with no match',
+      value: t.value.searches ? formatPercent(t.value.searchNone / t.value.searches) : '—',
+      context: t.value.searches ? `${formatNumber(t.value.searchNone)} of ${formatNumber(t.value.searches)} searches` : 'No searches in the period',
+      hint: 'Anonymous daily counts from the homepage search, so approximate.',
     },
   ];
   return list.filter(k => can(k.permission)).map(({ permission, ...k }) => k);
@@ -276,7 +277,7 @@ const metricGroups = computed(() => {
         { label: 'Registered customers', value: formatNumber(s.value.totalCustomers), to: can('marketplace.view') ? '/admin/marketplace/customers' : '' },
         { label: 'Registered providers', value: formatNumber(s.value.totalProviders), to: can('marketplace.view') ? '/admin/marketplace/providers' : '' },
         { label: 'Providers awaiting approval', value: formatNumber(s.value.providersAwaitingApproval), to: can('providers.review') ? '/admin/marketplace/applications' : '' },
-        { label: 'Active users (daily average)', value: NOT_TRACKED, hint: 'App usage tracking isn’t connected yet.' },
+        { label: 'Active users (daily average)', value: formatAverage(t.value.activeUsers), delta: delta('activeUsers'), hint: 'Signed-in people who used WorkMate that day.' },
       ],
     },
     {
@@ -285,28 +286,39 @@ const metricGroups = computed(() => {
         { label: 'Open job requests', value: formatNumber(s.value.openJobs), to: can('marketplace.view') ? '/admin/marketplace/jobs' : '' },
         { label: 'Jobs posted in the period', value: formatNumber(t.value.jobsCreated), delta: delta('jobsCreated') },
         { label: 'Requests sent to providers', value: formatNumber(t.value.enquiries), delta: delta('enquiries') },
+        { label: 'Jobs marked done', value: formatNumber(t.value.jobsCompleted), delta: delta('jobsCompleted') },
         { label: 'Completed bookings', value: NOT_TRACKED, hint: 'Bookings aren’t built yet.' },
+      ],
+    },
+    {
+      title: 'Community and messages',
+      items: [
+        { label: 'Messages sent', value: formatNumber(t.value.messagesSent), delta: delta('messagesSent'), hint: 'Counted only; nobody’s messages are read.' },
+        { label: 'Community posts', value: formatNumber(t.value.communityPosts), delta: delta('communityPosts') },
+        { label: 'Comments', value: formatNumber(t.value.communityComments), delta: delta('communityComments') },
+        { label: 'New follows', value: formatNumber(t.value.follows), delta: delta('follows') },
       ],
     },
     {
       title: 'Risk and money owed',
       items: [
         { label: 'Unresolved safety reports', value: formatNumber(s.value.unresolvedReports), to: can('trust.view') ? '/admin/trust/reports' : '' },
+        { label: 'Reports received in the period', value: formatNumber(t.value.reportsOpened), delta: delta('reportsOpened') },
         { label: 'Open disputes', value: NOT_TRACKED, hint: 'Disputes need bookings, which aren’t built yet.' },
         ...(can('finance.summary') ? [{ label: 'Pending provider payouts', value: NOT_TRACKED, hint: 'Payouts aren’t connected yet.' }] : []),
       ],
     },
   ];
   // Document verification, the automatic blue tick and app usage are separate systems: separate groups
-  // These three systems aren't running yet: say so rather than show zeros
   if (can('documents.review')) groups.push({
     title: 'Verification',
     items: [
-      { label: 'WorkMate Verified providers', value: NOT_TRACKED, hint: 'Document verification needs secure file storage, which isn’t built yet.' },
-      { label: 'Applications awaiting review', value: NOT_TRACKED },
-      { label: 'Documents awaiting review', value: NOT_TRACKED },
+      { label: 'Providers with approved documents', value: formatNumber(s.value.verifiedProviders), to: '/admin/verification/applications' },
+      { label: 'Verifications awaiting review', value: formatNumber(s.value.pendingVerification), to: '/admin/verification/applications' },
+      { label: 'Documents awaiting review', value: formatNumber(s.value.docsAwaitingReview), to: '/admin/verification/applications' },
     ],
   });
+  // Automatic evaluation isn't running yet: say so rather than show zeros
   if (can('reputation.view')) groups.push({
     title: 'Blue tick',
     items: [
@@ -317,9 +329,9 @@ const metricGroups = computed(() => {
   if (can('usage.view')) groups.push({
     title: 'App usage',
     items: [
-      { label: 'Recorded web app installs', value: NOT_TRACKED, hint: 'Install and usage tracking isn’t connected yet.' },
-      { label: 'Daily active users', value: NOT_TRACKED },
-      { label: 'Online now', value: NOT_TRACKED },
+      { label: 'Devices with the app installed', value: formatNumber(s.value.installsTotal), to: '/admin/analytics/downloads' },
+      { label: 'Active today', value: formatNumber(s.value.dauToday), hint: 'Signed-in people who opened WorkMate today.' },
+      { label: 'Online now', value: formatNumber(s.value.onlineNow), hint: `Including ${formatNumber(s.value.onlineProviders)} providers.` },
     ],
   });
   return groups;
@@ -343,7 +355,6 @@ const NOT_TRACKED = 'Not tracked yet';
 const UNTRACKED_CHARTS = {
   conversion: 'Bookings aren’t built yet, so there’s no conversion to measure.',
   money: 'Payments aren’t connected yet, so no transaction value or commission is recorded.',
-  search: 'Search tracking isn’t connected yet.',
   disputes: 'Disputes need bookings, which aren’t built yet.',
 };
 
@@ -406,6 +417,36 @@ const charts = computed(() => {
       },
       table: { columns: [bucketCol, { key: 'cr', label: 'Jobs posted', format: formatNumber }, { key: 'co', label: 'Requests to a provider', format: formatNumber }],
         rows: bucketRows(b => ({ cr: b.jobsCreated, co: b.enquiries })) },
+    },
+    {
+      id: 'active', kind: 'line', title: 'Daily active users',
+      summary: `On average ${formatAverage(tot.activeUsers)} signed-in people used WorkMate each day${change('activeUsers')}.`,
+      legend: [{ label: 'Active users', color: C1 }],
+      props: {
+        labels: dayLabels, tooltipTitles: dayTitles, ariaLabel: 'Signed-in people who used WorkMate each day',
+        series: [{ key: 'a', label: 'Active users', color: C1, values: d.daily.map(r => r.activeUsers) }],
+        formatTick: formatCompact, formatValue: formatNumber,
+      },
+      table: { columns: [{ key: 'label', label: 'Day' }, { key: 'a', label: 'Active users', format: formatNumber }],
+        rows: d.daily.map((r, i) => ({ label: dayTitles[i], a: r.activeUsers })) },
+      empty: !d.daily.some(r => r.activeUsers),
+    },
+    {
+      id: 'community', kind: 'bar', title: 'Community activity',
+      summary: `${formatNumber(tot.communityPosts)} posts, ${formatNumber(tot.communityComments)} comments and ${formatNumber(tot.follows)} new follows${change('communityPosts')}.`,
+      legend: [{ label: 'Posts', color: C1 }, { label: 'Comments', color: C2 }, { label: 'Follows', color: C3 }],
+      props: {
+        labels: bLabels, tooltipTitles: bTitles, tooltipNotes: bNotes, ariaLabel: 'Community posts, comments and follows',
+        series: [
+          { key: 'p', label: 'Posts', color: C1, values: d.buckets.map(b => b.communityPosts) },
+          { key: 'c', label: 'Comments', color: C2, values: d.buckets.map(b => b.communityComments) },
+          { key: 'f', label: 'Follows', color: C3, values: d.buckets.map(b => b.follows) },
+        ],
+        formatTick: formatCompact, formatValue: formatNumber,
+      },
+      table: { columns: [bucketCol, { key: 'p', label: 'Posts', format: formatNumber }, { key: 'c', label: 'Comments', format: formatNumber }, { key: 'f', label: 'Follows', format: formatNumber }],
+        rows: bucketRows(b => ({ p: b.communityPosts, c: b.communityComments, f: b.follows })) },
+      empty: !(tot.communityPosts || tot.communityComments || tot.follows),
     },
     {
       id: 'conversion', kind: 'line', title: 'Booking conversion and cancellation',
@@ -490,7 +531,7 @@ const charts = computed(() => {
 
 // Card frames shown while the first load is in flight
 const placeholderCharts = [
-  'Registrations', 'Jobs created and completed', 'Booking conversion and cancellation',
+  'Registrations', 'Jobs created and completed', 'Daily active users', 'Community activity', 'Booking conversion and cancellation',
   'Transaction value and platform commission', 'Service demand by category', 'Providers by registered area',
   'Search outcomes', 'Disputes opened and resolved',
 ].map((title, i) => ({

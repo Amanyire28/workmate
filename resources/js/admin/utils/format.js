@@ -9,6 +9,12 @@ export function formatNumber(value) {
     return nf.format(Math.round(value));
 }
 
+/** An average: "0.4", "2.5", "37" (one decimal below 10, so small numbers don't read as nothing) */
+export function formatAverage(value) {
+    if (value == null) return '—';
+    return value < 10 ? String(Math.round(value * 10) / 10) : formatNumber(value);
+}
+
 /** "UGX 18,450,000" */
 export function formatUGX(value) {
     if (value == null) return '—';

@@ -102,7 +102,13 @@
           <dt class="text-[#64748B]">Event type</dt><dd class="font-mono text-[12.5px] text-ink">{{ selected.type }}</dd>
           <dt class="text-[#64748B]">Time</dt><dd class="text-ink">{{ formatDateTime(selected.timestamp) }}</dd>
           <dt class="text-[#64748B]">Initiated by</dt><dd class="text-ink">{{ selected.actorName }}</dd>
-          <dt class="text-[#64748B]">Related record</dt><dd class="text-ink">{{ selected.entity.label }} <span class="text-[#64748B]">({{ selected.entity.id }})</span></dd>
+          <dt class="text-[#64748B]">Related record</dt>
+          <dd class="text-ink">
+            {{ selected.entity.label }} <span class="text-[#64748B]">({{ selected.entity.id }})</span>
+            <a v-if="selected.entity.href" :href="selected.entity.href" target="_blank" rel="noopener" class="mt-0.5 flex items-center gap-1 text-[13px] font-medium text-primary hover:underline">
+              Open it in WorkMate<i class="bi bi-box-arrow-up-right text-[11px]" aria-hidden="true"></i>
+            </a>
+          </dd>
           <dt class="text-[#64748B]">Event ID</dt><dd class="font-mono text-[12.5px] text-ink">{{ selected.id }}</dd>
           <dt class="text-[#64748B]">Correlation ID</dt><dd class="font-mono text-[12.5px] text-ink">{{ selected.correlationId }}</dd>
         </dl>
@@ -158,8 +164,12 @@ const columns = [
 
 const defaults = { q: '', category: '', severity: '', outcome: '', days: 14 };
 const route = useRoute();
-// Opened from the dashboard feed with ?q=<event id>
-const filters = reactive({ ...defaults, q: typeof route.query.q === 'string' ? route.query.q : '' });
+// Opened from the dashboard feed with ?q=<event id>, or from a priority with ?category=
+const filters = reactive({
+  ...defaults,
+  q: typeof route.query.q === 'string' ? route.query.q : '',
+  category: typeof route.query.category === 'string' && EVENT_CATEGORIES[route.query.category] ? route.query.category : '',
+});
 const sort = ref({ key: 'timestamp', dir: 'desc' });
 const page = ref(1);
 const pageSize = 15;

@@ -32,7 +32,9 @@ class AdminDataTest extends ApiTestCase
         $this->assertCount(14, $data['core']['providers']);
         $this->assertCount(7, $data['core']['jobs']);
         $this->assertSame([], $data['core']['transactions'], 'payments are not built yet');
-        $this->assertSame(['customersNew', 'providersNew', 'jobsCreated', 'enquiries'], $data['trackedSeries']);
+        $this->assertSame(['customersNew', 'providersNew', 'jobsCreated', 'enquiries', 'jobsCompleted', 'activeUsers',
+            'searches', 'searchNearby', 'searchWider', 'searchNone', 'profileViews',
+            'messagesSent', 'communityPosts', 'communityComments', 'follows', 'reportsOpened', 'notificationsSent'], $data['trackedSeries']);
     }
 
     public function test_samples_are_labelled_and_left_out_of_figures()

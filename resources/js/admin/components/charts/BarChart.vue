@@ -61,7 +61,7 @@
 import { computed } from 'vue';
 import ChartTooltip from './ChartTooltip.vue';
 import { useChartFrame } from './useChartFrame.js';
-import { CHART_INK, niceScale, xTickIndices, roundedTopRect } from './chartUtils.js';
+import { CHART_INK, niceScale, allWhole, xTickIndices, roundedTopRect } from './chartUtils.js';
 
 const props = defineProps({
   labels:        { type: Array, required: true },
@@ -83,7 +83,7 @@ const GAP = 2;   // surface gap between adjacent bars and stacked segments
 const max = computed(() => (props.stacked
   ? Math.max(0, ...props.labels.map((_, i) => props.series.reduce((s, ser) => s + (ser.values[i] || 0), 0)))
   : Math.max(0, ...props.series.flatMap(s => s.values))));
-const scale = computed(() => niceScale(max.value));
+const scale = computed(() => niceScale(max.value, 4, allWhole(props.series)));
 const pad = computed(() => ({
   l: Math.max(...scale.value.ticks.map(t => props.formatTick(t).length)) * 6.6 + 14,
   r: 8, t: 10, b: 26,

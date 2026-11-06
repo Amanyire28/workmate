@@ -131,7 +131,7 @@ Throughout this README:
 - **Settings** that change the app straight away: nearby search (radii, maximum distance, fallbacks, GPS, tie-breaks), the default place, support phone and email, accepting provider applications, maintenance mode, and presence timings
 
 **Quality**
-- **192 automated tests** (feature and unit) on a separate MariaDB test database
+- **196 automated tests** (feature and unit) on a separate MariaDB test database
 
 ### 🟡 In development
 
@@ -362,7 +362,12 @@ Screens for features that aren't built yet (finance, bookings, disputes, videos,
   - **push announcements**: send to every subscribed device
   - admin roles: grant and remove
 - Sample records are listed with "(sample)" after the name but left out of every figure.
-- Anything not recorded yet (payments, bookings, disputes, searches) is shown as **Not tracked yet**, never as zero.
+- Anything not recorded yet (payments, bookings, disputes, the automatic blue tick) is shown as **Not tracked yet**, never as zero.
+- **What the dashboard counts, per day:** registrations, jobs posted, requests sent, jobs marked done (from the audit log), daily active users, messages sent (counted only, never read), community posts, comments and follows, reports received, notifications, and anonymous searches (with how they turned out) and provider profile views. Also: who is online now, verification and install figures, and failed sign-ins.
+- **Daily active users:** the presence heartbeat adds one row per account per day to `user_activity_days`.
+- **Searches and profile views** are anonymous daily totals in `app_daily_counts` (`POST /api/v1/app-events/count`): no person, device, place or search text is stored, and repeated profile views in one visit count once, so the figures are approximate.
+- **Sign-ins:** every sign-in, failed sign-in (with the address masked, linked to the account when one exists) and attempt on an inactive account is a **Security** event in the audit log. The dashboard's **Needs attention** shows failed sign-ins in the last 24 hours, marked critical when an account has 5 or more failures.
+- **Activity:** community events have their own **Community** category and plain-English titles, and posts and comments link to where they appear in WorkMate.
 - Actions that call the API are listed in `resources/js/admin/modules/connected.js` (or call the API from their module or page). Other actions aren't offered; the record shows how many aren't connected.
 - Every action needs a reason and is written to the audit log.
 - **Settings** (Platform and Matching tabs): every setting marked **Live** is saved on the server (`config/workmate.php`, audited) and sent to the app with `GET /catalog` → `settings`, which applies it. Platform name, currency, languages, road distance and "providers without a map location" are marked **Not available yet**, each with the reason.
@@ -490,6 +495,8 @@ Request → middleware (auth:sanctum, active, can:<permission>, throttle)
 | `community_post_likes`, `community_post_saves` | One like and one save per person per post |
 | `follows` | Who follows whom in the community, one row per pair |
 | `user_notifications` | Each account's notification list: kind, title, text, link, grouping tag and when it was read |
+| `user_activity_days` | One row per account per day it used the app, for daily active users |
+| `app_daily_counts` | Anonymous daily totals: searches and their outcomes, provider profile views |
 | `provider_reports` | Earlier reports about providers, copied into `reports`; kept unchanged until removal is approved |
 | `push_subscriptions`, `push_announcements` | Devices that turned on notifications, and announcements sent with their delivery counts |
 | `app_install_events` | Anonymous install prompts, installs and first launches per device and day |

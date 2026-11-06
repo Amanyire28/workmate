@@ -18,6 +18,8 @@ use App\Models\Report;
 use App\Models\PushAnnouncement;
 use App\Models\PushSubscription;
 use App\Models\Quotation;
+use App\Models\CommunityComment;
+use App\Models\CommunityPost;
 use App\Models\Review;
 use App\Models\ServiceRequest;
 use App\Models\User;
@@ -43,11 +45,18 @@ class AdminSnapshot
     public const HISTORY_DAYS = 180;
 
     /** Daily figures that are actually recorded; every other series key is not tracked yet */
-    public const TRACKED_SERIES = ['customersNew', 'providersNew', 'jobsCreated', 'enquiries'];
+    public const TRACKED_SERIES = ['customersNew', 'providersNew', 'jobsCreated', 'enquiries', 'jobsCompleted', 'activeUsers',
+        'searches', 'searchNearby', 'searchWider', 'searchNone', 'profileViews',
+        'messagesSent', 'communityPosts', 'communityComments', 'follows', 'reportsOpened', 'notificationsSent'];
 
     private const SERIES_KEYS = ['customersNew', 'providersNew', 'activeUsers', 'searches', 'searchNearby', 'searchWider', 'searchNone',
         'gpsDenied', 'gpsTimeout', 'profileViews', 'enquiries', 'jobsCreated', 'jobsCompleted', 'bookingsCreated', 'bookingsCompleted',
-        'bookingsCancelled', 'gtv', 'commission', 'fees', 'refunds', 'disputesOpened', 'disputesResolved'];
+        'bookingsCancelled', 'gtv', 'commission', 'fees', 'refunds', 'disputesOpened', 'disputesResolved',
+        'messagesSent', 'communityPosts', 'communityComments', 'follows', 'reportsOpened', 'notificationsSent'];
+
+    // Anonymous daily counters (app_daily_counts) and the series they feed
+    private const COUNTER_SERIES = ['search' => 'searches', 'search_nearby' => 'searchNearby', 'search_wider' => 'searchWider',
+        'search_none' => 'searchNone', 'profile_view' => 'profileViews'];
 
     private const PROVIDER_TYPES = ['individual' => 'individual', 'group' => 'team', 'company' => 'business'];
 
@@ -110,6 +119,8 @@ class AdminSnapshot
                 return ['slug' => $a->slug, 'name' => $a->name, 'town' => $a->town, 'district' => $a->district];
             })->values(),
             'daily' => $can('dashboard.view', 'analytics.view') ? $this->daily() : [],
+            'presenceNow' => $can('dashboard.view', 'usage.view', 'activity.users') ? $this->presenceNow() : null,
+            'security' => $can('security.view') ? $this->signInSecurity() : null,
             'installs' => $can('usage.view') ? $this->installs() : null,
             'push' => $can('comms.view') ? $this->pushStatus() : null,
             'core' => [
@@ -498,8 +509,8 @@ class AdminSnapshot
 
                 return [
                     'id' => 'EVT-'.$log->id, 'timestamp' => $log->created_at->toIso8601String(),
-                    'outcome' => 'success',
-                    'severity' => Str::contains($log->action, ['suspended', 'rejected', 'report_received', 'revoked']) ? 'warning' : 'info',
+                    'outcome' => Str::contains($log->action, ['sign_in_failed', 'sign_in_blocked']) ? 'failure' : 'success',
+                    'severity' => Str::contains($log->action, ['suspended', 'rejected', 'report_received', 'revoked', 'sign_in_failed', 'sign_in_blocked', 'removed']) ? 'warning' : 'info',
                     'correlationId' => null, 'type' => $log->action, 'category' => $category,
                     'actor' => $this->actorKind($log), 'actorName' => $log->actor ? $log->actor->name : 'System',
                     'entity' => $this->entity($log), 'summary' => $this->summary($log),
@@ -598,8 +609,10 @@ class AdminSnapshot
     {
         $start = now()->startOfDay()->subDays(self::HISTORY_DAYS - 1);
         $count = function ($query, string $column) use ($start) {
-            return $query->where($column, '>=', $start)->get([$column])->groupBy(function ($row) use ($column) {
-                return Carbon::parse($row->{$column})->toDateString();
+            $field = Str::afterLast($column, '.');
+
+            return $query->where($column, '>=', $start)->get([$column])->groupBy(function ($row) use ($field) {
+                return Carbon::parse($row->{$field})->toDateString();
             })->map->count();
         };
 
@@ -607,6 +620,20 @@ class AdminSnapshot
         $providers = $count(ProviderProfile::where('is_sample', false)->whereNotNull('approved_at'), 'approved_at');
         $jobs = $count(ServiceRequest::withTrashed()->where('is_sample', false)->where('is_posted_job', true), 'created_at');
         $enquiries = $count(ServiceRequest::withTrashed()->where('is_sample', false)->where('is_posted_job', false), 'created_at');
+        // Completed requests have no date of their own; the audit log records each one
+        $completed = $count(AuditLog::where('action', 'marketplace.request_completed'), 'created_at');
+        // Counted only: no message text is read. Sample accounts' messages are left out.
+        $messages = $count(DB::table('messages')->join('users', 'users.id', '=', 'messages.sender_id')
+            ->where('users.is_sample', false), 'messages.created_at');
+        $posts = $count(CommunityPost::withTrashed(), 'created_at');
+        $comments = $count(CommunityComment::withTrashed(), 'created_at');
+        $follows = $count(DB::table('follows'), 'created_at');
+        $reports = $count(Report::query(), 'created_at');
+        $notified = $count(DB::table('user_notifications'), 'created_at');
+        $active = DB::table('user_activity_days')->where('active_on', '>=', $start->toDateString())
+            ->select('active_on', DB::raw('count(*) as total'))->groupBy('active_on')->pluck('total', 'active_on');
+        $counters = DB::table('app_daily_counts')->where('counted_on', '>=', $start->toDateString())->get()
+            ->groupBy('counted_on');
 
         $days = [];
         for ($i = 0; $i < self::HISTORY_DAYS; $i++) {
@@ -617,6 +644,19 @@ class AdminSnapshot
             $day['providersNew'] = $providers[$date] ?? 0;
             $day['jobsCreated'] = $jobs[$date] ?? 0;
             $day['enquiries'] = $enquiries[$date] ?? 0;
+            $day['jobsCompleted'] = $completed[$date] ?? 0;
+            $day['messagesSent'] = $messages[$date] ?? 0;
+            $day['communityPosts'] = $posts[$date] ?? 0;
+            $day['communityComments'] = $comments[$date] ?? 0;
+            $day['follows'] = $follows[$date] ?? 0;
+            $day['reportsOpened'] = $reports[$date] ?? 0;
+            $day['notificationsSent'] = $notified[$date] ?? 0;
+            $day['activeUsers'] = (int) ($active[$date] ?? 0);
+            foreach ($counters->get($date, collect()) as $c) {
+                if (isset(self::COUNTER_SERIES[$c->metric])) {
+                    $day[self::COUNTER_SERIES[$c->metric]] = (int) $c->total;
+                }
+            }
             $days[] = $day;
         }
 
@@ -625,11 +665,12 @@ class AdminSnapshot
 
     private function eventCategory(string $action): string
     {
-        if (Str::startsWith($action, ['account.password', 'roles.', 'document.viewed'])) {
+        if (Str::startsWith($action, ['account.password', 'roles.', 'document.viewed', 'auth.'])) {
             return 'security';
         }
 
-        $map = ['account' => 'accounts', 'provider' => 'providers', 'marketplace' => 'marketplace', 'trust' => 'trust', 'settings' => 'admin', 'comms' => 'notifications', 'verification' => 'providers', 'profession' => 'providers'];
+        $map = ['account' => 'accounts', 'provider' => 'providers', 'marketplace' => 'marketplace', 'trust' => 'trust', 'settings' => 'admin', 'comms' => 'notifications',
+            'verification' => 'providers', 'profession' => 'providers', 'community' => 'community', 'admin' => 'admin'];
 
         return $map[Str::before($action, '.')] ?? 'system';
     }
@@ -664,6 +705,14 @@ class AdminSnapshot
                 return ['type' => 'applicant', 'id' => 'A-'.$id, 'label' => $s ? ($s->snapshot['display_name'] ?? 'Application') : 'Application'];
             case ServiceRequest::class:
                 return ['type' => 'job', 'id' => 'J-'.$id, 'label' => $s ? $s->title : 'Request'];
+            case CommunityPost::class:
+                return ['type' => 'post', 'id' => 'Post '.($s ? Str::limit($s->uuid, 8, '') : $id), 'label' => $s ? $this->excerpt($s->body, 'A post with photos') : 'A post',
+                    'href' => $s && ! $s->trashed() && $s->status === CommunityPost::STATUS_PUBLISHED ? '/community/post/'.$s->uuid : null];
+            case CommunityComment::class:
+                $post = $s ? CommunityPost::withTrashed()->find($s->community_post_id) : null;
+
+                return ['type' => 'comment', 'id' => 'Comment '.$id, 'label' => $s ? $this->excerpt($s->body, 'A comment') : 'A comment',
+                    'href' => $post && $post->isVisible() ? '/community/post/'.$post->uuid.'#comments' : null];
             case Quotation::class:
                 return ['type' => 'quotation', 'id' => 'Q-'.$id, 'label' => 'Application for a job'];
             case ProviderReport::class:
@@ -756,6 +805,18 @@ class AdminSnapshot
             'profession.suggestion_added' => "{$who} added a typed profession to the list",
             'profession.suggestion_matched' => "{$who} matched a typed profession to the list",
             'profession.suggestion_declined' => "{$who} declined a typed profession",
+            'verification.answers_changed' => "{$who} answered the questions about their documents",
+            'verification.requirements_published' => "{$who} published new document requirements",
+            'community.post_published' => "{$who} posted in the community: {$what}",
+            'community.post_edited' => "{$who} edited their post {$what}",
+            'community.post_deleted' => "{$who} deleted their post {$what}",
+            'community.post_removed' => "{$who} removed a post from the community: {$what}",
+            'community.post_restored' => "{$who} restored a post: {$what}",
+            'community.comment_deleted' => "{$who} deleted a comment: {$what}",
+            'community.comment_removed' => "{$who} removed a comment: {$what}",
+            'auth.signed_in' => "{$who} signed in",
+            'auth.sign_in_failed' => 'A sign-in failed'.($log->subject_id ? " for {$what}" : ' (no such account)'),
+            'auth.sign_in_blocked' => "{$who} tried to sign in to an account that isn’t active",
         ];
 
         return $phrases[$log->action] ?? Str::headline(str_replace('.', ' ', $log->action));
@@ -801,6 +862,43 @@ class AdminSnapshot
         }
 
         return $minutes <= $settings->get('presence.recent_minutes') ? 'recently_active' : 'offline';
+    }
+
+    private function excerpt(?string $text, string $empty): string
+    {
+        $text = trim((string) $text);
+
+        return $text === '' ? $empty : '“'.Str::limit(preg_replace('/\s+/', ' ', $text), 60).'”';
+    }
+
+    /** Who is on WorkMate right now, and how many people used it today */
+    private function presenceNow(): array
+    {
+        $since = now()->subMinutes((int) app(PlatformSettings::class)->get('presence.online_minutes'));
+        $online = User::where('is_sample', false)->where('last_seen_at', '>=', $since);
+
+        return [
+            'onlineNow' => (clone $online)->count(),
+            'onlineProviders' => (clone $online)->whereHas('providerProfile', function ($p) {
+                $p->where('status', ProviderProfile::STATUS_APPROVED);
+            })->count(),
+            'activeToday' => DB::table('user_activity_days')->where('active_on', now()->toDateString())->count(),
+        ];
+    }
+
+    /** Sign-ins in the last 24 hours, and how many failed */
+    private function signInSecurity(): array
+    {
+        $since = now()->subDay();
+        $failed = AuditLog::where('action', 'auth.sign_in_failed')->where('created_at', '>=', $since);
+
+        return [
+            'signIns24h' => AuditLog::where('action', 'auth.signed_in')->where('created_at', '>=', $since)->count(),
+            'failedSignIns24h' => (clone $failed)->count(),
+            // Several failures against one existing account suggest someone guessing its password
+            'accountsTargeted24h' => (clone $failed)->whereNotNull('subject_id')->select('subject_id')
+                ->groupBy('subject_id')->havingRaw('count(*) >= 5')->get()->count(),
+        ];
     }
 
     private function label(string $name, bool $isSample): string

@@ -237,6 +237,7 @@ import ReportSheet from '@/components/ReportSheet.vue';
 import { providers, loadProviderReviews, agoLabel } from '@/stores/catalog.js';
 import { api } from '@/api/client.js';
 import { categoryOf, toggleFollow } from '@/stores/community.js';
+import { countProfileView } from '@/utils/usage.js';
 import {
   displayName, tradeLabel, formatPrice, categoryIcon, categoryLabel, providerTypeLabels,
 } from '@/utils/ui.js';
@@ -254,6 +255,8 @@ const isOwn = computed(() => !!provider.value && isOwnProvider(provider.value.id
 // The shared catalog holds only recent reviews; fetch this provider's full list
 watch(() => route.params.id, (id) => {
   if (id) loadProviderReviews(Number(id)).catch(() => { /* the recent reviews still show */ });
+  // Counted anonymously for the dashboard; owners looking at their own profile aren't counted
+  if (id && !isOwnProvider(Number(id))) countProfileView(Number(id));
 }, { immediate: true });
 
 /* Their community page: followers, and their three latest posts */

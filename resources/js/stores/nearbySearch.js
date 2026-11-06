@@ -1,6 +1,7 @@
 import { reactive, watch } from 'vue';
 import { resolveOrigin, searchNearby } from '@/utils/nearbySearch.js';
 import { searchOrigin, requestDeviceLocation, gpsMaxAgeMs } from './location.js';
+import { countUsage } from '@/utils/usage.js';
 
 /**
  * State for the homepage "nearby" search: a short staged sequence the radar
@@ -94,6 +95,9 @@ export async function startNearbySearch(query) {
     }
 
     nearbySearch.stage = 'done';
+    // Counted for the dashboard: only how it turned out, never what or where
+    const g = result.groups;
+    countUsage('search', g.nearby.length ? 'nearby' : (g.extended.length || g.serving.length ? 'wider' : 'none'));
     await sleep(TIMING.done);
     if (id !== run) return;
     nearbySearch.status = 'done';

@@ -80,6 +80,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('jobs', [JobController::class, 'index'])->name('jobs.index');
     Route::get('jobs/{id}', [JobController::class, 'show'])->whereNumber('id')->name('jobs.show');
     Route::post('app-events', [AppEventController::class, 'store'])->middleware('throttle:app-events')->name('app-events.store');
+    Route::post('app-events/count', [AppEventController::class, 'count'])->middleware('throttle:app-counts')->name('app-events.count');
     Route::get('push/config', [PushSubscriptionController::class, 'config'])->name('push.config');
 
     // The community: anyone can read

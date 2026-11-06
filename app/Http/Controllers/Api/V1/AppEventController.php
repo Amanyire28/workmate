@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AppInstallEvent;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class AppEventController extends Controller
@@ -38,6 +39,29 @@ class AppEventController extends Controller
                 'occurred_on' => now()->toDateString(),
                 'created_at' => now(),
             ]);
+        }
+
+        return response()->json(['data' => ['recorded' => true]], 202);
+    }
+
+    /**
+     * Counts a search (and how it turned out) or a provider profile view.
+     * Only the day's total goes up: no person, device, place or search text
+     * is stored, so these figures are approximate by design.
+     */
+    public function count(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'metric' => ['required', Rule::in(['search', 'profile_view'])],
+            'outcome' => ['nullable', 'required_if:metric,search', Rule::in(['nearby', 'wider', 'none'])],
+        ]);
+
+        $metrics = [$data['metric']];
+        if ($data['metric'] === 'search') {
+            $metrics[] = 'search_'.$data['outcome'];
+        }
+        foreach ($metrics as $metric) {
+            DB::statement('INSERT INTO app_daily_counts (counted_on, metric, total) VALUES (?, ?, 1) ON DUPLICATE KEY UPDATE total = total + 1', [now()->toDateString(), $metric]);
         }
 
         return response()->json(['data' => ['recorded' => true]], 202);
