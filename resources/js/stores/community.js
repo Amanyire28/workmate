@@ -161,32 +161,8 @@ export { complain as showCommunityError };
 
 /* ---------------- Writing a post ---------------- */
 
-const PHOTO_SIDE = 2000;
-
-/**
- * Shrinks a phone photo before it's sent (saves data on slow connections).
- * The server checks and re-draws it anyway. Falls back to the original.
- */
-export async function preparePhoto(file) {
-    if (!/^image\/(jpeg|png|webp)$/.test(file.type) || typeof createImageBitmap !== 'function') return file;
-    try {
-        const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
-        const scale = Math.min(1, PHOTO_SIDE / Math.max(bitmap.width, bitmap.height));
-        if (scale === 1 && file.size < 1.5 * 1024 * 1024) return file;
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(bitmap.width * scale);
-        canvas.height = Math.round(bitmap.height * scale);
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-        const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.86));
-        if (!blob) return file;
-        return new File([blob], file.name.replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' });
-    } catch {
-        return file;
-    }
-}
+// Shrinking photos before upload is shared with requests
+export { preparePhoto } from '@/utils/photos.js';
 
 export async function publishPost({ category, body, topic, photos }, onProgress) {
     const form = new FormData();

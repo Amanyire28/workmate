@@ -75,9 +75,51 @@ class ServiceRequest extends Model
         return $this->hasMany(Quotation::class);
     }
 
+    public function photos()
+    {
+        return $this->hasMany(ServiceRequestPhoto::class)->orderBy('position');
+    }
+
     public function isPostedJob(): bool
     {
         return (bool) $this->is_posted_job;
+    }
+
+    /**
+     * Photos of a job show the inside of someone's home, so only the people
+     * involved see them: the customer; the provider the request went to (or
+     * who was hired), and everyone in that business; for an open posted job,
+     * approved providers who might apply, and those who already did; and
+     * administrators who can see the marketplace.
+     */
+    public function photosVisibleTo(?User $user): bool
+    {
+        if (! $user || ! $user->isActive()) {
+            return false;
+        }
+        if ($this->customer_id === (int) $user->getKey() || $user->can('marketplace.view')) {
+            return true;
+        }
+        if ($this->isPostedJob() && $this->status === self::STATUS_OPEN && $this->provider_profile_id === null && $user->isProvider()) {
+            return true;
+        }
+        $businesses = self::businessesOf($user);
+        if ($this->provider_profile_id && $businesses->contains($this->provider_profile_id)) {
+            return true;
+        }
+
+        return $this->isPostedJob() && $businesses->isNotEmpty()
+            && $this->quotations()->whereIn('provider_profile_id', $businesses)->exists();
+    }
+
+    /** The provider businesses the user belongs to, looked up once per request (kept on the user object) */
+    private static function businessesOf(User $user)
+    {
+        if (! $user->relationLoaded('memberBusinessIds')) {
+            $user->setRelation('memberBusinessIds', ProviderMember::where('user_id', $user->getKey())->pluck('provider_profile_id'));
+        }
+
+        return $user->getRelation('memberBusinessIds');
     }
 
     /** Requests sent to a provider business the user belongs to */

@@ -338,7 +338,7 @@ class AdminSnapshot
 
     private function jobs(): Collection
     {
-        return ServiceRequest::withTrashed()->with(['category', 'provider'])->withCount('quotations')->latest()->get()->map(function (ServiceRequest $j) {
+        return ServiceRequest::withTrashed()->with(['category', 'provider', 'photos'])->withCount('quotations')->latest()->get()->map(function (ServiceRequest $j) {
             return [
                 'id' => 'J-'.$j->id, 'requestId' => $j->id, 'title' => $this->label($j->title, $j->is_sample), 'category' => $j->category->slug,
                 'area' => $j->area_name, 'customerId' => 'C-'.$j->customer_id, 'createdAt' => $j->created_at->toIso8601String(),
@@ -348,6 +348,10 @@ class AdminSnapshot
                 'matching' => $j->status === ServiceRequest::STATUS_OPEN ? ($j->quotations_count ? 'quoted' : 'searching') : 'closed',
                 'status' => $j->trashed() ? 'cancelled' : $j->status,
                 'failureReason' => null, 'quotes' => (int) $j->quotations_count, 'isSample' => $j->is_sample, 'history' => [],
+                // Links only: the photo route checks marketplace.view again
+                'photos' => $j->photos->map(function ($p) {
+                    return $p->url();
+                })->values()->all(),
             ];
         });
     }

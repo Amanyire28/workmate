@@ -92,6 +92,12 @@
             placeholder="Add details that help workers understand the job."
             :min-height="150"
           />
+
+          <PhotoPicker
+            v-model="photos"
+            :disabled="submitting"
+            hint="Photos help workers judge the job and price it. Only approved providers who might take the job, and WorkMate, can see them; hidden details like location are removed."
+          />
         </fieldset>
 
         <!-- Step 2: Where & when -->
@@ -165,12 +171,19 @@
           <i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>{{ submitError }}</span>
         </p>
 
+        <div v-if="submitting && photos.length" class="mt-5 flex flex-col gap-1.5" role="status" aria-live="polite">
+          <div class="h-1.5 overflow-hidden rounded-full bg-line">
+            <div class="h-full rounded-full bg-primary transition-[width] duration-200" :style="{ width: `${Math.round(progress * 100)}%` }"></div>
+          </div>
+          <p class="wm-meta">{{ progress < 1 ? `Uploading photos… ${Math.round(progress * 100)}%` : 'Posting your job…' }}</p>
+        </div>
+
         <div class="flex gap-3 mt-6">
           <button v-if="currentStep > 1" type="button" class="wm-btn wm-btn-secondary wm-btn-lg flex-1" @click="currentStep--">
             Back
           </button>
-          <PrimaryButton type="submit" class="flex-[2]" :loading="submitting">
-            {{ currentStep < totalSteps ? 'Continue' : (submitting ? 'Posting…' : 'Post job') }}
+          <PrimaryButton type="submit" class="flex-[2]" :loading="submitting" :disabled="currentStep === totalSteps && preparing">
+            {{ currentStep < totalSteps ? 'Continue' : submitting ? 'Posting…' : preparing ? 'Preparing photos…' : submitError ? 'Try again' : 'Post job' }}
           </PrimaryButton>
         </div>
       </form>
@@ -183,9 +196,11 @@ import { ref, reactive, computed, nextTick } from 'vue';
 import FormField from '@/components/FormField.vue';
 import ServiceCategoryCard from '@/components/ServiceCategoryCard.vue';
 import PrimaryButton from '@/components/PrimaryButton.vue';
+import PhotoPicker from '@/components/PhotoPicker.vue';
 import { categories, areaLabel, refreshJobs } from '@/stores/catalog.js';
 import PlacePicker from '@/components/PlacePicker.vue';
-import { api, fieldErrors } from '@/api/client.js';
+import { upload, fieldErrors } from '@/api/client.js';
+import { formWithPhotos, newClientToken, releasePhotos } from '@/utils/photos.js';
 import { categoryLabel, formatPrice } from '@/utils/ui.js';
 import { selectedArea } from '@/stores/location.js';
 import { focusFirstError } from '@/utils/forms.js';
@@ -204,6 +219,11 @@ const blank = () => ({
 });
 const form = reactive(blank());
 const errors = reactive({ title: '', category: '', area: '', budget: '' });
+const photos = ref([]);
+const progress = ref(0);
+const preparing = computed(() => photos.value.some(p => p.preparing));
+// One key per job being written, so a retry after a dropped connection can't post it twice
+let clientToken = newClientToken();
 
 const reviewRows = computed(() => [
   { label: 'Job',            value: form.title },
@@ -213,6 +233,7 @@ const reviewRows = computed(() => [
   { label: 'Date',           value: form.date || 'Flexible' },
   { label: 'Workers needed', value: form.workersNeeded },
   { label: 'Budget',         value: form.budget ? `${formatPrice(form.budget)} (${form.budgetBasis})` : 'Open to offers' },
+  { label: 'Photos',         value: photos.value.length ? `${photos.value.length} ${photos.value.length === 1 ? 'photo' : 'photos'}` : 'None' },
 ]);
 
 function validateStep() {
@@ -240,11 +261,12 @@ async function nextStep() {
 const submitError = ref('');
 
 async function submitJob() {
-  if (submitting.value) return;
+  if (submitting.value || preparing.value) return;
   submitting.value = true;
   submitError.value = '';
+  progress.value = 0;
   try {
-    await api('/jobs', { method: 'POST', body: {
+    const body = formWithPhotos({
       category: form.category,
       title: form.title.trim(),
       description: form.description.trim() || null,
@@ -253,14 +275,20 @@ async function submitJob() {
       workers_needed: form.workersNeeded === '6+' ? 6 : Number(form.workersNeeded),
       budget: form.budget === '' ? null : Number(form.budget),
       budget_basis: form.budget === '' ? null : form.budgetBasis,
-    } });
+      client_token: clientToken,
+    }, photos.value.map(p => p.file));
+    await upload('/jobs', body, { onProgress: (p) => { progress.value = p; } });
     refreshJobs().catch(() => { /* Find work reloads on its own next time */ });
     submitted.value = true;
     window.scrollTo({ top: 0 });
   } catch (e) {
     // Field problems point back to the step where the field is
     const errors = Object.values(fieldErrors(e));
-    submitError.value = errors.length ? errors.join(' ') : e.message;
+    // Nothing is lost: the job and its photos stay, and trying again can't post it twice
+    submitError.value = errors.length ? errors.join(' ')
+      : e.code === 'network_error' ? 'The connection dropped. Your job and photos are still here: press Try again.'
+      : e.status === 413 ? 'The photos are too large to send together. Remove one or two and try again.'
+      : e.message;
   } finally {
     submitting.value = false;
   }
@@ -268,6 +296,9 @@ async function submitJob() {
 
 function reset() {
   Object.assign(form, blank());
+  releasePhotos(photos.value);
+  photos.value = [];
+  clientToken = newClientToken();
   currentStep.value = 1;
   submitted.value = false;
 }

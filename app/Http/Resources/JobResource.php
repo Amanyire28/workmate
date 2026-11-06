@@ -35,6 +35,11 @@ class JobResource extends JsonResource
             'posted_at' => $this->created_at->toIso8601String(),
             'applicants' => (int) ($this->quotations_count ?? $this->quotations()->count()),
             'is_sample' => $this->is_sample,
+            // How many photos there are, for everyone; the photos themselves only for the people involved
+            'photo_count' => $this->relationLoaded('photos') ? $this->photos->count() : $this->photos()->count(),
+            'photos' => $this->when($this->relationLoaded('photos') && $this->photosVisibleTo($user), function () {
+                return $this->photos->map->present()->values();
+            }, []),
             'is_mine' => $user !== null && $this->customer_id === (int) $user->getKey(),
             'has_applied' => $profile !== null
                 && $this->quotations()->where('provider_profile_id', $profile->getKey())->exists(),

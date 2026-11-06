@@ -80,6 +80,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('reviews/recent', [DirectoryController::class, 'recentReviews'])->name('reviews.recent');
     Route::get('jobs', [JobController::class, 'index'])->name('jobs.index');
     Route::get('jobs/{id}', [JobController::class, 'show'])->whereNumber('id')->name('jobs.show');
+    // Photos of a job: checked per request, so they're served to the people involved only
+    Route::get('requests/{id}/photos/{file}', [JobController::class, 'photo'])->whereNumber('id')->where('file', '[0-9a-f-]{36}(-t)?\.jpg')->name('requests.photo');
     Route::post('app-events', [AppEventController::class, 'store'])->middleware('throttle:app-events')->name('app-events.store');
     Route::post('app-events/count', [AppEventController::class, 'count'])->middleware('throttle:app-counts')->name('app-events.count');
     Route::get('push/config', [PushSubscriptionController::class, 'config'])->name('push.config');

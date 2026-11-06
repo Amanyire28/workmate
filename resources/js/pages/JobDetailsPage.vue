@@ -53,6 +53,12 @@
         <div>
           <h2 class="text-lg lg:text-xl font-semibold text-ink">About this job</h2>
           <p class="mt-2 text-[15px] leading-relaxed text-ink/85">{{ job.description }}</p>
+          <RequestPhotos v-if="photos.length" class="mt-4" :photos="photos" size="lg" />
+          <p v-else-if="job.photoCount" class="mt-3 wm-meta inline-flex items-center gap-1.5">
+            <i class="bi bi-camera" aria-hidden="true"></i>
+            {{ job.photoCount }} {{ job.photoCount === 1 ? 'photo' : 'photos' }} of the job, shown to approved providers.
+            <router-link v-if="!auth.user" :to="{ path: '/sign-in', query: { redirect: route.fullPath } }" class="wm-link">Sign in</router-link>
+          </p>
         </div>
         <hr class="wm-divider" />
         <div>
@@ -68,15 +74,26 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import BackLink from '@/components/BackLink.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
 import JobSummaryList from '@/components/JobSummaryList.vue';
+import RequestPhotos from '@/components/RequestPhotos.vue';
 import { jobs } from '@/stores/catalog.js';
+import { api } from '@/api/client.js';
+import { auth } from '@/stores/auth.js';
 import { categoryIcon, categoryLabel } from '@/utils/ui.js';
 
 const route = useRoute();
 const job = computed(() => jobs.find(j => j.id === Number(route.params.id)));
+
+// Photos are only for people who may take the job: asked for fresh, as the signed-in person
+const photos = ref([]);
+watch(() => [route.params.id, auth.user?.id], async ([id]) => {
+  photos.value = [];
+  if (!id || !auth.user) return;
+  try { photos.value = (await api(`/jobs/${id}`)).data.photos || []; } catch { /* the job still shows */ }
+}, { immediate: true });
 </script>

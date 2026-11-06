@@ -15,6 +15,7 @@
     </div>
 
     <p class="text-sm text-muted leading-normal line-clamp-2">{{ job.description }}</p>
+    <p v-if="job.photoCount" class="wm-meta inline-flex items-center gap-1.5"><i class="bi bi-camera" aria-hidden="true"></i>{{ job.photoCount }} {{ job.photoCount === 1 ? 'photo' : 'photos' }}</p>
 
     <p class="wm-meta flex flex-wrap items-center gap-x-4 gap-y-2">
       <span class="inline-flex items-center gap-1.5"><i class="bi bi-geo-alt" aria-hidden="true"></i>{{ job.area }}</span>

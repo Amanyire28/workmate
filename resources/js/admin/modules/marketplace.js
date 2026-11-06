@@ -288,6 +288,7 @@ export default {
                         ['Related booking', booking ? `${booking.id} (${booking.status.replace('_', ' ')})` : 'None'],
                         ['Failure or cancellation reason', r.failureReason],
                     ] },
+                    ...(r.photos?.length ? [{ title: `Photos of the job (${r.photos.length})`, files: r.photos.map((href, i) => ({ label: `Photo ${i + 1}`, href })) }] : []),
                     related('Quotations', R.quotesOfJob(r.id), [
                         { key: 'id', label: 'Quote' }, { key: 'providerId', label: 'Provider' }, { key: 'amount', label: 'Amount', format: 'money' }, { key: 'status', label: 'Status', format: 'status' },
                     ], 'No quotations.'),

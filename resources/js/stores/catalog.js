@@ -111,6 +111,9 @@ export function toJob(j) {
         area: j.area_name,
         areaSlug: j.area,
         description: j.description || '',
+        // Photos only reach the people allowed to see them; everyone sees how many there are
+        photos: j.photos || [],
+        photoCount: j.photo_count || 0,
         date: j.preferred_time || 'Flexible',
         workersNeeded: j.workers_needed,
         budget: j.budget,

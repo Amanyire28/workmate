@@ -24,13 +24,13 @@ class Community
     /** @var AuditLogger */
     private $audit;
 
-    /** @var CommunityPhotos */
+    /** @var PhotoVariants */
     private $photos;
 
     /** @var EventNotifications */
     private $notify;
 
-    public function __construct(AuditLogger $audit, CommunityPhotos $photos, EventNotifications $notify)
+    public function __construct(AuditLogger $audit, PhotoVariants $photos, EventNotifications $notify)
     {
         $this->audit = $audit;
         $this->photos = $photos;
@@ -54,7 +54,7 @@ class Community
         $stored = [];
         try {
             foreach ($photos as $photo) {
-                $stored[] = $this->photos->store($photo);
+                $stored[] = $this->photos->store($photo, 'community');
             }
 
             return DB::transaction(function () use ($author, $data, $body, $stored) {

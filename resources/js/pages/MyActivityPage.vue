@@ -76,6 +76,7 @@
               <StatusBadge :status="RECEIVED_STATUS[req.status] || req.status" class="shrink-0" />
             </div>
             <p class="text-sm text-ink whitespace-pre-line">{{ req.description }}</p>
+            <RequestPhotos :photos="req.photos || []" :label="`Photos from ${req.customer.name}`" />
             <p class="wm-meta flex flex-wrap gap-x-4 gap-y-1">
               <span class="inline-flex items-center gap-1"><i class="bi bi-geo-alt" aria-hidden="true"></i>{{ req.area_name }}</span>
               <span class="inline-flex items-center gap-1"><i class="bi bi-calendar3" aria-hidden="true"></i>{{ req.preferred_time }}</span>
@@ -140,6 +141,7 @@
               <StatusBadge :status="req.status" class="shrink-0" />
             </div>
             <p class="text-sm text-ink line-clamp-2">{{ req.details }}</p>
+            <RequestPhotos :photos="req.photos" label="Your photos of the job" />
             <p v-if="req.status === 'request_declined' && req.providerNote" class="text-sm text-muted">
               <i class="bi bi-reply" aria-hidden="true"></i> {{ req.providerName }}: {{ req.providerNote }}
             </p>
@@ -187,6 +189,7 @@
               <h2 class="text-base font-semibold text-ink leading-snug">{{ job.title }}</h2>
               <StatusBadge :status="job.status" class="shrink-0" />
             </div>
+            <RequestPhotos :photos="job.photos" label="Your photos of the job" />
             <p class="wm-meta flex flex-wrap gap-x-4 gap-y-1">
               <span class="inline-flex items-center gap-1"><i class="bi bi-geo-alt" aria-hidden="true"></i>{{ job.area }}</span>
               <span>Posted {{ job.postedAt }}</span>
@@ -280,6 +283,7 @@ import { auth } from '@/stores/auth.js';
 import { openRating } from '@/stores/reviews.js';
 import { useRoute, useRouter } from 'vue-router';
 import StatusBadge from '@/components/StatusBadge.vue';
+import RequestPhotos from '@/components/RequestPhotos.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import { agoLabel, providers } from '@/stores/catalog.js';
@@ -348,6 +352,7 @@ function toPostedJob(j) {
     workerName: j.provider?.display_name || null,
     applicants: j.applicants,
     review: j.review || null,
+    photos: j.photos || [],
   };
 }
 
@@ -380,6 +385,7 @@ async function load() {
       providerNote: r.provider_note || '',
       category: r.category,
       review: r.review || null,
+      photos: r.photos || [],
     }));
 
     postedJobs.value = mine.data.filter(r => r.kind === 'posted').map(toPostedJob);

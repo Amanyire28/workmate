@@ -109,17 +109,26 @@
             />
           </div>
 
-          <div>
-            <PhotoPicker />
-            <p class="wm-field-hint mt-1">Photos aren’t sent with requests yet. Describe the job in words for now.</p>
-          </div>
+          <PhotoPicker
+            v-model="photos"
+            :disabled="sending"
+            :hint="`A photo of the problem helps ${name} reply with a better price. Only ${name} and WorkMate can see them; hidden details like location are removed.`"
+          />
 
           <p v-if="sendError" class="wm-notice wm-notice-error" role="alert">
             <i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>{{ sendError }}</span>
           </p>
 
-          <PrimaryButton type="submit" :loading="sending">
-            {{ sending ? 'Sending…' : 'Send request' }}
+          <!-- Upload progress, so a slow connection doesn't look stuck -->
+          <div v-if="sending && photos.length" class="flex flex-col gap-1.5" role="status" aria-live="polite">
+            <div class="h-1.5 overflow-hidden rounded-full bg-line">
+              <div class="h-full rounded-full bg-primary transition-[width] duration-200" :style="{ width: `${Math.round(progress * 100)}%` }"></div>
+            </div>
+            <p class="wm-meta">{{ progress < 1 ? `Uploading photos… ${Math.round(progress * 100)}%` : 'Sending your request…' }}</p>
+          </div>
+
+          <PrimaryButton type="submit" :loading="sending" :disabled="preparing">
+            {{ sending ? 'Sending…' : preparing ? 'Preparing photos…' : sendError ? 'Try again' : 'Send request' }}
           </PrimaryButton>
         </form>
       </template>
@@ -128,7 +137,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, nextTick } from 'vue';
+import { ref, reactive, computed, watch, nextTick } from 'vue';
 import { isOwnProvider } from '@/stores/auth.js';
 import { useRoute } from 'vue-router';
 import BackLink from '@/components/BackLink.vue';
@@ -141,8 +150,9 @@ import { providers } from '@/stores/catalog.js';
 import PlacePicker from '@/components/PlacePicker.vue';
 import { displayName, tradeLabel, categoryLabel } from '@/utils/ui.js';
 import { selectedArea } from '@/stores/location.js';
-import { api, fieldErrors } from '@/api/client.js';
+import { upload, fieldErrors } from '@/api/client.js';
 import { focusFirstError } from '@/utils/forms.js';
+import { formWithPhotos, newClientToken, releasePhotos } from '@/utils/photos.js';
 
 const route = useRoute();
 const provider = computed(() => providers.find(p => p.id === Number(route.params.id)));
@@ -158,9 +168,20 @@ const form = reactive({
   budget:  '',
 });
 const errors = reactive({ service: '', details: '', area: '', when: '', budget: '' });
+
+// Opened straight from a link, the provider can arrive after the form: a single service is
+// chosen for the customer (its field isn't shown, so it can't be left empty)
+watch(provider, (p) => {
+  if (p && p.services.length === 1 && !form.service) form.service = p.services[0];
+}, { immediate: true });
 const sending = ref(false);
 const sent = ref(false);
 const sendError = ref('');
+const photos = ref([]);
+const progress = ref(0);
+const preparing = computed(() => photos.value.some(p => p.preparing));
+// The same key for every try of this request, so a retry after a dropped connection can't send it twice
+const clientToken = newClientToken();
 
 function validate() {
   errors.service = form.service ? '' : 'Choose the service you need.';
@@ -172,7 +193,7 @@ function validate() {
 }
 
 async function submit() {
-  if (sending.value) return;
+  if (sending.value || preparing.value) return;
   if (!validate()) {
     await nextTick();
     focusFirstError();
@@ -180,14 +201,19 @@ async function submit() {
   }
   sending.value = true;
   sendError.value = '';
+  progress.value = 0;
   try {
-    await api(`/providers/${provider.value.id}/requests`, { method: 'POST', body: {
+    const body = formWithPhotos({
       category: form.service,
       description: form.details.trim(),
       area: form.area,
       preferred_time: form.when,
       budget: form.budget === '' ? null : Number(form.budget),
-    } });
+      client_token: clientToken,
+    }, photos.value.map(p => p.file));
+    await upload(`/providers/${provider.value.id}/requests`, body, { onProgress: (p) => { progress.value = p; } });
+    releasePhotos(photos.value);
+    photos.value = [];
     sent.value = true;
     window.scrollTo({ top: 0 });
   } catch (e) {
@@ -196,7 +222,14 @@ async function submit() {
       service: fields.category || '', details: fields.description || '', area: fields.area || '',
       when: fields.preferred_time || '', budget: fields.budget || '',
     });
-    if (!Object.keys(fields).length) sendError.value = e.message;
+    const photoProblem = Object.entries(fields).find(([k]) => k.startsWith('photos'));
+    if (photoProblem) sendError.value = photoProblem[1];
+    else if (!Object.keys(fields).length) {
+      // Nothing is lost: the details and photos stay, and trying again can't send it twice
+      sendError.value = e.code === 'network_error' ? 'The connection dropped. Your details and photos are still here: press Try again.'
+        : e.status === 413 ? 'The photos are too large to send together. Remove one or two and try again.'
+        : e.message;
+    }
     await nextTick();
     focusFirstError();
   } finally {

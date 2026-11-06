@@ -27,7 +27,7 @@ class ReceivedRequestController extends Controller
     public function index(Request $request): JsonResponse
     {
         $requests = ServiceRequest::receivedBy($request->user())
-            ->with(['category', 'area', 'customer:id,name,avatar_path'])
+            ->with(['category', 'area', 'customer:id,name,avatar_path', 'photos'])
             ->latest()
             ->limit(200)
             ->get();
@@ -79,7 +79,7 @@ class ReceivedRequestController extends Controller
 
     private function done(ServiceRequest $serviceRequest): JsonResponse
     {
-        return response()->json(['data' => $this->present($serviceRequest->fresh(['category', 'area', 'customer']), null)]);
+        return response()->json(['data' => $this->present($serviceRequest->fresh(['category', 'area', 'customer', 'photos']), null)]);
     }
 
     /** No email or phone number: the provider replies through WorkMate */
@@ -90,6 +90,8 @@ class ReceivedRequestController extends Controller
             'title' => $r->title,
             'category' => $r->category->slug,
             'description' => $r->description,
+            // The provider business received it, so its members see the photos
+            'photos' => $r->photos->map->present()->values(),
             'area' => optional($r->area)->slug,
             'area_name' => $r->area_name,
             'preferred_time' => $r->preferred_time,

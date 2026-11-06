@@ -8,20 +8,22 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
- * Photos in community posts. Each one is re-drawn as JPEG, which drops hidden
- * data such as GPS positions and anything that isn't a picture, in a full
- * size and a thumbnail for the feed. They live on the local disk, never under
- * public/, and are served by the API only while their post is visible.
+ * Photos people add: community posts and photos of a job on a request. Each
+ * one is re-drawn as JPEG, which drops hidden data such as GPS positions and
+ * anything that isn't a picture, in a full size and a thumbnail. They live on
+ * the local disk, never under public/, and are served only through the API,
+ * to the people allowed to see them.
  */
-class CommunityPhotos
+class PhotoVariants
 {
-    public const DIRECTORY = 'community';
+    /** Where each kind of photo is kept, under storage/app */
+    public const DIRECTORIES = ['community', 'request-photos'];
 
     private const FULL_SIDE = 1600;
     private const THUMB_SIDE = 720;
 
     /** @return array{uuid: string, path: string, thumb_path: string, width: int, height: int} */
-    public function store(UploadedFile $file): array
+    public function store(UploadedFile $file, string $directory): array
     {
         $image = @imagecreatefromstring(file_get_contents($file->getRealPath()));
         if (! $image) {
@@ -34,8 +36,8 @@ class CommunityPhotos
         [$thumb] = $this->scaled($image, self::THUMB_SIDE, 78);
         imagedestroy($image);
 
-        $path = self::DIRECTORY.'/'.$uuid.'.jpg';
-        $thumbPath = self::DIRECTORY.'/'.$uuid.'-t.jpg';
+        $path = $directory.'/'.$uuid.'.jpg';
+        $thumbPath = $directory.'/'.$uuid.'-t.jpg';
         Storage::disk('local')->put($path, $full);
         Storage::disk('local')->put($thumbPath, $thumb);
 
@@ -46,7 +48,9 @@ class CommunityPhotos
     public function discard(array $paths): void
     {
         Storage::disk('local')->delete(array_filter($paths, function ($p) {
-            return Str::startsWith($p, self::DIRECTORY.'/');
+            return Str::startsWith($p, array_map(function ($d) {
+                return $d.'/';
+            }, self::DIRECTORIES));
         }));
     }
 

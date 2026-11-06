@@ -15,7 +15,7 @@ class MyActivityController extends Controller
     public function requests(Request $request)
     {
         $requests = ServiceRequest::where('customer_id', $request->user()->getKey())
-            ->with(['category', 'area', 'provider', 'review'])
+            ->with(['category', 'area', 'provider', 'review', 'photos'])
             ->withCount('quotations')
             ->latest()
             ->limit(200)

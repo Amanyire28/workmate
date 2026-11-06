@@ -131,7 +131,7 @@ Throughout this README:
 - **Settings** that change the app straight away: nearby search (radii, maximum distance, fallbacks, GPS, tie-breaks), the default place, support phone and email, accepting provider applications, maintenance mode, and presence timings
 
 **Quality**
-- **197 automated tests** (feature and unit) on a separate MariaDB test database
+- **201 automated tests** (feature and unit) on a separate MariaDB test database
 
 ### 🟡 In development
 
@@ -145,7 +145,6 @@ Throughout this README:
 | Email | Branded confirmation and reset emails | Delivery depends on the mail settings in `.env`; check with `php artisan workmate:mail-test` |
 | Languages | Language preference is stored | The interface is English only |
 | Provider teams | `provider_members` table; every rule already checks membership, not only ownership | Adding and managing group or company members |
-| Photos on requests | A photo picker on the request form | Photos aren't uploaded (the form says so) |
 
 ### ⬜ Planned
 
@@ -231,6 +230,13 @@ The intended matching order is:
 ---
 
 ## Requests, completion and ratings
+
+**Photos of the job ✅.** A request to a provider and a posted job can carry up to **6 photos** (JPG, PNG or WebP, up to 8 MB each), so providers see the leak or the broken door before replying.
+- Phones shrink photos before sending; an upload bar shows progress; the form can't be sent while photos are still being prepared.
+- The server re-draws each photo as JPEG in two sizes (1600 px and a 720 px thumbnail), which removes hidden data such as the GPS position of the customer's home, and keeps them privately under `storage/app/request-photos` (shared `PhotoVariants` service, also used by the community). If any photo can't be read, nothing is saved and stored files are removed.
+- **Who sees them** (`ServiceRequest::photosVisibleTo`): the customer; the provider the request went to or who was hired, and everyone in that business; for an open posted job, approved providers who might apply (and, afterwards, those who did); administrators with `marketplace.view`. Signed-out visitors and everyone else get 404. Served through `/api/v1/requests/{id}/photos/…` with `no-store`, so not even the browser keeps a copy. Find Work shows only how many photos a job has.
+- **A bad connection can't send it twice:** each form sends a one-off `client_token`; a retry with the same token returns the first request (HTTP 200) instead of creating another, and the provider is notified once. If the connection drops, the form keeps the details and photos and offers **Try again**.
+- Shown as thumbnails that open full screen: in the provider's **Received** requests, the customer's requests and posted jobs, a job's page, and the admin's job record.
 
 A request sent to one provider goes through these steps (implemented ✅):
 
@@ -485,7 +491,8 @@ Request → middleware (auth:sanctum, active, can:<permission>, throttle)
 | `provider_service_areas` | Places a provider travels to |
 | `provider_applications` | Each review round, with a snapshot of what was submitted, the decision, the reason shown to the applicant and internal notes |
 | `document_verifications`, `verification_documents`, `document_requests` | A provider's document check, its private files, and extra documents reviewers asked for |
-| `service_requests` | Posted jobs (`is_posted_job`; the provider is set once someone is hired) and requests to one provider, with the provider's reply (`responded_at`, `provider_note`) and when the customer was asked to rate (`review_prompted_at`) |
+| `service_requests` | Posted jobs (`is_posted_job`; the provider is set once someone is hired) and requests to one provider, with the provider's reply (`responded_at`, `provider_note`), when the customer was asked to rate (`review_prompted_at`), and the app's one-off `client_token` |
+| `service_request_photos` | Photos of the job on a request: private file paths in two sizes, size and order |
 | `quotations` | A provider's application or price for a posted job (one per provider per job) |
 | `reviews` | Ratings and comments, linked to the request they're about (`service_request_id`, one review per request); status for moderation |
 | `conversations`, `messages` | Customer–provider chats and their messages, with read status |

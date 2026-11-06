@@ -8,12 +8,17 @@ use App\Models\Category;
 use App\Models\ProviderProfile;
 use App\Models\Quotation;
 use App\Models\ServiceRequest;
+use App\Models\ServiceRequestPhoto;
 use App\Models\User;
+use Illuminate\Database\QueryException;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Posting jobs, sending requests to providers and applying for jobs.
  * Prices and statuses are always set here, never taken from the client.
+ * A new request may carry photos of the job, and a client token so that a
+ * retry over a bad connection returns the first request instead of a copy.
  */
 class Marketplace
 {
@@ -23,10 +28,14 @@ class Marketplace
     /** @var EventNotifications */
     private $notify;
 
-    public function __construct(AuditLogger $audit, EventNotifications $notify)
+    /** @var PhotoVariants */
+    private $photos;
+
+    public function __construct(AuditLogger $audit, EventNotifications $notify, PhotoVariants $photos)
     {
         $this->audit = $audit;
         $this->notify = $notify;
+        $this->photos = $photos;
     }
 
     /**
@@ -34,11 +43,12 @@ class Marketplace
      *
      * @param  array{category: string, title: string, description: ?string, area: string, preferred_time: ?string, workers_needed: int, budget: ?int, budget_basis: ?string}  $data
      */
-    public function postJob(User $customer, array $data): ServiceRequest
+    /** @param UploadedFile[] $photos */
+    public function postJob(User $customer, array $data, array $photos = []): ServiceRequest
     {
         $this->guardOpenForBusiness();
 
-        return $this->createRequest($customer, null, $data);
+        return $this->createRequest($customer, null, $data, $photos);
     }
 
     /**
@@ -46,7 +56,7 @@ class Marketplace
      *
      * @param  array{category: string, description: string, area: string, preferred_time: string, budget: ?int}  $data
      */
-    public function requestProvider(User $customer, ProviderProfile $provider, array $data): ServiceRequest
+    public function requestProvider(User $customer, ProviderProfile $provider, array $data, array $photos = []): ServiceRequest
     {
         $this->guardOpenForBusiness();
 
@@ -63,8 +73,11 @@ class Marketplace
         $category = Category::where('slug', $data['category'])->firstOrFail();
         $data['title'] = $category->name.' request';
 
-        $request = $this->createRequest($customer, $provider, $data);
-        $this->notify->requestReceived($request);
+        $request = $this->createRequest($customer, $provider, $data, $photos);
+        // A retried send returns the first request; the provider was told about it then
+        if ($request->wasRecentlyCreated) {
+            $this->notify->requestReceived($request);
+        }
 
         return $request;
     }
@@ -223,12 +236,43 @@ class Marketplace
         }
     }
 
-    private function createRequest(User $customer, ?ProviderProfile $provider, array $data): ServiceRequest
+    /** @param UploadedFile[] $photos */
+    private function createRequest(User $customer, ?ProviderProfile $provider, array $data, array $photos = []): ServiceRequest
     {
+        $token = $data['client_token'] ?? null;
+        if ($token && ($sent = $this->alreadySent($customer, $token))) {
+            return $sent;
+        }
+
         $area = Area::active()->where('slug', $data['area'])->firstOrFail();
         $category = Category::active()->where('slug', $data['category'])->firstOrFail();
 
-        return DB::transaction(function () use ($customer, $provider, $data, $area, $category) {
+        // Photos are re-drawn first; if anything after fails, they're removed again
+        $stored = [];
+        try {
+            foreach (array_slice($photos, 0, ServiceRequestPhoto::MAX) as $photo) {
+                $stored[] = $this->photos->store($photo, ServiceRequestPhoto::DIRECTORY);
+            }
+
+            return $this->saveRequest($customer, $provider, $data, $area, $category, $stored);
+        } catch (\Throwable $e) {
+            $this->photos->discard(array_merge(array_column($stored, 'path'), array_column($stored, 'thumb_path')));
+            // Two copies of the same send arrived together: the other one was saved
+            if ($token && $e instanceof QueryException && ($sent = $this->alreadySent($customer, $token))) {
+                return $sent;
+            }
+            throw $e;
+        }
+    }
+
+    private function alreadySent(User $customer, string $token): ?ServiceRequest
+    {
+        return ServiceRequest::withTrashed()->where('customer_id', $customer->getKey())->where('client_token', $token)->first();
+    }
+
+    private function saveRequest(User $customer, ?ProviderProfile $provider, array $data, Area $area, Category $category, array $stored): ServiceRequest
+    {
+        return DB::transaction(function () use ($customer, $provider, $data, $area, $category, $stored) {
             $request = new ServiceRequest([
                 'category_id' => $category->id,
                 'title' => $data['title'],
@@ -242,14 +286,20 @@ class Marketplace
             ]);
             $request->forceFill([
                 'customer_id' => $customer->getKey(),
+                'client_token' => $data['client_token'] ?? null,
                 'provider_profile_id' => $provider ? $provider->getKey() : null,
                 'is_posted_job' => $provider === null,
                 'status' => ServiceRequest::STATUS_OPEN,
             ])->save();
 
+            foreach ($stored as $i => $file) {
+                $photo = new ServiceRequestPhoto();
+                $photo->forceFill($file + ['service_request_id' => $request->id, 'position' => $i])->save();
+            }
+
             $this->audit->record(
                 $provider ? 'marketplace.request_sent' : 'marketplace.job_posted',
-                $request, [], ['category' => $category->slug, 'area' => $area->slug, 'budget' => $request->budget], null, $customer
+                $request, [], ['category' => $category->slug, 'area' => $area->slug, 'budget' => $request->budget, 'photos' => count($stored)], null, $customer
             );
 
             return $request;
