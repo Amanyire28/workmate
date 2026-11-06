@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\Admin\AdminActionController;
 use App\Http\Controllers\Api\V1\Admin\AdminDataController;
+use App\Http\Controllers\Api\V1\Admin\AdminPulseController;
 use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\CommunityModerationController;
 use App\Http\Controllers\Api\V1\Admin\DocumentRequirementController;
@@ -222,6 +223,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::prefix('admin')->name('admin.')->group(function () {
             // Any administrator; each section inside is limited by permission
             Route::get('data', AdminDataController::class)->middleware('can:admin-access')->name('data');
+            // Live updates: a cheap fingerprint the admin checks every few seconds
+            Route::get('pulse', AdminPulseController::class)->middleware(['can:admin-access', 'throttle:admin-pulse'])->name('pulse');
 
             Route::middleware('can:trust.view')->group(function () {
                 Route::post('users/{user}/suspend', [AdminActionController::class, 'suspendAccount'])->name('users.suspend');

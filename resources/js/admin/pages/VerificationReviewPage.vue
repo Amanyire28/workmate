@@ -207,7 +207,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, useId } from 'vue';
+import { ref, computed, watch, onMounted, useId } from 'vue';
 import { useRoute } from 'vue-router';
 import { auth } from '@/stores/auth.js';
 import { api } from '@/api/client.js';
@@ -216,6 +216,7 @@ import AdminStatusBadge from '../components/AdminStatusBadge.vue';
 import StateBlock from '../components/StateBlock.vue';
 import ActionDialog from '../components/ActionDialog.vue';
 import { getVerificationApplication, reloadAdminData } from '../data/adminApi.js';
+import { live } from '../data/liveData.js';
 import { can } from '../permissions.js';
 import { toast } from '../stores/prototypeChanges.js';
 import { categoryLabel } from '../modules/helpers.js';
@@ -244,6 +245,8 @@ async function load() {
   }
 }
 onMounted(load);
+// A provider replacing a document while it's open shows up here by itself
+watch(() => live.version, load);
 
 const base = computed(() => `/admin/verifications/${app.value.verificationId}`);
 const fileUrl = (d, f) => `/api/v1${base.value}/documents/${d.reqId}/files/${f.index}`;

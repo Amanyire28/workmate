@@ -21,7 +21,8 @@ export let NOW = Date.now();
 export const COMMISSION_RATE = 0.10;
 export const PROCESSING_FEE_RATE = 0.015;
 
-export const live = reactive({ status: 'idle', error: '', generatedAt: null, trackedSeries: [] });
+// version goes up after every reload, so open screens know to refresh their figures
+export const live = reactive({ status: 'idle', error: '', generatedAt: null, trackedSeries: [], version: 0 });
 
 export const daily = reactive([]);
 export const categories = reactive([]);          // [{ id, label, description, visible }]
@@ -104,6 +105,7 @@ export function loadAdminData({ force = false } = {}) {
             live.generatedAt = data.generatedAt;
             live.status = 'ready';
             listeners.forEach(fn => fn());
+            live.version++;
         })
         .catch((e) => {
             live.status = 'error';
@@ -113,4 +115,63 @@ export function loadAdminData({ force = false } = {}) {
         .finally(() => { pending = null; });
 
     return pending;
+}
+
+/* ---------------- Live updates ---------------- */
+
+/**
+ * While the admin is open and on screen it asks the server every few seconds
+ * whether anything changed (GET /admin/pulse, a cheap fingerprint). Only when
+ * it did is the data reloaded, and every open screen refreshes in place.
+ * state: live (checking), paused (tab hidden), offline (checks failing).
+ */
+export const LIVE_INTERVAL_MS = 10000;
+export const liveSync = reactive({ state: 'idle', lastCheck: null, lastChange: null });
+
+let syncTimer = null;
+let lastStamp = null;
+let checking = false;
+
+async function checkPulse() {
+    if (checking || document.visibilityState !== 'visible' || live.status !== 'ready') return;
+    checking = true;
+    try {
+        const { data } = await api('/admin/pulse');
+        liveSync.lastCheck = new Date();
+        liveSync.state = 'live';
+        if (lastStamp !== null && data.stamp !== lastStamp) {
+            await loadAdminData({ force: true });
+            liveSync.lastChange = new Date();
+        }
+        lastStamp = data.stamp;
+    } catch {
+        liveSync.state = 'offline';
+    } finally {
+        checking = false;
+    }
+}
+
+function onVisibility() {
+    if (document.visibilityState === 'visible') {
+        liveSync.state = liveSync.state === 'offline' ? 'offline' : 'live';
+        checkPulse();
+    } else {
+        liveSync.state = 'paused';
+    }
+}
+
+export function startLiveSync() {
+    if (syncTimer) return;
+    liveSync.state = 'live';
+    checkPulse();
+    syncTimer = setInterval(checkPulse, LIVE_INTERVAL_MS);
+    document.addEventListener('visibilitychange', onVisibility);
+}
+
+export function stopLiveSync() {
+    clearInterval(syncTimer);
+    syncTimer = null;
+    lastStamp = null;
+    liveSync.state = 'idle';
+    document.removeEventListener('visibilitychange', onVisibility);
 }

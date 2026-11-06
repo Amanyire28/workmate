@@ -94,6 +94,11 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(6)->by(optional($request->user())->id ?: $request->ip());
         });
 
+        // The admin's live-update check (every 10 seconds per open tab)
+        RateLimiter::for('admin-pulse', function (Request $request) {
+            return Limit::perMinute(30)->by(optional($request->user())->id ?: $request->ip());
+        });
+
         // Anonymous search and profile-view counts; generous, as many phones share one mobile network address
         RateLimiter::for('app-counts', function (Request $request) {
             return Limit::perMinute(120)->by($request->ip());

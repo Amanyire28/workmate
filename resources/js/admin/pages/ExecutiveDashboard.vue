@@ -165,6 +165,7 @@ import BarChart from '../components/charts/BarChart.vue';
 import RankBars from '../components/charts/RankBars.vue';
 import { SERIES_COLORS } from '../components/charts/chartUtils.js';
 import { getDashboard } from '../data/adminApi.js';
+import { live } from '../data/liveData.js';
 import { can } from '../permissions.js';
 import {
   formatNumber, formatUGX, formatUGXCompact, formatCompact, formatPercent,
@@ -201,9 +202,10 @@ const loading = ref(false);
 const error = ref('');
 let request = 0;
 
-async function load() {
+async function load({ silent = false } = {}) {
   const id = ++request;
-  loading.value = true;
+  // Live updates refresh quietly; only a change the administrator asked for shows "Updating…"
+  if (!silent) loading.value = true;
   error.value = '';
   try {
     const res = await getDashboard({ days: days.value, compare: compare.value });
@@ -215,7 +217,8 @@ async function load() {
   }
 }
 onMounted(load);
-watch([days, compare], load);
+watch([days, compare], () => load());
+watch(() => live.version, () => load({ silent: true }));
 
 const t = computed(() => data.value.totals);
 const prev = computed(() => data.value.previous);

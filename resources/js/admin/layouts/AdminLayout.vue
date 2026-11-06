@@ -45,6 +45,7 @@ import AdminTopBar from '../components/AdminTopBar.vue';
 import StateBlock from '../components/StateBlock.vue';
 import ToastHost from '../components/ToastHost.vue';
 import { can, currentRole } from '../permissions.js';
+import { startLiveSync, stopLiveSync } from '../data/liveData.js';
 
 const route = useRoute();
 const role = computed(() => currentRole());
@@ -75,4 +76,8 @@ function toggleSidebar() {
 function onKey(e) { if (e.key === 'Escape' && mobileOpen.value) mobileOpen.value = false; }
 onMounted(() => document.addEventListener('keydown', onKey));
 onBeforeUnmount(() => document.removeEventListener('keydown', onKey));
+
+// Figures and lists update by themselves while the admin is open
+onMounted(startLiveSync);
+onBeforeUnmount(stopLiveSync);
 </script>

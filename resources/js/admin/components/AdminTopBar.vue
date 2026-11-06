@@ -32,12 +32,18 @@
     </button>
 
     <div class="flex shrink-0 items-center gap-1 sm:gap-1.5 md:ml-auto lg:ml-0">
-      <!-- Monitoring isn't wired up: say so instead of showing a green light -->
+      <!-- Live updates: figures and lists refresh by themselves -->
       <span
-        class="hidden xl:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg wm-surface text-[12px] text-[#64748B]"
-        title="No monitoring source is connected yet, so system status is not shown."
+        class="hidden sm:inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg wm-surface text-[12px]"
+        :class="liveSync.state === 'offline' ? 'text-[#B45309]' : 'text-[#475569]'"
+        :title="liveTitle"
+        role="status"
       >
-        <span class="h-2 w-2 rounded-full border border-[#94A3B8]" aria-hidden="true"></span>Status: not connected
+        <span class="relative flex h-2 w-2" aria-hidden="true">
+          <span v-if="liveSync.state === 'live'" class="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#22C55E] opacity-60 motion-reduce:hidden"></span>
+          <span class="relative inline-flex h-2 w-2 rounded-full" :class="{ live: 'bg-[#16A34A]', paused: 'bg-[#94A3B8]', offline: 'bg-[#F59E0B]', idle: 'bg-[#94A3B8]' }[liveSync.state]"></span>
+        </span>
+        {{ { live: 'Live', paused: 'Paused', offline: 'Reconnecting…', idle: 'Live' }[liveSync.state] }}
       </span>
 
       <!-- Quick create -->
@@ -147,6 +153,15 @@ import { currentRole, can } from '../permissions.js';
 import { auth, signOut } from '@/stores/auth.js';
 import UserAvatar from '@/components/UserAvatar.vue';
 import { getPriorities } from '../data/adminApi.js';
+import { liveSync, live, LIVE_INTERVAL_MS } from '../data/liveData.js';
+
+const clock = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const liveTitle = computed(() => ({
+  live: `Updates by themselves every ${LIVE_INTERVAL_MS / 1000} seconds.${liveSync.lastChange ? ` Last new activity ${clock.format(liveSync.lastChange)}.` : ''}`,
+  paused: 'Paused while this tab is in the background. Updates resume when you come back.',
+  offline: 'Can’t reach WorkMate right now. Trying again every few seconds.',
+  idle: 'Starting live updates…',
+})[liveSync.state]);
 
 defineProps({
   sidebarLabel:    { type: String, default: 'Toggle sidebar' },
@@ -178,9 +193,12 @@ const createItems = computed(() => [
 // Alerts, limited to what this role may act on
 const allAlerts = ref([]);
 const alertsError = ref('');
-onMounted(async () => {
-  try { allAlerts.value = (await getPriorities()).priorities; } catch (e) { alertsError.value = e.message; }
-});
+async function loadAlerts() {
+  try { allAlerts.value = (await getPriorities()).priorities; alertsError.value = ''; } catch (e) { alertsError.value = e.message; }
+}
+onMounted(loadAlerts);
+// New data from live updates: the bell's count follows
+watch(() => live.version, loadAlerts);
 const alerts = computed(() => allAlerts.value.filter(a => can(a.permission)));
 const urgentCount = computed(() => alerts.value.filter(a => a.severity !== 'info').length);
 

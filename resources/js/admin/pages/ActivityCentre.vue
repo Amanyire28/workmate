@@ -138,6 +138,7 @@ import TablePagination from '../components/TablePagination.vue';
 import DetailDrawer from '../components/DetailDrawer.vue';
 import StateBlock from '../components/StateBlock.vue';
 import { listEvents, EVENT_CATEGORIES } from '../data/adminApi.js';
+import { live } from '../data/liveData.js';
 import { can } from '../permissions.js';
 import { formatRelative, formatDateTime, formatUGX } from '../utils/format.js';
 
@@ -188,9 +189,9 @@ const selected = ref(null);
 let request = 0;
 let debounce = null;
 
-async function load() {
+async function load({ silent = false } = {}) {
   const id = ++request;
-  loading.value = true;
+  if (!silent) loading.value = true;
   error.value = '';
   try {
     const res = await listEvents({
@@ -206,6 +207,11 @@ async function load() {
   }
 }
 onMounted(load);
+// New events appear by themselves (live updates); the open event stays open
+watch(() => live.version, async () => {
+  await load({ silent: true });
+  if (selected.value) selected.value = result.value?.rows?.find(e => e.id === selected.value.id) || selected.value;
+});
 
 // Any filter or sort change goes back to page 1 (one load either way); typing is debounced
 function firstPage() {

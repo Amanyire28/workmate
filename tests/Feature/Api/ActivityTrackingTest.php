@@ -88,6 +88,29 @@ class ActivityTrackingTest extends ApiTestCase
         $this->assertSame([2, 1, 0, 1, 1], [$today['searches'], $today['searchNearby'], $today['searchWider'], $today['searchNone'], $today['profileViews']]);
     }
 
+    public function test_the_live_pulse_changes_when_something_happens()
+    {
+        $this->getJson('/api/v1/admin/pulse')->assertUnauthorized();
+        $this->signIn(User::factory()->create());
+        $this->getJson('/api/v1/admin/pulse')->assertForbidden();
+
+        $admin = $this->signIn($this->userWithRoles(['support']));
+        $first = $this->getJson('/api/v1/admin/pulse')->assertOk()->json('data.stamp');
+        $this->assertSame($first, $this->getJson('/api/v1/admin/pulse')->json('data.stamp'), 'Nothing happened, nothing changed');
+
+        // Someone posts in the community
+        $this->signIn(User::factory()->create());
+        $this->postJson('/api/v1/community/posts', ['category' => 'tips', 'body' => 'Fresh tip'])->assertCreated();
+        $this->signIn($admin);
+        $second = $this->getJson('/api/v1/admin/pulse')->json('data.stamp');
+        $this->assertNotSame($first, $second);
+
+        // A search is counted
+        $this->postJson('/api/v1/app-events/count', ['metric' => 'search', 'outcome' => 'wider'])->assertStatus(202);
+        $this->assertNotSame($second, $this->getJson('/api/v1/admin/pulse')->json('data.stamp'));
+        $this->assertSame(['stamp', 'checked_at'], array_keys($this->getJson('/api/v1/admin/pulse')->json('data')));
+    }
+
     public function test_daily_figures_come_from_real_activity()
     {
         $author = $this->signIn(User::factory()->create());

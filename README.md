@@ -131,7 +131,7 @@ Throughout this README:
 - **Settings** that change the app straight away: nearby search (radii, maximum distance, fallbacks, GPS, tie-breaks), the default place, support phone and email, accepting provider applications, maintenance mode, and presence timings
 
 **Quality**
-- **196 automated tests** (feature and unit) on a separate MariaDB test database
+- **197 automated tests** (feature and unit) on a separate MariaDB test database
 
 ### 🟡 In development
 
@@ -367,6 +367,7 @@ Screens for features that aren't built yet (finance, bookings, disputes, videos,
 - **Daily active users:** the presence heartbeat adds one row per account per day to `user_activity_days`.
 - **Searches and profile views** are anonymous daily totals in `app_daily_counts` (`POST /api/v1/app-events/count`): no person, device, place or search text is stored, and repeated profile views in one visit count once, so the figures are approximate.
 - **Sign-ins:** every sign-in, failed sign-in (with the address masked, linked to the account when one exists) and attempt on an inactive account is a **Security** event in the audit log. The dashboard's **Needs attention** shows failed sign-ins in the last 24 hours, marked critical when an account has 5 or more failures.
+- **Live updates:** while the admin is open and on screen it checks every 10 seconds whether anything changed (`GET /api/v1/admin/pulse`, a cheap fingerprint of the latest activity, rate-limited). When something did, the data reloads quietly and every open screen (dashboard, Activity, record lists, analytics, the alert bell, verification review) updates in place, keeping filters and the open record. The top bar shows **Live**, **Paused** (tab in the background) or **Reconnecting…**. No WebSocket server or extra process is needed.
 - **Activity:** community events have their own **Community** category and plain-English titles, and posts and comments link to where they appear in WorkMate.
 - Actions that call the API are listed in `resources/js/admin/modules/connected.js` (or call the API from their module or page). Other actions aren't offered; the record shows how many aren't connected.
 - Every action needs a reason and is written to the audit log.

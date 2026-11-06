@@ -254,6 +254,7 @@ import ActionDialog from './ActionDialog.vue';
 import StateBlock from './StateBlock.vue';
 import RecordValue, { formatValue } from './RecordValue.vue';
 import { fetchDataset, relations, reloadAdminData } from '../data/adminApi.js';
+import { live } from '../data/liveData.js';
 import { can, PERMISSIONS } from '../permissions.js';
 import { toast } from '../stores/prototypeChanges.js';
 import { formatNumber, formatDateTime } from '../utils/format.js';
@@ -282,6 +283,11 @@ async function load() {
   }
 }
 onMounted(load);
+// Live updates: new and changed records appear; an open record stays open with its new state
+watch(() => live.version, async () => {
+  await load();
+  if (selected.value && rows.value) selected.value = rows.value.find(r => r.id === selected.value.id) || selected.value;
+});
 
 const ctx = { rel: relations, can };
 const kpis = computed(() => (rows.value && def.kpis ? def.kpis(rows.value, ctx).filter(k => !k.permission || can(k.permission)).map(({ permission, ...k }) => k) : []));

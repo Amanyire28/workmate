@@ -66,6 +66,7 @@ import ChartGrid from './ChartGrid.vue';
 import StateBlock from './StateBlock.vue';
 import RecordValue from './RecordValue.vue';
 import { getSeries, getUsage, fetchDataset, relations } from '../data/adminApi.js';
+import { live } from '../data/liveData.js';
 import { can } from '../permissions.js';
 
 const props = defineProps({
@@ -81,9 +82,9 @@ const loading = ref(false);
 const error = ref('');
 let request = 0;
 
-async function load() {
+async function load({ silent = false } = {}) {
   const id = ++request;
-  loading.value = true;
+  if (!silent) loading.value = true;
   error.value = '';
   try {
     const [s, ...lists] = await Promise.all([
@@ -100,7 +101,8 @@ async function load() {
   }
 }
 onMounted(load);
-watch([days, compare], load);
+watch([days, compare], () => load());
+watch(() => live.version, () => load({ silent: true }));
 
 const view = computed(() => {
   if (!series.value) return null;
