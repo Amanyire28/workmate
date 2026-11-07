@@ -7,7 +7,7 @@
     <section class="relative overflow-hidden bg-[#0B1B33] rounded-b-[28px] lg:rounded-none" aria-labelledby="home-heading">
       <!-- Photo -->
       <!-- Mobile: photo fills the top of the card; desktop: right 62% of the band -->
-      <div class="absolute inset-x-0 top-0 h-[330px] sm:h-[400px] lg:inset-y-0 lg:h-auto lg:left-auto lg:w-[62%]" aria-hidden="true">
+      <div class="absolute inset-x-0 top-0 h-[210px] sm:h-[260px] lg:inset-y-0 lg:h-auto lg:left-auto lg:w-[62%]" aria-hidden="true">
         <img
           src="/images/hero/workmate-hero-1600.webp"
           srcset="/images/hero/workmate-hero-900.webp 900w, /images/hero/workmate-hero-1600.webp 1600w"
@@ -22,20 +22,20 @@
         />
       </div>
       <!-- Readability overlay (mobile: bottom-heavy; desktop: the image mask does the work) -->
-      <div class="absolute inset-x-0 top-0 h-[331px] sm:h-[401px] lg:hidden bg-[linear-gradient(180deg,rgba(11,27,51,0.35)_0%,rgba(11,27,51,0)_22%,rgba(11,27,51,0)_42%,#0B1B33_100%)]" aria-hidden="true"></div>
+      <div class="absolute inset-x-0 top-0 h-[211px] sm:h-[261px] lg:hidden bg-[linear-gradient(180deg,rgba(11,27,51,0.35)_0%,rgba(11,27,51,0)_25%,rgba(11,27,51,0.15)_50%,#0B1B33_100%)]" aria-hidden="true"></div>
 
-      <div class="relative wm-container pt-4 pb-6 lg:py-20 xl:py-24">
+      <div class="relative wm-container pt-4 pb-5 lg:py-11 xl:py-12">
         <!-- Location lives in the search form below, so the hero needs no separate picker -->
-        <div class="mt-[194px] sm:mt-[254px] lg:mt-0 max-w-[560px] lg:max-w-[640px]">
-          <h1 id="home-heading" class="wm-rise text-[30px] sm:text-[36px] lg:text-[48px] leading-[1.12] font-bold tracking-[-0.025em] text-white">
+        <div class="mt-[112px] sm:mt-[150px] lg:mt-0 max-w-[560px] lg:max-w-[620px]">
+          <h1 id="home-heading" class="wm-rise text-[26px] sm:text-[32px] lg:text-[40px] leading-[1.12] font-bold tracking-[-0.025em] text-white">
             Trusted local services, right in <span class="text-[#4FA3FF]">Kampala</span>
           </h1>
-          <p class="wm-rise wm-rise-delay-1 mt-3 lg:mt-4 text-[15px] lg:text-lg text-white/85 leading-relaxed max-w-[460px]">
+          <p class="wm-rise wm-rise-delay-1 mt-2 lg:mt-3 text-[14px] lg:text-[17px] text-white/85 leading-relaxed max-w-[460px]">
             Find skilled workers or get hired for your next job. Simple, local and on your phone.
           </p>
 
           <!-- Service + location search: results appear just below the hero -->
-          <ServiceSearchForm class="wm-rise wm-rise-delay-2 mt-5 lg:mt-8" on-dark @search="onSearch" />
+          <ServiceSearchForm class="wm-rise wm-rise-delay-2 mt-4 lg:mt-6" on-dark @search="onSearch" />
         </div>
       </div>
     </section>
@@ -57,10 +57,13 @@
       </ul>
     </section>
 
-    <!-- ============ Popular categories ============ -->
-    <section class="wm-container pt-6 lg:pt-10" aria-labelledby="home-categories">
+    <!-- ============ Recent community posts ============ -->
+    <HomeRecentPosts />
+
+    <!-- ============ Categories ============ -->
+    <section class="wm-container pt-8 lg:pt-12" aria-labelledby="home-categories">
       <div class="flex items-center justify-between gap-4 mb-3 lg:mb-4">
-        <h2 id="home-categories" class="text-xl font-semibold text-ink">Popular Categories</h2>
+        <h2 id="home-categories" class="text-xl font-semibold text-ink">Browse by category</h2>
         <router-link to="/explore" class="wm-link !text-sm inline-flex items-center gap-1 min-h-11">
           See all <i class="bi bi-arrow-right hidden lg:inline" aria-hidden="true"></i>
         </router-link>
@@ -236,6 +239,7 @@ import UserAvatar from '@/components/UserAvatar.vue';
 import VerifiedBadge from '@/components/VerifiedBadge.vue';
 import AvailabilityBadge from '@/components/AvailabilityBadge.vue';
 import AppFooter from '@/components/AppFooter.vue';
+import HomeRecentPosts from '@/components/HomeRecentPosts.vue';
 import { providers, providerReviews } from '@/stores/catalog.js';
 import { startNearbySearch } from '@/stores/nearbySearch.js';
 import { categoryIcon, categoryColor, displayName, tradeLabel, formatPrice, categoryLabel } from '@/utils/ui.js';
