@@ -6,6 +6,7 @@ use App\Exceptions\BusinessRuleException;
 use App\Models\LegalAcceptance;
 use App\Models\LegalDocument;
 use App\Models\LegalDocumentVersion;
+use App\Models\ProviderProfile;
 use App\Models\User;
 use App\Models\UserConsent;
 use Illuminate\Http\Request;
@@ -153,10 +154,14 @@ class LegalDocuments
         return (bool) $this->settings->get('legal.ask_acceptance');
     }
 
-    /** Documents this person is bound by: everyone's, and providers' once they apply */
+    /**
+     * Documents this person is bound by: everyone's, and providers' once they've
+     * sent an application. While it's still a draft they agree to it when sending
+     * (Start earning), so they aren't stopped half-way through.
+     */
     public function documentsFor(User $user): Collection
     {
-        $isProvider = $user->providerProfile()->exists();
+        $isProvider = $user->providerProfile()->where('status', '!=', ProviderProfile::STATUS_DRAFT)->exists();
 
         return $this->documents()->filter(function (LegalDocument $d) use ($isProvider) {
             return $d->audience === LegalDocument::AUDIENCE_EVERYONE || ($isProvider && $d->audience === LegalDocument::AUDIENCE_PROVIDERS);

@@ -82,7 +82,7 @@ class ProfessionSuggestionTest extends ApiTestCase
         $application = ProviderApplication::sole();
 
         $this->signIn($this->userWithRoles(['provider_review']));
-        $this->postJson("/api/v1/admin/provider-applications/{$application->id}/approve")
+        $this->idChecked()->postJson("/api/v1/admin/provider-applications/{$application->id}/approve")
             ->assertStatus(409)->assertJson(['code' => 'professions_unsettled']);
 
         $this->assertSame([], $this->getJson('/api/v1/providers')->json('data'));
@@ -111,7 +111,7 @@ class ProfessionSuggestionTest extends ApiTestCase
         $this->assertContains('aluminium_fabricator', array_column($category['professions'], 'slug'));
 
         // Now the application can be approved
-        $this->postJson('/api/v1/admin/provider-applications/'.ProviderApplication::where('provider_profile_id', $first->providerProfile->id)->value('id').'/approve')->assertOk();
+        $this->idChecked()->postJson('/api/v1/admin/provider-applications/'.ProviderApplication::where('provider_profile_id', $first->providerProfile->id)->value('id').'/approve')->assertOk();
 
         $this->assertTrue(AuditLog::where('action', 'profession.suggestion_added')->where('actor_id', $admin->id)->exists());
         $this->assertTrue(AuditLog::where('action', 'profession.created')->exists());

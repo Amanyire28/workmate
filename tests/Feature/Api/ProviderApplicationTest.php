@@ -130,7 +130,7 @@ class ProviderApplicationTest extends ApiTestCase
         $this->assertFalse($applicant->fresh()->can('act-as-provider'));
 
         $reviewer = $this->asReviewer();
-        $this->postJson("/api/v1/admin/provider-applications/{$application->id}/approve", ['internal_note' => 'Checked by phone'])
+        $this->idChecked()->postJson("/api/v1/admin/provider-applications/{$application->id}/approve", ['internal_note' => 'Checked by phone'])
             ->assertOk()
             ->assertJsonPath('status', null)
             ->assertJsonPath('data.status', 'approved')
@@ -186,7 +186,7 @@ class ProviderApplicationTest extends ApiTestCase
 
         $this->asReviewer();
         $this->postJson("/api/v1/admin/provider-applications/{$application->id}/reject", ['reason' => 'We could not confirm your experience.'])->assertOk();
-        $this->postJson("/api/v1/admin/provider-applications/{$application->id}/approve")
+        $this->idChecked()->postJson("/api/v1/admin/provider-applications/{$application->id}/approve")
             ->assertStatus(409)
             ->assertJson(['code' => 'application_already_decided']);
 
@@ -206,7 +206,7 @@ class ProviderApplicationTest extends ApiTestCase
         $this->putJson('/api/v1/me/provider', $this->details())->assertOk();
         $this->postJson('/api/v1/me/provider/submit', ['accept_provider_terms' => true])->assertOk();
 
-        $this->postJson('/api/v1/admin/provider-applications/'.$this->pendingApplication()->id.'/approve')
+        $this->idChecked()->postJson('/api/v1/admin/provider-applications/'.$this->pendingApplication()->id.'/approve')
             ->assertForbidden()
             ->assertJson(['code' => 'conflict_of_interest']);
 
@@ -221,7 +221,7 @@ class ProviderApplicationTest extends ApiTestCase
         foreach ([[], ['support'], ['finance']] as $roles) {
             $this->signIn($this->userWithRoles($roles));
             $this->getJson('/api/v1/admin/provider-applications')->assertForbidden();
-            $this->postJson("/api/v1/admin/provider-applications/{$application->id}/approve")->assertForbidden();
+            $this->idChecked()->postJson("/api/v1/admin/provider-applications/{$application->id}/approve")->assertForbidden();
         }
 
         $this->asReviewer();
@@ -244,7 +244,7 @@ class ProviderApplicationTest extends ApiTestCase
             ->assertJson(['code' => 'provider_status_conflict']);
 
         $this->asReviewer();
-        $this->postJson("/api/v1/admin/provider-applications/{$application->id}/approve")->assertOk();
+        $this->idChecked()->postJson("/api/v1/admin/provider-applications/{$application->id}/approve")->assertOk();
 
         $this->signIn($this->userWithRoles(['trust_safety']));
         $this->postJson("/api/v1/admin/providers/{$profileId}/suspend")->assertStatus(422)->assertJsonValidationErrors('reason');
@@ -269,7 +269,7 @@ class ProviderApplicationTest extends ApiTestCase
         $applicant = $this->applicant();
 
         $this->asReviewer();
-        $this->postJson('/api/v1/admin/provider-applications/'.$this->pendingApplication()->id.'/approve')->assertOk();
+        $this->idChecked()->postJson('/api/v1/admin/provider-applications/'.$this->pendingApplication()->id.'/approve')->assertOk();
 
         $applicant = $applicant->fresh();
         $applicant->forceFill(['status' => User::STATUS_SUSPENDED])->save();

@@ -26,6 +26,38 @@
       </p>
 
       <div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div class="flex min-w-0 flex-col gap-4">
+        <!-- ============ Service details (decided together with the documents) ============ -->
+        <section v-if="app.service" class="rounded-xl border border-[#E2E8F0] bg-white p-4" aria-labelledby="service-heading">
+          <div class="flex flex-wrap items-start justify-between gap-2">
+            <div class="min-w-0">
+              <h2 id="service-heading" class="text-[15px] font-semibold text-ink">Service details</h2>
+              <p class="text-[12.5px] text-[#64748B]">What customers will see once approved{{ app.service.sentAt ? ` · sent ${formatDateTime(app.service.sentAt)}` : '' }}</p>
+            </div>
+            <AdminStatusBadge :status="serviceBadge" />
+          </div>
+          <dl class="mt-3 grid grid-cols-[minmax(110px,auto)_1fr] gap-x-4 gap-y-1.5 text-[13px]">
+            <dt class="text-[#64748B]">Works as</dt>
+            <dd class="text-ink">{{ { individual: 'Individual', group: 'Group', company: 'Company' }[app.service.type] || app.service.type }}<template v-if="app.service.registrationNumber"> · reg. {{ app.service.registrationNumber }}</template></dd>
+            <dt class="text-[#64748B]">Skills</dt>
+            <dd class="text-ink">
+              <span v-for="s in app.service.skills" :key="s.name" class="mr-2 inline-flex items-center gap-1">{{ s.name }}<span v-if="s.main" class="text-[11px] font-medium text-primary">(main)</span><span v-if="s.years" class="text-[#64748B]">· {{ s.years }} yrs</span></span>
+              <span v-for="t in app.service.typedSkills" :key="t" class="mr-2 text-[#B45309]">{{ t }} (typed)</span>
+            </dd>
+            <dt class="text-[#64748B]">Based in</dt><dd class="text-ink">{{ app.area }}</dd>
+            <template v-if="app.service.places.length"><dt class="text-[#64748B]">Travels to</dt><dd class="text-ink">{{ app.service.places.join(', ') }}</dd></template>
+            <template v-if="app.service.priceFrom"><dt class="text-[#64748B]">Prices from</dt><dd class="text-ink">UGX {{ Number(app.service.priceFrom).toLocaleString('en-UG') }}<template v-if="app.service.priceBasis"> / {{ app.service.priceBasis }}</template></dd></template>
+            <template v-if="app.service.bio"><dt class="text-[#64748B]">About</dt><dd class="text-ink whitespace-pre-line">{{ app.service.bio }}</dd></template>
+            <template v-if="app.service.applicationStatus === 'more_info_required' && app.service.applicationReason">
+              <dt class="text-[#64748B]">Asked to change</dt><dd class="text-[#92400E]">{{ app.service.applicationReason }}</dd>
+            </template>
+          </dl>
+          <p v-if="app.service.typedSkills.length" class="mt-3 text-[12.5px] text-[#B45309]">
+            <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+            Add, match or decline the typed skills in <router-link to="/admin/marketplace/typed-professions" class="underline">Typed Professions</router-link> before approving.
+          </p>
+        </section>
+
         <!-- ============ Documents ============ -->
         <section aria-labelledby="docs-heading" class="flex flex-col gap-3">
           <div class="flex items-baseline justify-between gap-3">
@@ -102,6 +134,7 @@
             </div>
           </article>
         </section>
+        </div>
 
         <!-- ============ Side panel ============ -->
         <aside class="flex flex-col gap-3">
@@ -147,15 +180,15 @@
                   <i class="bi bi-person-check" aria-hidden="true"></i>Assign to me
                 </button>
                 <button type="button" class="wm-btn wm-btn-primary !min-h-10 !rounded-lg" :disabled="!approvable.ok" :aria-describedby="`${uid}-approve`" @click="approve">
-                  <i class="bi bi-shield-fill-check" aria-hidden="true"></i>Approve application
+                  <i class="bi bi-shield-fill-check" aria-hidden="true"></i>{{ detailsWaiting ? 'Approve and list provider' : 'Approve documents' }}
                 </button>
                 <ul :id="`${uid}-approve`" class="flex flex-col gap-1 text-[12.5px]">
                   <li v-for="c in approvable.checks" :key="c.label" class="flex items-start gap-1.5" :class="c.ok ? 'text-[#15803D]' : 'text-[#64748B]'">
                     <i :class="['bi mt-px', c.ok ? 'bi-check-circle-fill' : 'bi-circle']" aria-hidden="true"></i>{{ c.label }}
                   </li>
                 </ul>
-                <button v-if="app.status !== 'info_requested'" type="button" class="wm-btn wm-btn-secondary !min-h-10 !rounded-lg" @click="requestInfo">
-                  <i class="bi bi-chat-left-text" aria-hidden="true"></i>Request more information
+                <button type="button" class="wm-btn wm-btn-secondary !min-h-10 !rounded-lg" @click="requestChanges">
+                  <i class="bi bi-arrow-return-left" aria-hidden="true"></i>Send back for corrections
                 </button>
                 <button type="button" class="wm-btn !min-h-10 !rounded-lg border-[#FCA5A5] bg-white text-[#B91C1C] hover:bg-[#FEF2F2]" @click="rejectApp">
                   <i class="bi bi-x-circle" aria-hidden="true"></i>Reject application
@@ -284,7 +317,8 @@ const approvable = computed(() => {
     }] : []),
     { label: `Every document accepted (${app.value.documents.filter(d => d.status === 'accepted').length}/${app.value.documents.length})`, ok: app.value.documents.every(d => d.status === 'accepted') },
     { label: 'Every requested document added', ok: !app.value.requests.some(r => r.status === 'open') },
-    { label: 'Waiting for a decision (not with the provider)', ok: app.value.status !== 'info_requested' },
+    { label: 'Waiting for a decision (not with the provider)', ok: app.value.status !== 'info_requested' && !['draft', 'more_info_required'].includes(app.value.service?.status) },
+    ...(app.value.service?.typedSkills?.length ? [{ label: 'Typed skills settled', ok: false }] : []),
   ];
   return { ok: checks.every(c => c.ok), checks };
 });
@@ -294,12 +328,21 @@ const decidedText = computed(() => ({
   rejected: `Rejected${app.value.decisionReason ? `: ${app.value.decisionReason}` : '.'}`,
 })[app.value.status] || '');
 
+// The service details are waiting for this same decision
+const detailsWaiting = computed(() => app.value?.service?.status === 'pending_review');
+const serviceBadge = computed(() => ({
+  pending_review: 'pending_review', more_info_required: 'info_requested', approved: 'approved',
+  rejected: 'rejected', suspended: 'suspended', draft: 'draft',
+})[app.value?.service?.status] || 'draft');
+
 /* ---------------- Changes: saved on the server, then reloaded ---------------- */
 async function send(path, body, done) {
   busy.value = true;
   actionError.value = '';
   try {
-    await api(`${base.value}${path}`, { method: 'POST', body: body || {} });
+    // Decisions on the details and documents together go to /admin/onboarding
+    const url = path.startsWith('/onboarding') ? `/admin${path.replace('{id}', app.value.verificationId)}` : `${base.value}${path}`;
+    await api(url, { method: 'POST', body: body || {} });
     await reloadAdminData();
     await load();
     toast(`${done}. Saved and recorded in the audit log.`);
@@ -345,26 +388,34 @@ function assign() {
 function approve() {
   dialog.value = {
     title: `Approve ${app.value.providerName}?`,
-    message: 'They get the grey tick. It confirms these documents were checked, not every aspect of their work.',
+    message: detailsWaiting.value
+      ? 'Their profile goes live and shows the grey tick. The tick confirms these documents were checked, not every aspect of their work.'
+      : 'They get the grey tick. It confirms these documents were checked, not every aspect of their work.',
     confirmLabel: 'Approve', fields: [{ key: 'reason', label: 'Note for the record (optional)', type: 'text' }],
-    run: ({ reason }) => send('/approve', { note: reason || null }, 'Approved'),
+    run: ({ reason }) => send('/onboarding/{id}/approve', { note: reason || null }, detailsWaiting.value ? 'Approved and listed' : 'Approved'),
   };
 }
 
-function requestInfo() {
+/** Corrections before approving: the provider sees each message next to the step that fixes it */
+function requestChanges() {
+  const sentBack = app.value.documents.filter(d => d.status === 'replacement_required').length;
   dialog.value = {
-    title: 'Request more information', message: 'The provider sees your message on their Get verified page.',
-    confirmLabel: 'Send request',
-    fields: [{ key: 'reason', label: 'What is missing or needed?', type: 'textarea', required: true, minLength: 5 }],
-    run: ({ reason }) => send('/request-information', { reason }, 'More information requested'),
+    title: 'Send back for corrections',
+    message: `Write what needs changing. ${sentBack ? `The ${sentBack === 1 ? 'document' : `${sentBack} documents`} you sent back go${sentBack === 1 ? 'es' : ''} with it. ` : ''}The provider fixes it and sends it again; nothing is decided until then.`,
+    confirmLabel: 'Send back',
+    fields: [
+      ...(detailsWaiting.value ? [{ key: 'details', label: 'Service details: what to change (optional)', type: 'textarea', minLength: 5, help: 'e.g. their skills, name, place or description.' }] : []),
+      { key: 'documents', label: 'Documents: what to change (optional)', type: 'textarea', minLength: 5, help: sentBack ? 'Your reason on each sent-back document is shown to them too.' : 'Or send back a single document with its own reason.' },
+    ],
+    run: ({ details, documents }) => send('/onboarding/{id}/request-changes', { details: details || null, documents: documents || null }, 'Sent back for corrections'),
   };
 }
 
 function rejectApp() {
   dialog.value = {
-    title: 'Reject this application?', message: 'The provider is told the reason and can change their documents and send them again.', confirmLabel: 'Reject application', tone: 'danger',
+    title: 'Reject this application?', message: 'The provider is told the reason. They can start again with new details and documents.', confirmLabel: 'Reject application', tone: 'danger',
     fields: [{ key: 'reason', label: 'Reason (shared with the provider)', type: 'textarea', required: true, minLength: 5 }],
-    run: ({ reason }) => send('/reject', { reason }, 'Rejected'),
+    run: ({ reason }) => send('/onboarding/{id}/reject', { reason }, 'Rejected'),
   };
 }
 

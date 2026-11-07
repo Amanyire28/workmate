@@ -105,7 +105,7 @@ class EventNotificationTest extends ApiTestCase
         $accepted = $this->sendRequest($provider, $customer);
         $declined = $this->sendRequest($provider, $customer);
 
-        $this->assertSame(['You’re approved', 'New request', 'New request'], $this->titlesFor($provider->owner));
+        $this->assertSame(['You’re live on WorkMate', 'New request', 'New request'], $this->titlesFor($provider->owner));
         $this->assertSame([], $this->titlesFor($customer));
         $first = $this->sentOnce()->firstWhere('payload.title', 'New request');
         $this->assertSame('Aisha needs plumbing. Reply in WorkMate.', $first['payload']['body']);
@@ -136,7 +136,7 @@ class EventNotificationTest extends ApiTestCase
         $this->signIn($provider->owner);
         $this->postJson("/api/v1/me/conversations/{$chat}/messages", ['body' => 'Thanks, see you at 9'])->assertCreated();
 
-        $this->assertSame(['You’re approved', 'New message'], $this->titlesFor($provider->owner));
+        $this->assertSame(['You’re live on WorkMate', 'New message'], $this->titlesFor($provider->owner));
         $this->assertSame(['New message'], $this->titlesFor($customer));
         $toProvider = $this->sentOnce()->where('endpoint', 'https://fcm.googleapis.com/fcm/send/device-'.$provider->owner_id)->firstWhere('payload.title', 'New message');
         $this->assertSame('Aisha sent you a message.', $toProvider['payload']['body']);
@@ -163,7 +163,7 @@ class EventNotificationTest extends ApiTestCase
         $this->app->terminate();
 
         $this->assertSame(['Changes needed', 'Another document needed'], $this->titlesFor($applicant));
-        $this->assertSame('/account/verification', $this->sentOnce()->last()['payload']['url']);
+        $this->assertSame('/start-earning', $this->sentOnce()->last()['payload']['url']);
     }
 
     public function test_nothing_is_sent_when_push_is_not_set_up_or_nobody_turned_it_on()

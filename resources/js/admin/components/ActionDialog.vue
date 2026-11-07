@@ -133,7 +133,8 @@ function submit() {
     const v = values[f.key];
     const blank = v == null || String(v).trim() === '';
     if (f.required && blank) errors[f.key] = `${f.label} is required.`;
-    else if (f.minLength && String(v).trim().length < f.minLength) errors[f.key] = `Please write at least ${f.minLength} characters.`;
+    // Optional fields may be left empty; when filled they need the minimum length
+    else if (f.minLength && !(blank && !f.required) && String(v).trim().length < f.minLength) errors[f.key] = `Please write at least ${f.minLength} characters.`;
     else if (f.maxLength && !blank && String(v).trim().length > f.maxLength) errors[f.key] = `Keep it to ${f.maxLength} characters or fewer.`;
     else if (f.type === 'number' && !blank && Number.isNaN(Number(v))) errors[f.key] = 'Enter a number.';
   }

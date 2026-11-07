@@ -174,8 +174,8 @@ const blocker = computed(() => {
       text: waiting
         ? 'Only approved providers can apply for jobs. Your application to offer services is still being handled.'
         : 'Only approved providers can apply for jobs. Apply to offer your services with the account you already have.',
-      to: '/account?panel=provider',
-      action: waiting ? 'Check your application' : 'Offer your services',
+      to: '/start-earning',
+      action: waiting ? 'Check your application' : 'Start earning on WorkMate',
     };
   }
   return null;

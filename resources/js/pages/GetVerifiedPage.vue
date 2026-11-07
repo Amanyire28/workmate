@@ -1,7 +1,10 @@
 <template>
-  <div class="wm-container wm-container-sm wm-page">
-    <BackLink to="/account">Account</BackLink>
-    <h1 class="wm-h1 mt-1">{{ state && state.status !== 'draft' ? 'Your verification' : 'Get verified' }}</h1>
+  <!-- Also used inside Start earning (embedded): just the documents, no title or Send -->
+  <div :class="embedded ? '' : 'wm-container wm-container-sm wm-page'">
+    <template v-if="!embedded">
+      <BackLink to="/account">Account</BackLink>
+      <h1 class="wm-h1 mt-1">{{ state && state.status !== 'draft' ? 'Your verification' : 'Get verified' }}</h1>
+    </template>
 
     <div v-if="loading" class="mt-5 flex items-center gap-2 wm-meta" role="status">
       <span class="wm-spinner text-primary" aria-hidden="true"></span>Loading your documents…
@@ -20,8 +23,12 @@
     </section>
 
     <template v-else>
+      <p v-if="embedded && state.decision_reason" class="wm-notice wm-notice-warning mt-1">
+        <i class="bi bi-chat-left-text" aria-hidden="true"></i><span><strong class="font-semibold">WorkMate asked:</strong> {{ state.decision_reason }}</span>
+      </p>
+
       <!-- Where it stands -->
-      <section class="wm-card mt-4" aria-labelledby="status-heading">
+      <section v-if="!embedded" class="wm-card mt-4" aria-labelledby="status-heading">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="min-w-0">
             <h2 id="status-heading" class="text-lg font-semibold text-ink">{{ statusInfo.label }}</h2>
@@ -187,7 +194,7 @@
       </section>
 
       <!-- Send for review -->
-      <section v-if="state.can_submit" class="mt-6 flex flex-col gap-3" aria-labelledby="send-heading">
+      <section v-if="state.can_submit && !embedded" class="mt-6 flex flex-col gap-3" aria-labelledby="send-heading">
         <h2 id="send-heading" class="sr-only">Send for review</h2>
         <label class="flex items-start gap-3 text-sm text-ink">
           <input v-model="confirmed" type="checkbox" class="wm-check mt-0.5" />
@@ -210,13 +217,19 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, h, Comment } from 'vue';
+import { ref, reactive, computed, watch, onMounted, h, Comment } from 'vue';
 import BackLink from '@/components/BackLink.vue';
 import FormField from '@/components/FormField.vue';
 import PrimaryButton from '@/components/PrimaryButton.vue';
 import { api, fieldErrors } from '@/api/client.js';
 import { auth } from '@/stores/auth.js';
 import { VERIFICATION_STATUS, DOCUMENT_STATUS } from '@/utils/verificationStatus.js';
+
+const props = defineProps({
+  // Inside Start earning: the wizard shows the title and does the sending
+  embedded: { type: Boolean, default: false },
+});
+const emit = defineEmits(['update']);
 
 const MAX_MB = 8;
 
@@ -341,6 +354,8 @@ async function submit() {
 }
 
 onMounted(load);
+// Start earning needs to know when the ID and required documents are in
+watch(state, (s) => emit('update', s));
 
 /* ---------------- Small pieces ---------------- */
 

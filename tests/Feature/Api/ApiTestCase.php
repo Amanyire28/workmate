@@ -40,6 +40,17 @@ abstract class ApiTestCase extends TestCase
         return $user;
     }
 
+    /**
+     * Nobody is listed before their ID is checked: marks every applicant's
+     * documents as approved, for tests about the details-only approval.
+     */
+    protected function idChecked(): self
+    {
+        \App\Models\ProviderProfile::whereNull('document_verified_at')->update(['document_verified_at' => now()]);
+
+        return $this;
+    }
+
     protected function signIn(User $user): User
     {
         Sanctum::actingAs($user);

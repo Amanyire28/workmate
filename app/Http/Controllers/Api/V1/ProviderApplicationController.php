@@ -9,6 +9,7 @@ use App\Models\LegalAcceptance;
 use App\Models\ProviderProfile;
 use App\Services\LegalDocuments;
 use App\Services\ProviderApplications;
+use App\Services\ProviderOnboarding;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -51,6 +52,18 @@ class ProviderApplicationController extends Controller
         }
 
         return $this->present($application->profile);
+    }
+
+    /** Start earning: send the details and the documents together */
+    public function send(Request $request, LegalDocuments $legal, ProviderOnboarding $onboarding): JsonResponse
+    {
+        $request->validate([
+            'accept_provider_terms' => [$legal->providerAgreement() ? 'accepted' : 'nullable'],
+        ], ['accept_provider_terms.accepted' => 'Tick the box to agree to the Service Provider Agreement.']);
+
+        $sent = $onboarding->send($request->user(), $request);
+
+        return response()->json(['data' => ['sent' => $sent]]);
     }
 
     public function reopen(Request $request): ProviderProfileResource

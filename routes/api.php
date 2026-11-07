@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V1\Admin\LegalDocumentController;
 use App\Http\Controllers\Api\V1\Admin\ProfessionSuggestionController;
 use App\Http\Controllers\Api\V1\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Api\V1\Admin\ProviderApplicationController as AdminProviderApplicationController;
+use App\Http\Controllers\Api\V1\Admin\ProviderOnboardingController;
 use App\Http\Controllers\Api\V1\Admin\ProviderStandingController;
 use App\Http\Controllers\Api\V1\Admin\PushAnnouncementController;
 use App\Http\Controllers\Api\V1\Admin\RoleController;
@@ -210,6 +211,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('me/provider', [ProviderApplicationController::class, 'show'])->name('me.provider');
         Route::put('me/provider', [ProviderApplicationController::class, 'save'])->name('me.provider.save');
         Route::post('me/provider/submit', [ProviderApplicationController::class, 'submit'])->name('me.provider.submit');
+        Route::post('me/provider/send', [ProviderApplicationController::class, 'send'])->middleware('throttle:marketplace-write')->name('me.provider.send');
         Route::post('me/provider/reopen', [ProviderApplicationController::class, 'reopen'])->name('me.provider.reopen');
 
         // The provider's own verification documents (private files)
@@ -317,6 +319,13 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 ->middleware('can:verification.configure')->where('category', '[a-z0-9_-]+')->name('document-requirements.publish');
 
             // Document verification (the grey tick)
+            // One decision on an applicant's details and documents together
+            Route::middleware(['can:documents.review', 'can:providers.review'])->prefix('onboarding/{verification}')->name('onboarding.')->group(function () {
+                Route::post('approve', [ProviderOnboardingController::class, 'approve'])->name('approve');
+                Route::post('request-changes', [ProviderOnboardingController::class, 'requestChanges'])->name('request-changes');
+                Route::post('reject', [ProviderOnboardingController::class, 'reject'])->name('reject');
+            });
+
             Route::middleware('can:documents.review')->prefix('verifications/{verification}')->name('verifications.')->group(function () {
                 Route::post('assign', [DocumentVerificationController::class, 'assign'])->name('assign');
                 Route::post('documents/{document}/accept', [DocumentVerificationController::class, 'acceptDocument'])->name('documents.accept');

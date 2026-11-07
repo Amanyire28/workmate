@@ -149,6 +149,31 @@ class AdminSnapshot
         ];
     }
 
+    /** What an applicant told customers about their work, for the combined review */
+    private function serviceDetails(ProviderProfile $profile): array
+    {
+        $application = $profile->latestApplication;
+
+        return [
+            'status' => $profile->status,
+            'type' => $profile->type,
+            'registrationNumber' => $profile->business_registration_number,
+            'bio' => $profile->bio,
+            'skills' => $profile->professions->sortByDesc(function ($p) {
+                return (int) $p->pivot->is_primary;
+            })->map(function ($p) {
+                return ['name' => $p->name, 'main' => (bool) $p->pivot->is_primary, 'years' => $p->pivot->years_experience];
+            })->values(),
+            // Typed under "Other": settled in Typed Professions before approving
+            'typedSkills' => $profile->professionSuggestions->where('status', 'pending')->pluck('name')->values(),
+            'places' => $profile->serviceAreas->pluck('name')->values(),
+            'priceFrom' => $profile->price_from, 'priceBasis' => $profile->price_basis,
+            'applicationStatus' => $application ? $application->status : null,
+            'applicationReason' => $application ? $application->decision_reason : null,
+            'sentAt' => $application && $application->submitted_at ? $application->submitted_at->toIso8601String() : null,
+        ];
+    }
+
     private function customers(): Collection
     {
         return User::withTrashed()->orderBy('id')->get()->map(function (User $u) {
@@ -259,7 +284,7 @@ class AdminSnapshot
     {
         $rules = app(DocumentRequirements::class);
 
-        return DocumentVerification::with(['profile.owner', 'profile.professions.category', 'profile.baseArea', 'reviewer', 'documents.reviewer', 'requests.requester', 'requirementVersion.category'])
+        return DocumentVerification::with(['profile.owner', 'profile.professions.category', 'profile.baseArea', 'profile.serviceAreas', 'profile.professionSuggestions', 'profile.latestApplication', 'reviewer', 'documents.reviewer', 'requests.requester', 'requirementVersion.category'])
             ->whereNotNull('submitted_at')
             ->latest('submitted_at')
             ->get()
@@ -282,6 +307,8 @@ class AdminSnapshot
                     'status' => $v->status, 'reviewer' => optional($v->reviewer)->name,
                     'submittedAt' => $v->submitted_at->toIso8601String(), 'lastActionAt' => $v->updated_at->toIso8601String(),
                     'decisionReason' => $v->decision_reason,
+                    // The service details sent with the documents, decided together
+                    'service' => $this->serviceDetails($profile),
                     'documents' => $documents->sortBy(function ($d) {
                         return [$d->kind === VerificationDocument::KIND_NATIONAL_ID ? 0 : 1, $d->id];
                     })->map(function (VerificationDocument $d) use ($specs) {

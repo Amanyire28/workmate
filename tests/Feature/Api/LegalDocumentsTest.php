@@ -184,8 +184,8 @@ class LegalDocumentsTest extends ApiTestCase
     {
         $user = $this->signIn(User::factory()->create(['email_verified_at' => now()]));
         $this->putJson('/api/v1/me/provider', ['type' => 'individual', 'display_name' => 'Okello Plumbing', 'professions' => [['profession' => 'plumber']], 'base_area' => 'ntinda'])->assertOk();
-        // Saving details makes them a provider applicant: the agreement now applies
-        $this->assertContains('provider', $this->pendingKeys());
+        // A draft isn't interrupted: they agree when sending
+        $this->assertNotContains('provider', $this->pendingKeys());
 
         $this->postJson('/api/v1/me/provider/submit')->assertStatus(422)->assertJsonValidationErrors('accept_provider_terms');
         $this->postJson('/api/v1/me/provider/submit', ['accept_provider_terms' => true])->assertOk();

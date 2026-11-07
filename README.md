@@ -131,7 +131,7 @@ Throughout this README:
 - **Settings** that change the app straight away: nearby search (radii, maximum distance, fallbacks, GPS, tie-breaks), the default place, support phone and email, accepting provider applications, maintenance mode, and presence timings
 
 **Quality**
-- **238 automated tests** (feature and unit) on a separate MariaDB test database
+- **252 automated tests** (feature and unit) on a separate MariaDB test database
 
 ### 🟡 In development
 
@@ -306,6 +306,25 @@ A place for members to share their work: **My Work** (finished jobs and before-a
 **Data:** `community_posts` (soft deletes, removal fields, like and comment counts, `likes_notified_at`), `community_post_media`, `community_comments` (`parent_id` for replies), `community_post_likes`, `community_post_saves`, `follows`, and `reports.community_post_id` / `community_comment_id`.
 
 ---
+
+## Start earning (becoming a provider)
+
+Implemented ✅. One guided flow at **`/start-earning`**, reached from the top of Account, from a job's Apply button and from provider notifications:
+
+1. **Your skills**: type to search, or tap a popular trade; the first is the main one; "not listed" adds a typed skill for WorkMate to check.
+2. **Where you work**: base place (pre-filled from the place already chosen) and optional places they travel to.
+3. **Your profile**: photo, how they work (just me, group, company), name, about, prices, with a preview of their card.
+4. **Your ID**: the National ID and anything their main skill needs (the Get verified screen, embedded).
+5. **Check and send**: a summary with Edit links, email confirmation with "send the link again", the Service Provider Agreement tick and **one Send** (`POST /me/provider/send`), which sends the details and the documents together. A first application can't be sent without the ID; if either part isn't ready nothing is sent.
+
+Details are saved at each step, so people can stop and come back. Afterwards the same page shows where things stand (Sent → Being checked → Live) and, when WorkMate asks for changes, **What to fix**: the reviewer's message on the details, documents sent back with the reason, and extra documents asked for, each linked to the step that fixes it, then **Send corrections**. Approved providers still edit their details from Account → Your service details, and add documents from Get verified.
+
+**One review.** Reviewers open the applicant in **Verification → Applications**: the service details (skills, place, prices, about) sit above the documents, and one decision covers both (`/api/v1/admin/onboarding/{verification}/…`, needing `documents.review` and `providers.review`):
+- **Approve and list provider**: the documents are approved (grey tick) and the details approved, so the provider goes live. Only once the National ID and every document are accepted and any typed skill is settled.
+- **Send back for corrections** (before deciding): a message on the details, a message on the documents, and any document sent back with its own reason. The provider sees each under What to fix, corrects it and sends it again; nothing is decided until then.
+- **Reject**: closes both, with the reason shared.
+
+**ID before listing.** Nobody is listed on their details alone: the details-only approval in Provider Applications refuses applicants whose ID hasn't been checked (`id_not_verified`). Providers approved before this keep their listing; Start earning asks them to verify, and applicants still waiting with no ID are asked to add it.
 
 ## Provider verification and the tick
 

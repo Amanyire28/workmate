@@ -140,9 +140,9 @@ class EventNotifications
     {
         $profile = $application->profile;
         $texts = [
-            ProviderApplication::STATUS_APPROVED => ['You’re approved', 'Your WorkMate provider profile is live. Customers can now find and hire you.'],
+            ProviderApplication::STATUS_APPROVED => ['You’re live on WorkMate', 'Your provider profile is approved. Customers can now find and hire you.'],
             ProviderApplication::STATUS_REJECTED => ['Application not approved', 'Your provider application wasn’t approved. See the reason in WorkMate.'],
-            ProviderApplication::STATUS_MORE_INFO_REQUIRED => ['Changes needed', 'WorkMate needs more information on your provider application.'],
+            ProviderApplication::STATUS_MORE_INFO_REQUIRED => ['Changes needed', 'WorkMate asked you to fix something before approving you. See what to change.'],
         ];
         if (! isset($texts[$application->status])) {
             return;
@@ -151,7 +151,7 @@ class EventNotifications
         $this->send('account', [$profile->owner_id], [
             'title' => $texts[$application->status][0],
             'body' => $texts[$application->status][1],
-            'url' => '/account',
+            'url' => '/start-earning',
             'tag' => 'provider-application',
             'important' => true,
         ]);
@@ -176,7 +176,7 @@ class EventNotifications
         $this->send('account', [$verification->profile->owner_id], [
             'title' => $texts[$event][0],
             'body' => $texts[$event][1],
-            'url' => '/account/verification',
+            'url' => '/start-earning',
             'tag' => 'verification',
             'important' => true,
         ]);

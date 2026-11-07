@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Admin;
 
+use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\ProviderApplicationResource;
 use App\Models\ProviderApplication;
@@ -47,6 +48,11 @@ class ProviderApplicationController extends Controller
     public function approve(Request $request, ProviderApplication $application): ProviderApplicationResource
     {
         $data = $request->validate(['internal_note' => ['nullable', 'string', 'max:2000']]);
+
+        // Nobody is listed before their ID is checked: approve both from the verification review
+        if (! $application->profile->document_verified_at) {
+            throw new BusinessRuleException('id_not_verified', 'Check this applicant’s National ID first: open them in Verification → Applications and approve their details and documents together.', 409);
+        }
 
         return $this->present($this->applications->approve($application, $request->user(), $data['internal_note'] ?? null));
     }

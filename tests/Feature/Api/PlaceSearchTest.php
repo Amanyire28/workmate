@@ -52,7 +52,7 @@ class PlaceSearchTest extends ApiTestCase
         ])->assertOk();
         $this->postJson('/api/v1/me/provider/submit', ['accept_provider_terms' => true])->assertOk();
         $this->signIn($this->userWithRoles(['provider_review']));
-        $this->postJson('/api/v1/admin/provider-applications/'.\App\Models\ProviderApplication::sole()->id.'/approve')->assertOk();
+        $this->idChecked()->postJson('/api/v1/admin/provider-applications/'.\App\Models\ProviderApplication::sole()->id.'/approve')->assertOk();
 
         $areas = collect($this->getJson('/api/v1/catalog')->assertOk()->json('data.areas'));
         $this->assertCount(21, $areas);

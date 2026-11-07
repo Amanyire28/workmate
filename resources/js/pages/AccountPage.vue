@@ -77,6 +77,19 @@
       <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
     </router-link>
 
+    <!-- Becoming a provider: one guided flow -->
+    <router-link v-if="user && !['approved', 'suspended'].includes(user.provider_status)" to="/start-earning"
+      class="wm-card wm-card-link mt-3 flex items-center gap-4"
+      :class="user.provider_status === 'more_info_required' ? '!border-[#FCD34D]' : '!border-primary/30'">
+      <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-briefcase"></i></span>
+      <span class="min-w-0 flex-1">
+        <span class="block text-[15px] font-semibold text-ink">{{ START.title }}</span>
+        <span class="block wm-meta">{{ START.text }}</span>
+      </span>
+      <span v-if="user.provider_status === 'more_info_required'" class="wm-pill wm-pill-warning !py-0 !text-[11px]">Action needed</span>
+      <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+    </router-link>
+
     <!-- Providers kept for later -->
     <router-link v-if="user" to="/saved" class="wm-card wm-card-link mt-3 flex items-center gap-4">
       <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-heart"></i></span>
@@ -98,8 +111,8 @@
       <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
     </router-link>
 
-    <!-- Document verification -->
-    <router-link to="/account/verification" class="wm-card wm-card-link mt-3 flex items-center gap-4">
+    <!-- Document verification (approved providers; applicants do it in Start earning) -->
+    <router-link v-if="user && ['approved', 'suspended'].includes(user.provider_status)" to="/account/verification" class="wm-card wm-card-link mt-3 flex items-center gap-4">
       <span class="wm-icon-tile !bg-[#F1F5F9] !text-[#94A3B8]" aria-hidden="true"><i class="bi bi-patch-check-fill"></i></span>
       <span class="min-w-0 flex-1">
         <span class="block text-[15px] font-semibold text-ink">{{ myVerification && myVerification.status !== 'draft' ? 'Your verification' : 'Get verified' }}</span>
@@ -197,7 +210,7 @@
           </form>
         </div>
 
-        <div class="wm-card !p-0 overflow-hidden">
+        <div v-if="['approved', 'suspended'].includes(user.provider_status)" class="wm-card !p-0 overflow-hidden">
           <button
             type="button"
             class="w-full flex items-center gap-3 min-h-[52px] px-4 text-left hover:bg-white/60"
@@ -207,7 +220,7 @@
           >
             <i class="bi bi-tools text-xl text-muted" aria-hidden="true"></i>
             <span class="flex-1">
-              <span class="block text-[15px] font-medium text-ink">Offer your services</span>
+              <span class="block text-[15px] font-medium text-ink">Your service details</span>
               <span class="block wm-meta">{{ providerSummary }}</span>
             </span>
             <i :class="['bi text-muted', openPanel === 'provider' ? 'bi-chevron-up' : 'bi-chevron-down']" aria-hidden="true"></i>
@@ -222,13 +235,13 @@
     <!-- Signed out: explain how to start offering services -->
     <router-link
       v-else-if="auth.status === 'ready'"
-      to="/register?redirect=/account%3Fpanel%3Dprovider"
+      to="/register?redirect=/start-earning"
       class="wm-card wm-card-link mt-3 flex items-center gap-4"
     >
       <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-tools"></i></span>
       <span class="min-w-0 flex-1">
-        <span class="block text-[15px] font-semibold text-ink">Offer your services</span>
-        <span class="block wm-meta">Create an account, then apply to get hired with it</span>
+        <span class="block text-[15px] font-semibold text-ink">Start earning on WorkMate</span>
+        <span class="block wm-meta">Create an account, then get hired for your skills in 5 short steps</span>
       </span>
       <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
     </router-link>
@@ -372,6 +385,16 @@ const PROVIDER_SUMMARIES = {
   suspended: 'Provider account suspended',
 };
 const providerSummary = computed(() => PROVIDER_SUMMARIES[user.value?.provider_status] || PROVIDER_SUMMARIES.not_applied);
+
+// The Start earning card, by where the application stands
+const START_CARDS = {
+  not_applied: { title: 'Start earning on WorkMate', text: 'Get found by customers and apply for jobs. 5 short steps.' },
+  draft: { title: 'Finish becoming a provider', text: 'Your details are saved. Pick up where you left off.' },
+  pending_review: { title: 'Your application is being checked', text: 'We’ll let you know, usually within 2 working days.' },
+  more_info_required: { title: 'WorkMate asked you to fix something', text: 'See what to change and send it back.' },
+  rejected: { title: 'Your application wasn’t approved', text: 'See why, and start again when you’re ready.' },
+};
+const START = computed(() => START_CARDS[user.value?.provider_status] || START_CARDS.not_applied);
 
 // /account?panel=provider opens the service profile directly (linked from Home)
 const openPanel = ref(route.query.panel === 'provider' ? 'provider' : '');

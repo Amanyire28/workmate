@@ -43,7 +43,7 @@ class NotificationListTest extends ApiTestCase
             ->assertJsonPath('data.0.url', '/activity?tab=received')
             ->assertJsonPath('data.0.kind', 'requests')
             ->assertJsonPath('data.0.read', false)
-            ->assertJsonPath('data.1.title', 'You’re approved')
+            ->assertJsonPath('data.1.title', 'You’re live on WorkMate')
             ->json('data');
 
         $this->postJson('/api/v1/me/notifications/'.$list[0]['id'].'/read')->assertOk()->assertJsonPath('data.unread', 1);
@@ -64,14 +64,14 @@ class NotificationListTest extends ApiTestCase
         $this->travel(5)->minutes();
         $this->postJson("/api/v1/me/conversations/{$chat}/messages", ['body' => 'Are you free?'])->assertCreated();
 
-        $this->assertSame(['New message', 'You’re approved'], $this->titles($provider->owner));
+        $this->assertSame(['New message', 'You’re live on WorkMate'], $this->titles($provider->owner));
 
         // Once read, the next message is a new entry at the top
         $this->signIn($provider->owner);
         $this->postJson('/api/v1/me/notifications/read')->assertOk();
         $this->signIn($customer);
         $this->postJson("/api/v1/me/conversations/{$chat}/messages", ['body' => 'Hello again'])->assertCreated();
-        $this->assertSame(['New message', 'New message', 'You’re approved'], $this->titles($provider->owner));
+        $this->assertSame(['New message', 'New message', 'You’re live on WorkMate'], $this->titles($provider->owner));
     }
 
     public function test_people_choose_what_they_are_told_about_except_account_notices()
