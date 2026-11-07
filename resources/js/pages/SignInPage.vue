@@ -22,7 +22,7 @@
       <div class="flex items-center justify-between gap-3">
         <label class="inline-flex min-h-11 items-center gap-2.5 text-[15px] text-ink">
           <input v-model="form.remember" type="checkbox" class="h-5 w-5 accent-primary" />
-          Keep me signed in
+          Keep me signed in on this device
         </label>
         <router-link to="/forgot-password" class="wm-link text-[15px]">Forgot password?</router-link>
       </div>
@@ -50,7 +50,8 @@ import { focusFirstError } from '@/utils/forms.js';
 const route = useRoute();
 const router = useRouter();
 
-const form = reactive({ email: '', password: '', remember: false });
+// Ticked: people stay signed in on their own phone. Untick on a shared device.
+const form = reactive({ email: '', password: '', remember: true });
 const errors = ref({});
 const error = ref('');
 const busy = ref(false);

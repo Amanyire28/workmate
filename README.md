@@ -131,7 +131,7 @@ Throughout this README:
 - **Settings** that change the app straight away: nearby search (radii, maximum distance, fallbacks, GPS, tie-breaks), the default place, support phone and email, accepting provider applications, maintenance mode, and presence timings
 
 **Quality**
-- **228 automated tests** (feature and unit) on a separate MariaDB test database
+- **238 automated tests** (feature and unit) on a separate MariaDB test database
 
 ### 🟡 In development
 
@@ -563,7 +563,9 @@ Not yet in the schema: bookings and booking event history; performance-tick rule
   - New accounts are signed in straight away and sent a confirmation email.
   - Suspended accounts can't sign in.
   - A wrong password always gets the same message, and the forgot-password form answers the same way whether or not an account exists, so neither reveals which emails are registered.
-- **Passwords:** hashed with bcrypt; at least 8 characters with letters and numbers. Changing or resetting a password revokes API tokens.
+- **Passwords:** hashed with bcrypt; at least 8 characters with letters and numbers. Changing a password signs out every other device (sessions, "Keep me signed in" cookies and API tokens); resetting one signs out everywhere.
+- **Staying signed in:** "Keep me signed in on this device" is ticked by default and set for new accounts, so people stay signed in for 90 days without use (`SESSION_LIFETIME=129600`, `session.remember_lifetime`), through browser and phone restarts. Unticked (a shared device), the `wm_shared_device` cookie makes the session end after 2 hours idle or when the browser closes (`ShortSessionOnSharedDevice`).
+- **Devices:** with `SESSION_DRIVER=database`, **Account → Devices** lists where the account is signed in (browser, system, partial IP address, last active) and signs out one device or all others. Session ids never leave the server (the app sees a hash). Suspending an account signs it out everywhere.
 - **Rate limits** (in `RouteServiceProvider`):
   - sign-in: 5 per minute per email and device, and 20 per minute per device
   - registration and emails: 6 per minute

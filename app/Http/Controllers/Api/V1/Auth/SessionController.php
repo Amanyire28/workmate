@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\Auth;
 
 use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
+use App\Http\Middleware\ShortSessionOnSharedDevice;
 use App\Http\Requests\RegisterRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
@@ -13,6 +14,7 @@ use App\Services\LegalDocuments;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -28,13 +30,18 @@ class SessionController extends Controller
 
         $user = $accounts->register($request->validated());
 
+        // New accounts stay signed in on this device (Account → Devices to sign out)
+        $guard = Auth::guard('web');
+        $guard->setRememberDuration((int) config('session.remember_lifetime'));
+        $this->rememberChoice(true);
+
         // The ticked box: the documents' current versions, and the optional choice
         $legal->acceptAtSignUp($user, $request);
         if ($request->boolean('marketing')) {
             $legal->setConsent($user, 'marketing', true, 'sign_up', $request);
         }
 
-        Auth::guard('web')->login($user);
+        $guard->login($user, true);
         $request->session()->regenerate();
 
         return (new UserResource($user->load('roles', 'providerProfile')))
@@ -53,8 +60,10 @@ class SessionController extends Controller
         ]);
 
         $attempt = ['email' => strtolower(trim($credentials['email'])), 'password' => $credentials['password']];
+        $remember = (bool) ($credentials['remember'] ?? false);
+        Auth::guard('web')->setRememberDuration((int) config('session.remember_lifetime'));
 
-        if (! Auth::guard('web')->attempt($attempt, (bool) ($credentials['remember'] ?? false))) {
+        if (! Auth::guard('web')->attempt($attempt, $remember)) {
             // Linked to the account when one exists; the address itself is stored masked
             $audit->record('auth.sign_in_failed', User::where('email', $attempt['email'])->first(), [], ['email' => $this->maskEmail($attempt['email'])]);
 
@@ -77,9 +86,22 @@ class SessionController extends Controller
         }
 
         $request->session()->regenerate();
+        $this->rememberChoice($remember);
         $audit->record('auth.signed_in', $user, [], [], null, $user);
 
         return new UserResource($user->load('roles', 'providerProfile'));
+    }
+
+    /**
+     * "Keep me signed in on this device" unticked: a shared device, so the
+     * session is short and ends when the browser closes.
+     */
+    private function rememberChoice(bool $remember): void
+    {
+        Cookie::queue($remember
+            ? Cookie::forget(ShortSessionOnSharedDevice::COOKIE)
+            // A browser-session cookie, gone when the browser closes
+            : Cookie::make(ShortSessionOnSharedDevice::COOKIE, '1', 0, null, null, config('session.secure'), true, false, 'lax'));
     }
 
     /** "aisha@gmail.com" → "a•••@gmail.com" */
@@ -93,6 +115,7 @@ class SessionController extends Controller
     public function logout(Request $request): JsonResponse
     {
         Auth::guard('web')->logout();
+        Cookie::queue(Cookie::forget(ShortSessionOnSharedDevice::COOKIE));
 
         if ($request->hasSession()) {
             $request->session()->invalidate();

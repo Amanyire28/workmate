@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api\V1\Auth;
 use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Services\Accounts;
+use App\Services\DeviceSessions;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -61,7 +62,7 @@ class PasswordController extends Controller
         return response()->json(['data' => ['message' => 'Your password has been changed. You can now sign in.']]);
     }
 
-    public function update(Request $request, Accounts $accounts): JsonResponse
+    public function update(Request $request, Accounts $accounts, DeviceSessions $devices): JsonResponse
     {
         $data = $request->validate([
             'current_password' => ['required', 'string', 'current_password'],
@@ -71,9 +72,12 @@ class PasswordController extends Controller
             'password.different' => 'Choose a password you are not already using.',
         ]);
 
-        $accounts->setPassword($request->user(), $data['password'], 'account.password_changed');
+        $user = $request->user();
+        $accounts->setPassword($user, $data['password'], 'account.password_changed', $request->hasSession() ? $request->session()->getId() : null);
 
         if ($request->hasSession()) {
+            // This device stays signed in, with a new "Keep me signed in" cookie if it had one
+            $devices->forgetOtherRememberCookies($user, $request);
             $request->session()->regenerate();
         }
 

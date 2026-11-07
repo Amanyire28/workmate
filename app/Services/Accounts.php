@@ -17,9 +17,13 @@ class Accounts
     /** @var AuditLogger */
     private $audit;
 
-    public function __construct(AuditLogger $audit)
+    /** @var DeviceSessions */
+    private $devices;
+
+    public function __construct(AuditLogger $audit, DeviceSessions $devices)
     {
         $this->audit = $audit;
+        $this->devices = $devices;
     }
 
     /** @param array{name: string, email: string, phone: ?string, locale: ?string, password: string} $data */
@@ -65,18 +69,20 @@ class Accounts
     }
 
     /**
-     * Sets a new password and signs the account out of every API token.
-     * The caller handles the current browser session.
+     * Sets a new password and signs the account out everywhere: API tokens,
+     * "Keep me signed in" cookies and every browser session except
+     * $keepSessionId (the device that changed it). The caller handles that one.
      */
-    public function setPassword(User $user, string $password, string $action): void
+    public function setPassword(User $user, string $password, string $action, ?string $keepSessionId = null): void
     {
-        DB::transaction(function () use ($user, $password, $action) {
+        DB::transaction(function () use ($user, $password, $action, $keepSessionId) {
             $user->forceFill([
                 'password' => Hash::make($password),
                 'remember_token' => Str::random(60),
             ])->save();
 
             $user->tokens()->delete();
+            $this->devices->endSessions($user, $keepSessionId);
 
             $this->audit->record($action, $user, [], [], null, $user);
         });

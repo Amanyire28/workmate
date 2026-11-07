@@ -7,6 +7,7 @@ use App\Models\ProviderReport;
 use App\Models\Review;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Account and review decisions made by administrators. Each one
@@ -40,9 +41,11 @@ class AdminActions
         return DB::transaction(function () use ($account, $status, $admin, $reason) {
             $before = $account->status;
             $account->forceFill(['status' => $status])->save();
-            // Signed-in API tokens stop working straight away; web sessions end on the next request
+            // Signed out everywhere straight away: tokens, sessions and "Keep me signed in"
             if ($status !== User::STATUS_ACTIVE) {
                 $account->tokens()->delete();
+                app(DeviceSessions::class)->endSessions($account);
+                $account->forceFill(['remember_token' => Str::random(60)])->save();
             }
 
             $this->audit->record(

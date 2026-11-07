@@ -243,6 +243,14 @@
       <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
     </router-link>
 
+    <router-link v-if="user" to="/account/devices" class="wm-card wm-card-link mt-3 flex items-center gap-4">
+      <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-phone"></i></span>
+      <span class="min-w-0 flex-1">
+        <span class="block text-[15px] font-semibold text-ink">Devices</span>
+        <span class="block wm-meta">Where you’re signed in, and signing other devices out</span>
+      </span>
+      <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+    </router-link>
     <router-link v-if="user" to="/account/legal" class="wm-card wm-card-link mt-3 flex items-center gap-4">
       <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-shield-lock"></i></span>
       <span class="min-w-0 flex-1">

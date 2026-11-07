@@ -25,6 +25,7 @@ use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\CommunityController;
 use App\Http\Controllers\Api\V1\CommunityPeopleController;
 use App\Http\Controllers\Api\V1\ConversationController;
+use App\Http\Controllers\Api\V1\DeviceController;
 use App\Http\Controllers\Api\V1\DirectoryController;
 use App\Http\Controllers\Api\V1\JobApplicantController;
 use App\Http\Controllers\Api\V1\JobController;
@@ -154,6 +155,13 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('me/heartbeat', [PresenceController::class, 'heartbeat'])->middleware('throttle:heartbeat')->name('me.heartbeat');
 
         // The notification list (the bell) and which kinds the account wants
+        // Devices this account is signed in on
+        Route::get('me/devices', [DeviceController::class, 'index'])->name('me.devices');
+        Route::middleware('throttle:community-react')->group(function () {
+            Route::delete('me/devices/{key}', [DeviceController::class, 'destroy'])->where('key', '[0-9a-f]{32}')->name('me.devices.destroy');
+            Route::post('me/devices/sign-out-others', [DeviceController::class, 'signOutOthers'])->name('me.devices.others');
+        });
+
         // What I accepted and still need to accept; optional consents
         Route::get('me/legal', [LegalController::class, 'mine'])->name('me.legal');
         Route::middleware('throttle:community-react')->group(function () {

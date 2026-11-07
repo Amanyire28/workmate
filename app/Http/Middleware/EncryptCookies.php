@@ -12,6 +12,7 @@ class EncryptCookies extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        //
+        // Only "1": read before the session starts (ShortSessionOnSharedDevice)
+        'wm_shared_device',
     ];
 }

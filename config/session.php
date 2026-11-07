@@ -31,9 +31,20 @@ return [
     |
     */
 
-    'lifetime' => env('SESSION_LIFETIME', 120),
+    // WorkMate keeps people signed in for 90 days without use (129600
+    // minutes). On a shared device ("Keep me signed in" unticked) the
+    // session ends after 2 hours idle or when the browser closes; see
+    // App\Http\Middleware\ShortSessionOnSharedDevice.
+    'lifetime' => env('SESSION_LIFETIME', 129600),
 
     'expire_on_close' => false,
+
+    // How long "Keep me signed in on this device" lasts (minutes): it signs
+    // the person back in if their session is lost. Ends sooner if they sign
+    // out, change their password or are signed out from another device.
+    'remember_lifetime' => env('SESSION_REMEMBER_LIFETIME', 129600),
+
+    'shared_device_lifetime' => 120,
 
     /*
     |--------------------------------------------------------------------------
