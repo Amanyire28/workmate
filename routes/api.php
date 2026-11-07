@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\CommunityModerationController;
 use App\Http\Controllers\Api\V1\Admin\DocumentRequirementController;
 use App\Http\Controllers\Api\V1\Admin\DocumentVerificationController;
+use App\Http\Controllers\Api\V1\Admin\LegalDocumentController;
 use App\Http\Controllers\Api\V1\Admin\ProfessionSuggestionController;
 use App\Http\Controllers\Api\V1\Admin\ReportController as AdminReportController;
 use App\Http\Controllers\Api\V1\Admin\ProviderApplicationController as AdminProviderApplicationController;
@@ -27,6 +28,7 @@ use App\Http\Controllers\Api\V1\ConversationController;
 use App\Http\Controllers\Api\V1\DirectoryController;
 use App\Http\Controllers\Api\V1\JobApplicantController;
 use App\Http\Controllers\Api\V1\JobController;
+use App\Http\Controllers\Api\V1\LegalController;
 use App\Http\Controllers\Api\V1\MyActivityController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\HealthController;
@@ -87,6 +89,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::post('app-events', [AppEventController::class, 'store'])->middleware('throttle:app-events')->name('app-events.store');
     Route::post('app-events/count', [AppEventController::class, 'count'])->middleware('throttle:app-counts')->name('app-events.count');
     Route::get('push/config', [PushSubscriptionController::class, 'config'])->name('push.config');
+    // Legal documents: anyone can read the published versions
+    Route::get('legal', [LegalController::class, 'index'])->name('legal.index');
+    Route::get('legal/{key}', [LegalController::class, 'show'])->where('key', '[a-z0-9_-]+')->name('legal.show');
 
     // The community: anyone can read
     Route::get('community/posts', [CommunityController::class, 'index'])->name('community.index');
@@ -149,6 +154,13 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('me/heartbeat', [PresenceController::class, 'heartbeat'])->middleware('throttle:heartbeat')->name('me.heartbeat');
 
         // The notification list (the bell) and which kinds the account wants
+        // What I accepted and still need to accept; optional consents
+        Route::get('me/legal', [LegalController::class, 'mine'])->name('me.legal');
+        Route::middleware('throttle:community-react')->group(function () {
+            Route::post('me/legal/accept', [LegalController::class, 'accept'])->name('me.legal.accept');
+            Route::put('me/consents', [LegalController::class, 'consent'])->name('me.consents');
+        });
+
         Route::get('me/notifications', [NotificationController::class, 'index'])->name('me.notifications');
         Route::post('me/notifications/read', [NotificationController::class, 'read'])->name('me.notifications.read-all');
         Route::post('me/notifications/{notification}/read', [NotificationController::class, 'read'])->whereNumber('notification')->name('me.notifications.read');
@@ -320,6 +332,17 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::post('push-announcements', [PushAnnouncementController::class, 'store'])
                 ->middleware(['can:comms.send', 'throttle:account-email'])
                 ->name('push-announcements.store');
+
+            // Legal documents: drafts, publishing, acceptance records
+            Route::middleware('can:legal.manage')->prefix('legal')->name('legal.')->group(function () {
+                Route::get('/', [LegalDocumentController::class, 'index'])->name('index');
+                Route::post('{key}/drafts', [LegalDocumentController::class, 'storeDraft'])->where('key', '[a-z0-9_-]+')->name('drafts.store');
+                Route::patch('versions/{version}', [LegalDocumentController::class, 'updateDraft'])->name('versions.update');
+                Route::post('versions/{version}/publish', [LegalDocumentController::class, 'publish'])->name('versions.publish');
+                Route::delete('versions/{version}', [LegalDocumentController::class, 'discard'])->name('versions.discard');
+                Route::get('versions/{version}/preview', [LegalDocumentController::class, 'preview'])->name('versions.preview');
+                Route::get('versions/{version}/acceptances.csv', [LegalDocumentController::class, 'export'])->name('versions.export');
+            });
 
             Route::get('audit-logs', [AuditLogController::class, 'index'])
                 ->middleware('can:security.view')

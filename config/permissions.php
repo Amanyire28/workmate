@@ -42,6 +42,7 @@ return [
         'bluetick.override' => 'Suspend, restore or remove a blue tick by override',
         'usage.view' => 'View aggregate app usage and installs',
         'activity.users' => 'View individual users’ activity and online presence',
+        'legal.manage' => 'Draft, publish and export legal documents, and set the company facts they show',
         'admin.manage' => 'Manage admin users, roles and platform settings',
     ],
 

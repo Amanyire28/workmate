@@ -43,7 +43,24 @@
         :error-message="errors.password_confirmation"
       />
 
+      <div class="flex flex-col gap-2">
+        <label class="flex items-start gap-3 rounded-2xl border bg-white p-3.5" :class="errors.accept_terms ? 'border-[#B91C1C]' : 'border-line'">
+          <input v-model="form.accept_terms" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-[#1769D2]" aria-describedby="accept-terms-error" :aria-invalid="!!errors.accept_terms || undefined" />
+          <span class="text-[14px] text-ink">
+            I am {{ appSettings.minimumAge }} or older. I agree to the
+            <router-link to="/legal/terms" class="wm-link font-medium">Terms and Conditions</router-link>
+            and have read the <router-link to="/legal/privacy" class="wm-link font-medium">Privacy Policy</router-link>.
+          </span>
+        </label>
+        <p v-if="errors.accept_terms" id="accept-terms-error" class="text-[13px] text-[#B91C1C]">{{ errors.accept_terms }}</p>
+        <label class="flex items-start gap-3 px-3.5 py-1">
+          <input v-model="form.marketing" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-[#1769D2]" />
+          <span class="text-[14px] text-ink-soft">Send me occasional news and offers from WorkMate (optional).</span>
+        </label>
+      </div>
+
       <PrimaryButton type="submit" :loading="busy">Create account</PrimaryButton>
+      <p class="wm-meta text-center">Terms and conditions apply.</p>
     </form>
 
     <template #footer>
@@ -62,11 +79,12 @@ import PrimaryButton from '@/components/PrimaryButton.vue';
 import { register, safeRedirect } from '@/stores/auth.js';
 import { fieldErrors } from '@/api/client.js';
 import { focusFirstError } from '@/utils/forms.js';
+import { appSettings } from '@/stores/catalog.js';
 
 const route = useRoute();
 const router = useRouter();
 
-const form = reactive({ name: '', email: '', phone: '', password: '', password_confirmation: '' });
+const form = reactive({ name: '', email: '', phone: '', password: '', password_confirmation: '', accept_terms: false, marketing: false });
 const errors = ref({});
 const error = ref('');
 const busy = ref(false);
@@ -78,6 +96,7 @@ function check() {
     email: /^\S+@\S+\.\S+$/.test(form.email.trim()) ? '' : 'Enter a valid email address.',
     password: form.password.length >= 8 ? '' : 'Use at least 8 characters.',
     password_confirmation: form.password === form.password_confirmation ? '' : 'The passwords don’t match.',
+    accept_terms: form.accept_terms ? '' : 'Tick the box to confirm your age and agree to the Terms and Conditions.',
   };
 }
 
@@ -97,6 +116,8 @@ async function submit() {
       phone: form.phone.trim() || null,
       password: form.password,
       password_confirmation: form.password_confirmation,
+      accept_terms: form.accept_terms,
+      marketing: form.marketing,
     });
     router.replace(safeRedirect(route.query.redirect, '/account?welcome=1'));
   } catch (e) {

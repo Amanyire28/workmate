@@ -25,6 +25,9 @@ export const appSettings = reactive({
     providerSignups: true,
     maintenanceMode: false,
     heartbeatSeconds: 60,
+    // Admin → Legal Documents
+    askLegal: true,
+    minimumAge: 18,
 });
 
 export const categories = reactive([]);
@@ -160,6 +163,8 @@ function applySettings(s) {
         providerSignups: !!pick('platform.provider_signups', true),
         maintenanceMode: !!pick('platform.maintenance_mode', false),
         heartbeatSeconds: pick('presence.heartbeat_seconds', 60),
+        askLegal: !!pick('legal.ask_acceptance', true),
+        minimumAge: pick('legal.minimum_age', 18),
     });
     applySearchSettings(s);
 }

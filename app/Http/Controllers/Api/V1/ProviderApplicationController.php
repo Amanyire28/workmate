@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SaveProviderDetailsRequest;
 use App\Http\Resources\ProviderProfileResource;
+use App\Models\LegalAcceptance;
 use App\Models\ProviderProfile;
+use App\Services\LegalDocuments;
 use App\Services\ProviderApplications;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -34,11 +36,19 @@ class ProviderApplicationController extends Controller
         return $this->present($this->applications->saveDetails($request->user(), $request->validated()));
     }
 
-    public function submit(Request $request): ProviderProfileResource
+    public function submit(Request $request, LegalDocuments $legal): ProviderProfileResource
     {
-        $data = $request->validate(['note' => ['nullable', 'string', 'max:1000']]);
+        $agreement = $legal->providerAgreement();
+        $data = $request->validate([
+            'note' => ['nullable', 'string', 'max:1000'],
+            // The Service Provider Agreement, when one is published
+            'accept_provider_terms' => [$agreement ? 'accepted' : 'nullable'],
+        ], ['accept_provider_terms.accepted' => 'Tick the box to agree to the Service Provider Agreement.']);
 
         $application = $this->applications->submit($request->user(), $data['note'] ?? null);
+        if ($agreement) {
+            $legal->accept($request->user(), [$agreement->id], LegalAcceptance::METHOD_PROVIDER_APPLICATION, $request);
+        }
 
         return $this->present($application->profile);
     }

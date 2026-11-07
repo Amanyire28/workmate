@@ -105,7 +105,9 @@ export async function enablePush() {
         const reg = await navigator.serviceWorker.ready;
         const subscription = await reg.pushManager.getSubscription()
             || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) });
-        await save(subscription);
+        // Before signing in (the welcome screens) the device is ready; refreshPush
+        // links it to the account once someone signs in
+        if (auth.user) await save(subscription);
         push.state = 'on';
     } catch (e) {
         push.error = e?.status ? e.message : 'Notifications couldn’t be turned on. Please try again.';

@@ -29,6 +29,10 @@ class RegisterRequest extends FormRequest
             'phone' => $this->phoneRules(),
             'locale' => ['nullable', 'in:en,lg'],
             'password' => ['required', 'confirmed', Password::min(8)->letters()->numbers()],
+            // Old enough, and agrees to the Terms (and has read the Privacy Policy)
+            'accept_terms' => ['accepted'],
+            // Optional: news and offers, off unless ticked
+            'marketing' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -37,6 +41,7 @@ class RegisterRequest extends FormRequest
         return [
             'email.unique' => 'An account already uses this email address. Try signing in instead.',
             'phone.unique' => 'An account already uses this phone number.',
+            'accept_terms.accepted' => 'Tick the box to confirm your age and agree to the Terms and Conditions.',
         ];
     }
 }

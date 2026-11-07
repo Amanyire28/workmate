@@ -165,6 +165,7 @@
             </div>
           </dl>
           <button type="button" class="wm-link self-start min-h-11" @click="currentStep = 1">Edit details</button>
+          <PaymentNotice />
         </fieldset>
 
         <p v-if="submitError" class="wm-notice wm-notice-error mt-5" role="alert">
@@ -194,6 +195,7 @@
 <script setup>
 import { ref, reactive, computed, nextTick } from 'vue';
 import FormField from '@/components/FormField.vue';
+import PaymentNotice from '@/components/PaymentNotice.vue';
 import ServiceCategoryCard from '@/components/ServiceCategoryCard.vue';
 import PrimaryButton from '@/components/PrimaryButton.vue';
 import PhotoPicker from '@/components/PhotoPicker.vue';

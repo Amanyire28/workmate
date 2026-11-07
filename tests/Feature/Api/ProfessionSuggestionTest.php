@@ -23,7 +23,7 @@ class ProfessionSuggestionTest extends ApiTestCase
             ['other' => $name, 'category' => 'construction', 'years_experience' => 4],
             ['profession' => 'welder', 'years_experience' => 2],
         ]))->assertOk();
-        $this->postJson('/api/v1/me/provider/submit')->assertOk();
+        $this->postJson('/api/v1/me/provider/submit', ['accept_provider_terms' => true])->assertOk();
 
         return $user;
     }

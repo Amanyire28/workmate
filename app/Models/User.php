@@ -49,6 +49,7 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'adult_confirmed_at' => 'datetime',
         'last_seen_at' => 'datetime',
         'notification_preferences' => 'array',
     ];

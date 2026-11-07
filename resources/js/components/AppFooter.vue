@@ -49,7 +49,13 @@
     <div class="border-t border-[#E2E8F0]">
       <div class="wm-container py-5 flex flex-wrap items-center justify-between gap-2 text-xs text-[#64748B]">
         <p>© {{ year }} WorkMate by ResNet Systems. All rights reserved. Place names: <a href="https://www.geonames.org/" target="_blank" rel="noopener" class="underline">GeoNames</a> (CC BY 4.0).</p>
-        <p class="inline-flex items-center gap-1"><i class="bi bi-geo-alt" aria-hidden="true"></i> Kampala, Uganda</p>
+        <p class="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span>Terms and conditions apply.</span>
+          <router-link to="/legal/terms" class="underline hover:text-primary">Terms</router-link>
+          <router-link to="/legal/privacy" class="underline hover:text-primary">Privacy</router-link>
+          <router-link to="/legal" class="underline hover:text-primary">All legal</router-link>
+          <span class="inline-flex items-center gap-1"><i class="bi bi-geo-alt" aria-hidden="true"></i> Kampala, Uganda</span>
+        </p>
       </div>
     </div>
   </footer>

@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\ProviderMember;
+use App\Services\LegalDocuments;
 
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -38,6 +39,8 @@ class UserResource extends JsonResource
             'provider_ids' => ProviderMember::where('user_id', $this->id)->pluck('provider_profile_id')->values(),
             'roles' => $this->roles->pluck('key')->values(),
             'permissions' => $this->permissionKeys(),
+            // Legal documents still to accept (new, or changed materially)
+            'legal_pending' => app(LegalDocuments::class)->pendingFor($this->resource),
             'created_at' => optional($this->created_at)->toIso8601String(),
         ];
     }

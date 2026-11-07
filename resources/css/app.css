@@ -573,6 +573,23 @@
     .wm-notice-warning { background: rgba(180, 83, 9, 0.10);   color: #92400E; }
     .wm-notice-error   { background: rgba(185, 28, 28, 0.09);  color: var(--color-error); }
 
+    /* ---- Legal documents (Markdown rendered by the server) ---- */
+    .wm-legal-body { color: var(--color-ink-soft); font-size: 0.9375rem; line-height: 1.7; overflow-wrap: anywhere; }
+    .wm-legal-body > * + * { margin-top: 0.75rem; }
+    .wm-legal-body h2 { margin-top: 1.75rem; font-size: 1.0625rem; font-weight: 650; color: var(--color-ink); line-height: 1.35; }
+    .wm-legal-body ul { list-style: disc; padding-left: 1.4rem; }
+    .wm-legal-body ol { list-style: decimal; padding-left: 1.4rem; }
+    .wm-legal-body li + li { margin-top: 0.3rem; }
+    .wm-legal-body li > ul, .wm-legal-body li > ol { margin-top: 0.3rem; }
+    .wm-legal-body strong { color: var(--color-ink); font-weight: 600; }
+    .wm-legal-body a { color: var(--color-primary); text-decoration: underline; }
+    .wm-legal-body blockquote { border-left: 3px solid var(--color-primary); background: var(--color-primary-tint); padding: 10px 14px; border-radius: 0 12px 12px 0; color: #1E3A8A; }
+    .wm-legal-body table { display: block; overflow-x: auto; border-collapse: collapse; font-size: 0.8125rem; line-height: 1.5; }
+    .wm-legal-body th, .wm-legal-body td { border: 1px solid #E2E8F0; padding: 6px 8px; text-align: left; vertical-align: top; min-width: 120px; }
+    .wm-legal-body th { background: #F8FAFC; color: var(--color-ink); font-weight: 600; }
+    .wm-legal-missing { background: #FEF3C7; color: #92400E; border-radius: 4px; padding: 0 3px; font-weight: 500; }
+    .wm-legal-note { background: #E0E7FF; color: #3730A3; border-radius: 4px; padding: 0 3px; font-size: 0.92em; }
+
     /* ---- Skeleton loading ---- */
     .wm-skeleton {
         background: linear-gradient(90deg, rgba(15,23,42,0.06) 25%, rgba(15,23,42,0.03) 50%, rgba(15,23,42,0.06) 75%);

@@ -243,6 +243,23 @@
       <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
     </router-link>
 
+    <router-link v-if="user" to="/account/legal" class="wm-card wm-card-link mt-3 flex items-center gap-4">
+      <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-shield-lock"></i></span>
+      <span class="min-w-0 flex-1">
+        <span class="block text-[15px] font-semibold text-ink">Legal and privacy</span>
+        <span class="block wm-meta">Terms you agreed to, news and offers, and device permissions</span>
+      </span>
+      <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+    </router-link>
+    <router-link v-else to="/legal" class="wm-card wm-card-link mt-3 flex items-center gap-4">
+      <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-file-earmark-text"></i></span>
+      <span class="min-w-0 flex-1">
+        <span class="block text-[15px] font-semibold text-ink">Terms and privacy</span>
+        <span class="block wm-meta">Terms and conditions apply to everyone who uses WorkMate</span>
+      </span>
+      <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+    </router-link>
+
     <!-- Support contact from Admin → Settings -->
     <section v-if="appSettings.supportPhone || appSettings.supportEmail" class="mt-6" aria-labelledby="account-help-heading">
       <h2 id="account-help-heading" class="wm-meta font-medium uppercase tracking-wide mb-2 px-1">Help</h2>

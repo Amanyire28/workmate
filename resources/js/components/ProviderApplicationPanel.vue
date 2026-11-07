@@ -210,6 +210,14 @@
           <i class="bi bi-check-circle-fill mr-1" aria-hidden="true"></i>{{ saved }}
         </p>
 
+        <label v-if="canSubmit" class="flex items-start gap-3 rounded-2xl border bg-white p-4" :class="errors.accept_provider_terms ? 'border-[#B91C1C]' : 'border-line'">
+          <input v-model="acceptProviderTerms" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-[#1769D2]" aria-describedby="provider-terms-error" :aria-invalid="!!errors.accept_provider_terms || undefined" />
+          <span class="text-[14px] text-ink">
+            I agree to the <router-link to="/legal/provider" class="wm-link font-medium">Service Provider Agreement</router-link>. I run my own work, set my own prices and am paid directly by customers.
+          </span>
+        </label>
+        <p v-if="errors.accept_provider_terms" id="provider-terms-error" class="text-[13px] text-[#B91C1C] -mt-2">{{ errors.accept_provider_terms }}</p>
+
         <div class="flex flex-col sm:flex-row gap-2">
           <PrimaryButton type="submit" :variant="canSubmit ? 'secondary' : 'primary'" :loading="busy === 'save'" :disabled="!!busy">
             Save details
@@ -255,6 +263,7 @@ const busy = ref('');
 const errors = ref({});
 const saveError = ref('');
 const saved = ref('');
+const acceptProviderTerms = ref(false);
 
 const form = reactive({
   type: 'individual', display_name: '', business_registration_number: '', bio: '', professions: [],
@@ -413,7 +422,7 @@ async function save(andSubmit) {
   busy.value = andSubmit ? 'submit' : 'save';
   try {
     let res = await api('/me/provider', { method: 'PUT', body: payload() });
-    if (andSubmit) res = await api('/me/provider/submit', { method: 'POST', body: {} });
+    if (andSubmit) res = await api('/me/provider/submit', { method: 'POST', body: { accept_provider_terms: acceptProviderTerms.value } });
     fill(res.data);
     saved.value = andSubmit ? 'Sent for review.' : 'Details saved.';
     loadSession({ force: true });

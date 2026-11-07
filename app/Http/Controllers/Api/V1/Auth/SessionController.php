@@ -9,6 +9,7 @@ use App\Http\Resources\UserResource;
 use App\Models\User;
 use App\Services\Accounts;
 use App\Services\AuditLogger;
+use App\Services\LegalDocuments;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -21,11 +22,17 @@ use Illuminate\Validation\ValidationException;
  */
 class SessionController extends Controller
 {
-    public function register(RegisterRequest $request, Accounts $accounts): JsonResponse
+    public function register(RegisterRequest $request, Accounts $accounts, LegalDocuments $legal): JsonResponse
     {
         $this->requireSession($request);
 
         $user = $accounts->register($request->validated());
+
+        // The ticked box: the documents' current versions, and the optional choice
+        $legal->acceptAtSignUp($user, $request);
+        if ($request->boolean('marketing')) {
+            $legal->setConsent($user, 'marketing', true, 'sign_up', $request);
+        }
 
         Auth::guard('web')->login($user);
         $request->session()->regenerate();

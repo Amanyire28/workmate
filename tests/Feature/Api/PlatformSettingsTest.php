@@ -84,7 +84,7 @@ class PlatformSettingsTest extends ApiTestCase
 
         $this->signIn(User::factory()->create());
         $this->putJson('/api/v1/me/provider', ['type' => 'individual', 'display_name' => 'Nambi Cleaning', 'professions' => [['profession' => 'cleaner']], 'base_area' => 'ntinda'])->assertOk();
-        $this->postJson('/api/v1/me/provider/submit')->assertStatus(409)->assertJson(['code' => 'provider_signups_closed']);
+        $this->postJson('/api/v1/me/provider/submit', ['accept_provider_terms' => true])->assertStatus(409)->assertJson(['code' => 'provider_signups_closed']);
         $this->assertSame('draft', $this->getJson('/api/v1/me/provider')->json('data.status'));
     }
 

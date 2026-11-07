@@ -21,6 +21,7 @@ class AccountTest extends ApiTestCase
             'phone' => '0772 123 456',
             'password' => 'kampala2026',
             'password_confirmation' => 'kampala2026',
+            'accept_terms' => true,
         ], $overrides);
     }
 

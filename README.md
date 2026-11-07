@@ -131,7 +131,7 @@ Throughout this README:
 - **Settings** that change the app straight away: nearby search (radii, maximum distance, fallbacks, GPS, tie-breaks), the default place, support phone and email, accepting provider applications, maintenance mode, and presence timings
 
 **Quality**
-- **211 automated tests** (feature and unit) on a separate MariaDB test database
+- **228 automated tests** (feature and unit) on a separate MariaDB test database
 
 ### 🟡 In development
 
@@ -228,6 +228,16 @@ The intended matching order is:
 - Live provider availability and online presence
 
 ---
+
+## Legal documents and consent
+
+Implemented ✅ (drafts awaiting review by a Ugandan advocate). Eight documents (Terms and Conditions, Privacy Policy, Service Provider Agreement, Customer Agreement, Community Guidelines, Cancellation and Disputes, Verification and Trust, Acceptable Use and Safety) are loaded as version 0.1 from `database/legal/*.md` and shown at `/legal`.
+
+- **First opening on a device:** welcome → Terms and Privacy with an "I agree" tick → device permissions (notifications and location with Allow buttons; photos and camera explained, as the phone asks when a photo is picked). Remembered on the device; signing up records the acceptance on the account.
+- **Signed-in people** are asked to agree to any document they haven't accepted, or that changed materially (`legal_pending` on `/me`). Minor versions don't ask again. Providers also accept the Service Provider Agreement when they send their application.
+- **Sign-up** needs the age and Terms tick (`accept_terms`); news and offers is a separate, unticked choice. **Account → Legal and privacy** shows what was agreed, the marketing switch and device permissions.
+- Requests and posted jobs show the direct-payment notice before sending.
+- **Admin → Legal Documents** (`legal.manage`, Super Administrators): draft, preview, publish (material or minor), discard drafts, version history with acceptance counts and CSV export, and **Company facts** (registration number, office, directors, DPO, privacy email…) that fill `{{placeholders}}` in every document; facts not set show as "to be confirmed". `[[notes]]` are drafting notes, highlighted until removed. **Ask people to accept** can be switched off there. Everything is audited.
 
 ## Saved providers
 
@@ -510,6 +520,9 @@ Request → middleware (auth:sanctum, active, can:<permission>, throttle)
 | `community_post_likes`, `community_post_saves` | One like and one save per person per post |
 | `follows` | Who follows whom in the community, one row per pair |
 | `saved_providers` | Providers a customer saved to come back to |
+| `legal_documents`, `legal_document_versions` | Terms, privacy policy and agreements, with draft and published versions (published ones never change) |
+| `legal_acceptances` | Who accepted which version, when and how (sign-up, prompt, provider application); append-only |
+| `user_consents` | Optional choices such as news and offers; each change adds a row |
 | `user_notifications` | Each account's notification list: kind, title, text, link, grouping tag and when it was read |
 | `user_activity_days` | One row per account per day it used the app, for daily active users |
 | `app_daily_counts` | Anonymous daily totals: searches and their outcomes, provider profile views |

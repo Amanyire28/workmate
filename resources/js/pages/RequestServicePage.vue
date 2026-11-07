@@ -115,6 +115,8 @@
             :hint="`A photo of the problem helps ${name} reply with a better price. Only ${name} and WorkMate can see them; hidden details like location are removed.`"
           />
 
+          <PaymentNotice />
+
           <p v-if="sendError" class="wm-notice wm-notice-error" role="alert">
             <i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>{{ sendError }}</span>
           </p>
@@ -141,6 +143,7 @@ import { ref, reactive, computed, watch, nextTick } from 'vue';
 import { isOwnProvider } from '@/stores/auth.js';
 import { useRoute } from 'vue-router';
 import BackLink from '@/components/BackLink.vue';
+import PaymentNotice from '@/components/PaymentNotice.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import FormField from '@/components/FormField.vue';

@@ -28,7 +28,7 @@ class ProviderApplicationTest extends ApiTestCase
     {
         $user = $this->signIn(User::factory()->create());
         $this->putJson('/api/v1/me/provider', $this->details())->assertOk();
-        $this->postJson('/api/v1/me/provider/submit')->assertOk();
+        $this->postJson('/api/v1/me/provider/submit', ['accept_provider_terms' => true])->assertOk();
 
         return $user;
     }
@@ -104,7 +104,7 @@ class ProviderApplicationTest extends ApiTestCase
         $this->signIn(User::factory()->unverified()->create());
         $this->putJson('/api/v1/me/provider', $this->details())->assertOk();
 
-        $this->postJson('/api/v1/me/provider/submit')
+        $this->postJson('/api/v1/me/provider/submit', ['accept_provider_terms' => true])
             ->assertForbidden()
             ->assertJson(['code' => 'email_not_verified']);
     }
@@ -119,7 +119,7 @@ class ProviderApplicationTest extends ApiTestCase
             ->assertJsonPath('data.can_edit', false);
 
         $this->putJson('/api/v1/me/provider', $this->details())->assertStatus(409)->assertJson(['code' => 'provider_locked']);
-        $this->postJson('/api/v1/me/provider/submit')->assertStatus(409);
+        $this->postJson('/api/v1/me/provider/submit', ['accept_provider_terms' => true])->assertStatus(409);
         $this->assertSame(1, ProviderApplication::count());
     }
 
@@ -169,7 +169,7 @@ class ProviderApplicationTest extends ApiTestCase
             ->assertJsonMissing(['internal_note' => 'Bio too short']);
 
         $this->putJson('/api/v1/me/provider', $this->details(['bio' => 'Leaks, blocked drains, water tanks and new installations.']))->assertOk();
-        $this->postJson('/api/v1/me/provider/submit', ['note' => 'Added more detail'])->assertOk();
+        $this->postJson('/api/v1/me/provider/submit', ['note' => 'Added more detail', 'accept_provider_terms' => true])->assertOk();
 
         // The same application goes back to the queue with the new details
         $application = $application->fresh();
@@ -204,7 +204,7 @@ class ProviderApplicationTest extends ApiTestCase
     {
         $reviewer = $this->signIn($this->userWithRoles(['provider_review']));
         $this->putJson('/api/v1/me/provider', $this->details())->assertOk();
-        $this->postJson('/api/v1/me/provider/submit')->assertOk();
+        $this->postJson('/api/v1/me/provider/submit', ['accept_provider_terms' => true])->assertOk();
 
         $this->postJson('/api/v1/admin/provider-applications/'.$this->pendingApplication()->id.'/approve')
             ->assertForbidden()

@@ -39,6 +39,7 @@
     <AppStatusLayer />
     <RateProviderDialog />
     <PushReminder />
+    <LegalGate />
   </template>
 </template>
 
@@ -50,6 +51,7 @@ import MobileBottomNav from '@/components/MobileBottomNav.vue';
 import AppStatusLayer from '@/components/AppStatusLayer.vue';
 import RateProviderDialog from '@/components/RateProviderDialog.vue';
 import PushReminder from '@/components/PushReminder.vue';
+import LegalGate from '@/components/LegalGate.vue';
 import { catalog, loadCatalog, appSettings, refreshSettings } from '@/stores/catalog.js';
 import { startPresence } from '@/stores/presence.js';
 

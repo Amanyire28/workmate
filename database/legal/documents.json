@@ -1,0 +1,58 @@
+[
+  {
+    "key": "terms",
+    "title": "WorkMate Terms and Conditions",
+    "summary": "WorkMate helps you find, contact and hire service providers in Uganda. The work is agreed between you and the provider, and you pay the provider directly. WorkMate never holds your money. We check provider documents, but we can't promise how anyone will behave. Report problems in the app and we will act on them.",
+    "audience": "everyone",
+    "order": 1
+  },
+  {
+    "key": "privacy",
+    "title": "Privacy Policy and Data Protection Notice",
+    "summary": "We collect what we need to run WorkMate. Your data is stored on servers in Uganda. We never sell it. Providers don't see your email or phone number. You can download, correct or delete your data, and turn off anything optional, at any time.",
+    "audience": "everyone",
+    "order": 2
+  },
+  {
+    "key": "provider",
+    "title": "Service Provider Agreement",
+    "summary": "You run your own work. You choose your jobs, prices and methods. You must be honest, qualified, safe and respectful. Customers pay you directly. WorkMate isn't your employer, and our tick isn't a licence.",
+    "audience": "providers",
+    "order": 3
+  },
+  {
+    "key": "customer",
+    "title": "Customer Agreement and Customer Protection Policy",
+    "summary": "Compare providers, agree everything in WorkMate messages, pay the provider directly only what you agreed, keep evidence, and report problems. We'll help with records and act on accounts, but we can't refund money we never held.",
+    "audience": "everyone",
+    "order": 4
+  },
+  {
+    "key": "community",
+    "title": "Community Guidelines and Content Policy",
+    "summary": "Share real work and useful knowledge. Be honest and respectful. Only post what you have the right to post. Never share customers' details or photos without permission. Report anything that breaks these rules.",
+    "audience": "everyone",
+    "order": 5
+  },
+  {
+    "key": "disputes",
+    "title": "Cancellation, Refund and Dispute Resolution Policy",
+    "summary": "WorkMate never holds your money, so it can't refund you itself. Refunds are between you and the provider. We help by keeping the record, reviewing evidence, asking questions and acting on accounts.",
+    "audience": "everyone",
+    "order": 6
+  },
+  {
+    "key": "verification",
+    "title": "Verification and Trust Policy",
+    "summary": "The grey tick means we checked a provider's ID and documents and accepted them. The blue tick means they also met our performance rules. Neither tick guarantees how anyone will behave.",
+    "audience": "everyone",
+    "order": 7
+  },
+  {
+    "key": "safety",
+    "title": "Acceptable Use, Safety and Prohibited Activities Policy",
+    "summary": "What is never allowed on WorkMate, and how to report it so we can act.",
+    "audience": "everyone",
+    "order": 8
+  }
+]

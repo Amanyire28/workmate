@@ -35,6 +35,12 @@ return [
             'view_permission' => 'admin.manage',
             'change_permission' => 'admin.manage',
         ],
+        // Facts shown in the legal documents (Admin → Legal Documents)
+        'legal' => [
+            'label' => 'Legal documents',
+            'view_permission' => 'legal.manage',
+            'change_permission' => 'legal.manage',
+        ],
     ],
 
     'settings' => [
@@ -154,6 +160,78 @@ return [
             'label' => 'Maintenance mode',
             'description' => 'Shows a notice and pauses new jobs, requests, applications and hiring. The admin keeps working.',
             'type' => 'boolean', 'default' => false, 'public' => true,
+        ],
+        'legal.ask_acceptance' => [
+            'group' => 'legal',
+            'label' => 'Ask people to accept the legal documents',
+            'description' => 'Shows the welcome and terms on first opening, and asks signed-in people to accept new or materially changed documents.',
+            'type' => 'boolean', 'default' => true, 'public' => true,
+        ],
+        'legal.minimum_age' => [
+            'group' => 'legal',
+            'label' => 'Minimum age',
+            'description' => 'People confirm they are at least this old when they sign up.',
+            'type' => 'integer', 'min' => 16, 'max' => 21, 'default' => 18, 'public' => true,
+        ],
+        'legal.registration_number' => [
+            'group' => 'legal', 'label' => 'Company registration number',
+            'description' => 'ResNet Systems (U) Ltd’s registration number (Electronic Transactions Act s.24).',
+            'type' => 'string', 'max' => 60, 'default' => null,
+        ],
+        'legal.registered_office' => [
+            'group' => 'legal', 'label' => 'Registered office',
+            'description' => 'The registered office address.',
+            'type' => 'string', 'max' => 255, 'default' => null,
+        ],
+        'legal.directors' => [
+            'group' => 'legal', 'label' => 'Directors',
+            'description' => 'Names of the directors, separated by commas.',
+            'type' => 'string', 'max' => 255, 'default' => null,
+        ],
+        'legal.service_address' => [
+            'group' => 'legal', 'label' => 'Address for legal notices',
+            'description' => 'Where documents and legal notices can be delivered.',
+            'type' => 'string', 'max' => 255, 'default' => null,
+        ],
+        'legal.pdpo_certificate' => [
+            'group' => 'legal', 'label' => 'PDPO registration certificate',
+            'description' => 'Personal Data Protection Office certificate number.',
+            'type' => 'string', 'max' => 60, 'default' => null,
+        ],
+        'legal.dpo_name' => [
+            'group' => 'legal', 'label' => 'Data protection officer',
+            'description' => 'Named in the Privacy Policy as the privacy contact.',
+            'type' => 'string', 'max' => 100, 'default' => 'Mathew Amanyire',
+        ],
+        'legal.privacy_email' => [
+            'group' => 'legal', 'label' => 'Privacy email',
+            'description' => 'Where people send privacy requests and complaints.',
+            'type' => 'email', 'default' => null,
+        ],
+        'legal.support_hours' => [
+            'group' => 'legal', 'label' => 'Support hours',
+            'description' => 'For example “Monday to Friday, 8am to 6pm”.',
+            'type' => 'string', 'max' => 100, 'default' => null,
+        ],
+        'legal.hosting_provider' => [
+            'group' => 'legal', 'label' => 'Hosting provider',
+            'description' => 'Company hosting WorkMate’s servers in Uganda (listed as a processor).',
+            'type' => 'string', 'max' => 120, 'default' => null,
+        ],
+        'legal.email_provider' => [
+            'group' => 'legal', 'label' => 'Email provider',
+            'description' => 'Company that delivers WorkMate’s emails (listed as a processor).',
+            'type' => 'string', 'max' => 120, 'default' => null,
+        ],
+        'legal.pdpo_contact' => [
+            'group' => 'legal', 'label' => 'PDPO contact',
+            'description' => 'How people reach the Personal Data Protection Office, for complaints.',
+            'type' => 'string', 'max' => 255, 'default' => null,
+        ],
+        'legal.liability_cap' => [
+            'group' => 'legal', 'label' => 'Liability limit',
+            'description' => 'The amount in Terms 32.4, as set by your advocate.',
+            'type' => 'string', 'max' => 120, 'default' => null,
         ],
     ],
 

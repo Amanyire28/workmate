@@ -201,6 +201,8 @@ export const navGroups = [
               summary: 'Which roles can view, create, edit, approve, export or delete each kind of record.' },
             { id: 'platform', label: 'Settings', tabs: ['platform', 'matching'], path: '/admin/settings/platform', permission: 'admin.manage',
               summary: 'Platform-wide settings, and how nearby search finds and orders providers.' },
+            { id: 'legal', label: 'Legal Documents', path: '/admin/settings/legal', permission: 'legal.manage',
+              summary: 'Terms, privacy policy and agreements: drafts, published versions, who accepted them, and the company facts they show.' },
             { id: 'rules', label: 'Business Rules', hidden: true, path: '/admin/settings/rules', permission: 'admin.manage',
               summary: 'Booking states, commission rates and cancellation rules.' },
             { id: 'flags', label: 'Feature Flags', hidden: true, path: '/admin/settings/flags', permission: 'admin.manage',

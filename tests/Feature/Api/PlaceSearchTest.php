@@ -50,7 +50,7 @@ class PlaceSearchTest extends ApiTestCase
         $this->putJson('/api/v1/me/provider', [
             'type' => 'individual', 'display_name' => 'Gulu Plumbing', 'professions' => [['profession' => 'plumber']], 'base_area' => 'gulu-gulu',
         ])->assertOk();
-        $this->postJson('/api/v1/me/provider/submit')->assertOk();
+        $this->postJson('/api/v1/me/provider/submit', ['accept_provider_terms' => true])->assertOk();
         $this->signIn($this->userWithRoles(['provider_review']));
         $this->postJson('/api/v1/admin/provider-applications/'.\App\Models\ProviderApplication::sole()->id.'/approve')->assertOk();
 
@@ -64,10 +64,10 @@ class PlaceSearchTest extends ApiTestCase
         $this->signIn(User::factory()->create());
         $this->putJson('/api/v1/me/provider', ['type' => 'individual', 'display_name' => 'No Place', 'professions' => [['profession' => 'plumber']]])->assertOk();
 
-        $this->postJson('/api/v1/me/provider/submit')->assertStatus(422)->assertJson(['code' => 'base_area_missing']);
+        $this->postJson('/api/v1/me/provider/submit', ['accept_provider_terms' => true])->assertStatus(422)->assertJson(['code' => 'base_area_missing']);
 
         $this->putJson('/api/v1/me/provider', ['type' => 'individual', 'display_name' => 'No Place', 'professions' => [['profession' => 'plumber']], 'base_area' => 'kyebando-kampala'])->assertOk();
-        $this->postJson('/api/v1/me/provider/submit')->assertOk();
+        $this->postJson('/api/v1/me/provider/submit', ['accept_provider_terms' => true])->assertOk();
     }
 
     public function test_the_admin_works_with_places_in_use_not_every_place()
