@@ -36,6 +36,12 @@
 
           <!-- Service + location search: results appear just below the hero -->
           <ServiceSearchForm class="wm-rise wm-rise-delay-2 mt-4 lg:mt-6" on-dark @search="onSearch" />
+
+          <!-- A quiet invitation to offer services; not shown to providers or to people who answered already -->
+          <p v-if="earnLine" class="wm-rise wm-rise-delay-2 mt-3 text-[13.5px] text-white/70">
+            {{ earnLine.ask }}
+            <router-link :to="earnLine.to" class="ml-0.5 font-medium text-white underline-offset-4 hover:underline">{{ earnLine.link }} <span aria-hidden="true">→</span></router-link>
+          </p>
         </div>
       </div>
     </section>
@@ -246,6 +252,8 @@ import HomeRecentPosts from '@/components/HomeRecentPosts.vue';
 import HomeRecentJobs from '@/components/HomeRecentJobs.vue';
 import { providers, providerReviews } from '@/stores/catalog.js';
 import { startNearbySearch } from '@/stores/nearbySearch.js';
+import { auth } from '@/stores/auth.js';
+import { answeredHire } from '@/utils/getStarted.js';
 import { categoryIcon, categoryColor, displayName, tradeLabel, formatPrice, categoryLabel } from '@/utils/ui.js';
 
 // Nearby-first search runs in place; the radar and results show under the hero
@@ -255,6 +263,17 @@ async function onSearch(query) {
   await nextTick();
   searchPanel.value?.reveal();
 }
+
+// Offering services: a light line under the search, depending on where the person stands
+const earnLine = computed(() => {
+  const status = auth.user ? auth.user.provider_status : null;
+  if (status === 'draft') return { ask: 'Your provider details are saved.', link: 'Finish becoming a provider', to: '/start-earning' };
+  if (status === 'more_info_required') return { ask: 'WorkMate asked you to fix something.', link: 'See what to change', to: '/start-earning' };
+  // Providers, people waiting for a decision, and anyone who said they're here to hire see nothing
+  if (status && status !== 'not_applied') return null;
+  if (answeredHire()) return null;
+  return { ask: 'Offer a service?', link: 'Start earning on WorkMate', to: auth.user ? '/start-earning' : '/register?redirect=/start-earning' };
+});
 
 const trust = [
   { icon: 'bi-patch-check', title: 'Verified providers',   text: 'Look for the tick on profiles' },

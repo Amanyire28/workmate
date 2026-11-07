@@ -119,7 +119,7 @@ async function submit() {
       accept_terms: form.accept_terms,
       marketing: form.marketing,
     });
-    router.replace(safeRedirect(route.query.redirect, '/account?welcome=1'));
+    router.replace(safeRedirect(route.query.redirect, '/get-started'));
   } catch (e) {
     errors.value = fieldErrors(e);
     if (!Object.keys(errors.value).length) error.value = e.message;

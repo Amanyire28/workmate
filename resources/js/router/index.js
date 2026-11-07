@@ -35,6 +35,7 @@ const routes = [
     { path: '/account/verification', component: () => import('@/pages/GetVerifiedPage.vue'), meta: { title: 'Get Verified – WorkMate', requiresAuth: true } },
     { path: '/legal',                component: () => import('@/pages/LegalPage.vue'), meta: { title: 'Legal – WorkMate' } },
     { path: '/legal/:key',           component: () => import('@/pages/LegalPage.vue'), meta: { title: 'Legal – WorkMate' } },
+    { path: '/get-started',          component: () => import('@/pages/GetStartedPage.vue'), meta: { title: 'Welcome – WorkMate', requiresAuth: true } },
     { path: '/start-earning',        component: () => import('@/pages/StartEarningPage.vue'), meta: { title: 'Start earning – WorkMate', requiresAuth: true } },
     { path: '/account/devices',      component: () => import('@/pages/DevicesPage.vue'), meta: { title: 'Devices – WorkMate', requiresAuth: true } },
     { path: '/account/legal',        component: () => import('@/pages/LegalSettingsPage.vue'), meta: { title: 'Legal and privacy – WorkMate', requiresAuth: true } },
