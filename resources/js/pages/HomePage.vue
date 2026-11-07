@@ -60,34 +60,6 @@
     <!-- ============ Recent community posts ============ -->
     <HomeRecentPosts />
 
-    <!-- ============ Categories ============ -->
-    <section class="wm-container pt-8 lg:pt-12" aria-labelledby="home-categories">
-      <div class="flex items-center justify-between gap-4 mb-3 lg:mb-4">
-        <h2 id="home-categories" class="text-xl font-semibold text-ink">Browse by category</h2>
-        <router-link to="/explore" class="wm-link !text-sm inline-flex items-center gap-1 min-h-11">
-          See all <i class="bi bi-arrow-right hidden lg:inline" aria-hidden="true"></i>
-        </router-link>
-      </div>
-      <ul class="grid grid-cols-4 sm:grid-cols-8 gap-2.5 lg:gap-4">
-        <li v-for="c in popular" :key="c.id">
-          <router-link
-            :to="c.to"
-            class="flex flex-col items-center justify-center text-center gap-2 h-[96px] sm:h-[108px] lg:h-[120px] px-1 wm-glass-card rounded-[14px] transition-[box-shadow,border-color,transform] hover:-translate-y-0.5 hover:border-[#CBD5E1] hover:shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
-          >
-            <span
-              class="inline-flex items-center justify-center w-11 h-11 lg:w-12 lg:h-12 rounded-full text-[20px] lg:text-[22px]"
-              :style="{ background: c.color.bg, color: c.color.fg }"
-              aria-hidden="true"
-            ><i :class="['bi', c.icon]"></i></span>
-            <span class="text-[12px] sm:text-[13px] lg:text-sm font-medium text-ink leading-tight">{{ c.label }}</span>
-            <span v-if="c.count !== null" class="hidden lg:block -mt-1.5 text-xs text-[#64748B]">
-              {{ c.count }} {{ c.count === 1 ? 'provider' : 'providers' }}
-            </span>
-          </router-link>
-        </li>
-      </ul>
-    </section>
-
     <!-- ============ Top rated workers ============ -->
     <section class="wm-container pt-8 lg:pt-12" aria-labelledby="home-top">
       <div class="flex items-center justify-between gap-4 mb-3 lg:mb-4">
@@ -144,6 +116,34 @@
       <p class="mt-3 text-xs text-[#64748B]">
         <i class="bi bi-info-circle mr-1" aria-hidden="true"></i>Sample profiles shown while WorkMate is in development.
       </p>
+    </section>
+
+    <!-- ============ Categories ============ -->
+    <section class="wm-container pt-8 lg:pt-12" aria-labelledby="home-categories">
+      <div class="flex items-center justify-between gap-4 mb-3 lg:mb-4">
+        <h2 id="home-categories" class="text-xl font-semibold text-ink">Browse by category</h2>
+        <router-link to="/explore" class="wm-link !text-sm inline-flex items-center gap-1 min-h-11">
+          See all <i class="bi bi-arrow-right hidden lg:inline" aria-hidden="true"></i>
+        </router-link>
+      </div>
+      <ul class="grid grid-cols-4 sm:grid-cols-8 gap-2.5 lg:gap-4">
+        <li v-for="c in popular" :key="c.id">
+          <router-link
+            :to="c.to"
+            class="flex flex-col items-center justify-center text-center gap-2 h-[96px] sm:h-[108px] lg:h-[120px] px-1 wm-glass-card rounded-[14px] transition-[box-shadow,border-color,transform] hover:-translate-y-0.5 hover:border-[#CBD5E1] hover:shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
+          >
+            <span
+              class="inline-flex items-center justify-center w-11 h-11 lg:w-12 lg:h-12 rounded-full text-[20px] lg:text-[22px]"
+              :style="{ background: c.color.bg, color: c.color.fg }"
+              aria-hidden="true"
+            ><i :class="['bi', c.icon]"></i></span>
+            <span class="text-[12px] sm:text-[13px] lg:text-sm font-medium text-ink leading-tight">{{ c.label }}</span>
+            <span v-if="c.count !== null" class="hidden lg:block -mt-1.5 text-xs text-[#64748B]">
+              {{ c.count }} {{ c.count === 1 ? 'provider' : 'providers' }}
+            </span>
+          </router-link>
+        </li>
+      </ul>
     </section>
 
     <!-- ============ Post a job CTA ============ -->
