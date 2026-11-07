@@ -12,8 +12,8 @@
     </div>
 
     <!-- Loading -->
-    <ul v-if="status === 'loading'" class="wm-recent-row" aria-busy="true">
-      <li v-for="n in 3" :key="n" class="wm-recent-item"><div class="wm-skeleton h-[184px] !rounded-[14px]"></div></li>
+    <ul v-if="status === 'loading'" class="wm-home-row" aria-busy="true">
+      <li v-for="n in 3" :key="n" class="wm-home-row-item"><div class="wm-skeleton h-[184px] !rounded-[14px]"></div></li>
     </ul>
 
     <!-- Couldn't load: say so quietly, the rest of the page still works -->
@@ -29,8 +29,8 @@
       <router-link to="/community" class="wm-btn wm-btn-primary !rounded-[10px] shrink-0">Open the community</router-link>
     </div>
 
-    <ul v-else class="wm-recent-row">
-      <li v-for="p in posts" :key="p.id" class="wm-recent-item">
+    <ul v-else class="wm-home-row">
+      <li v-for="p in posts" :key="p.id" class="wm-home-row-item">
         <router-link
           :to="`/community/post/${p.id}`"
           class="flex h-full flex-col gap-2.5 wm-glass-card rounded-[14px] p-4 transition-[box-shadow,border-color,transform] hover:-translate-y-0.5 hover:border-[#CBD5E1] hover:shadow-[0_8px_20px_rgba(15,23,42,0.08)]"
@@ -97,29 +97,3 @@ async function load() {
 onMounted(load);
 </script>
 
-<style scoped>
-/* Phones: swipe sideways, a little of the next card showing. Wider: a grid. */
-.wm-recent-row {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  margin-inline: -16px;
-  padding-inline: 16px;
-  padding-bottom: 4px;
-  scrollbar-width: none;
-}
-.wm-recent-row::-webkit-scrollbar { display: none; }
-.wm-recent-item { flex: 0 0 82%; max-width: 340px; scroll-snap-align: start; }
-
-@media (min-width: 768px) {
-  .wm-recent-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; margin-inline: 0; padding-inline: 0; }
-  .wm-recent-item { max-width: none; }
-  .wm-recent-item:nth-child(n + 5) { display: none; }
-}
-@media (min-width: 1024px) {
-  /* One full row of three */
-  .wm-recent-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-  .wm-recent-item:nth-child(n + 4) { display: none; }
-}
-</style>

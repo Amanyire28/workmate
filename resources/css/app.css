@@ -573,6 +573,31 @@
     .wm-notice-warning { background: rgba(180, 83, 9, 0.10);   color: #92400E; }
     .wm-notice-error   { background: rgba(185, 28, 28, 0.09);  color: var(--color-error); }
 
+    /* ---- Home page rows (recent posts, recent jobs) ----
+       Phones: swipe sideways, a little of the next card showing.
+       Tablets: two rows of two. Desktop: one row of three. */
+    .wm-home-row {
+        display: flex;
+        gap: 12px;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        margin-inline: -16px;
+        padding-inline: 16px;
+        padding-bottom: 4px;
+        scrollbar-width: none;
+    }
+    .wm-home-row::-webkit-scrollbar { display: none; }
+    .wm-home-row-item { flex: 0 0 82%; max-width: 340px; scroll-snap-align: start; }
+    @media (min-width: 768px) {
+        .wm-home-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: visible; margin-inline: 0; padding-inline: 0; }
+        .wm-home-row-item { max-width: none; }
+        .wm-home-row-item:nth-child(n + 5) { display: none; }
+    }
+    @media (min-width: 1024px) {
+        .wm-home-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+        .wm-home-row-item:nth-child(n + 4) { display: none; }
+    }
+
     /* ---- Legal documents (Markdown rendered by the server) ---- */
     .wm-legal-body { color: var(--color-ink-soft); font-size: 0.9375rem; line-height: 1.7; overflow-wrap: anywhere; }
     .wm-legal-body > * + * { margin-top: 0.75rem; }

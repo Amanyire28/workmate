@@ -60,6 +60,9 @@
     <!-- ============ Recent community posts ============ -->
     <HomeRecentPosts />
 
+    <!-- ============ Recent jobs: providers apply from here ============ -->
+    <HomeRecentJobs />
+
     <!-- ============ Top rated workers ============ -->
     <section class="wm-container pt-8 lg:pt-12" aria-labelledby="home-top">
       <div class="flex items-center justify-between gap-4 mb-3 lg:mb-4">
@@ -240,6 +243,7 @@ import VerifiedBadge from '@/components/VerifiedBadge.vue';
 import AvailabilityBadge from '@/components/AvailabilityBadge.vue';
 import AppFooter from '@/components/AppFooter.vue';
 import HomeRecentPosts from '@/components/HomeRecentPosts.vue';
+import HomeRecentJobs from '@/components/HomeRecentJobs.vue';
 import { providers, providerReviews } from '@/stores/catalog.js';
 import { startNearbySearch } from '@/stores/nearbySearch.js';
 import { categoryIcon, categoryColor, displayName, tradeLabel, formatPrice, categoryLabel } from '@/utils/ui.js';
