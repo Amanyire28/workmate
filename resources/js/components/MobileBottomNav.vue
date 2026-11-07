@@ -4,7 +4,7 @@
     class="lg:hidden fixed inset-x-2 min-[400px]:inset-x-3 z-40 bottom-[calc(8px+var(--wm-safe-bottom))] wm-glass-strong rounded-[28px] !shadow-[0_12px_40px_rgba(15,23,42,0.16),inset_0_1px_0_rgba(255,255,255,0.9)]"
     aria-label="Main"
   >
-    <ul class="grid grid-cols-6 h-[var(--wm-bottom-nav-h)] px-1">
+    <ul class="grid grid-cols-5 h-[var(--wm-bottom-nav-h)] px-1">
       <li v-for="item in navItems" :key="item.to" class="flex py-1.5">
         <router-link
           :to="item.to"
@@ -40,8 +40,8 @@ const navItems = [
   { to: '/community', label: 'Community', icon: 'bi-compass',       iconActive: 'bi-compass-fill',       match: ['/community'] },
   { to: '/messages', label: 'Messages',  icon: 'bi-chat',          iconActive: 'bi-chat-fill',          match: ['/messages'], badge: () => unreadTotal.value },
   { to: '/activity', label: 'My Work',   icon: 'bi-briefcase',     iconActive: 'bi-briefcase-fill',     match: ['/activity', '/find-work', '/job', '/post-job'] },
-  { to: '/account',  label: 'Account',   icon: 'bi-person-circle', iconActive: 'bi-person-circle',      match: ['/account'] },
 ];
+// Account is in the top bar on phones
 
 const isActive = (item) => navIsActive(route.path, item.match);
 </script>

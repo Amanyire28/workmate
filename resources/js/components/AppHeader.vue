@@ -81,9 +81,16 @@
           <span v-if="notifications.unread" class="wm-count-badge" aria-hidden="true">{{ notifications.unread > 99 ? '99+' : notifications.unread }}</span>
         </router-link>
 
-        <!-- Mobile: quick search -->
-        <router-link to="/browse" class="lg:hidden wm-icon-btn -mr-2" aria-label="Search service providers">
-          <i class="bi bi-search" aria-hidden="true"></i>
+        <!-- Mobile: account (profile photo once signed in) -->
+        <router-link
+          to="/account"
+          class="lg:hidden wm-icon-btn -mr-2"
+          :class="{ 'text-primary bg-primary/10': isAccountPage }"
+          :aria-current="isAccountPage ? 'page' : undefined"
+          aria-label="Account"
+        >
+          <UserAvatar v-if="auth.user?.avatar_url" :name="auth.user.name" :src="auth.user.avatar_url" :size="30" />
+          <i v-else class="bi bi-person-circle" aria-hidden="true"></i>
         </router-link>
       </div>
     </div>
@@ -119,6 +126,7 @@ const navItems = [
 ];
 
 const isActive = (item) => navIsActive(route.path, item.match);
+const isAccountPage = computed(() => navIsActive(route.path, ['/account', '/saved']));
 
 // Come back to the current page after signing in, except from home and the
 // sign-in pages themselves (which would nest redirects)
