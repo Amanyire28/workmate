@@ -11,27 +11,39 @@
       />
     </div>
 
-    <!-- Category chips -->
-    <div class="mt-4 wm-scroll-row" role="group" aria-label="Service type">
+    <!-- Service type is chosen from one dropdown; on phones the filters sit beside it -->
+    <div class="mt-4 flex items-center justify-between gap-3">
+      <label class="wm-chip !h-11 !pr-9 min-w-0 max-w-[65%] lg:max-w-[320px] cursor-pointer">
+        <i :class="['bi', filters.category ? categoryIcon(filters.category) : 'bi-grid']" aria-hidden="true"></i>
+        <span class="truncate">{{ filters.category ? categoryLabel(filters.category) : 'All services' }}</span>
+        <i class="bi bi-chevron-down absolute right-3.5 text-[12px]" aria-hidden="true"></i>
+        <select
+          class="absolute inset-0 w-full opacity-0 cursor-pointer"
+          aria-label="Service type"
+          :value="filters.category || ''"
+          @change="setQuery({ category: $event.target.value })"
+        >
+          <option value="">All services</option>
+          <option v-for="cat in categories" :key="cat.id" :value="cat.id">{{ cat.label }}</option>
+        </select>
+      </label>
       <button
         type="button"
-        class="wm-chip"
-        :aria-pressed="!filters.category"
-        @click="setQuery({ category: '' })"
-      >All services</button>
-      <button
-        v-for="cat in categories"
-        :key="cat.id"
-        type="button"
-        class="wm-chip"
-        :aria-pressed="filters.category === cat.id"
-        @click="setQuery({ category: filters.category === cat.id ? '' : cat.id })"
+        class="lg:hidden wm-btn wm-btn-secondary !min-h-11 !px-3.5 relative shrink-0"
+        :aria-label="`Filters${activeFilterCount ? `, ${activeFilterCount} active` : ''}`"
+        @click="openSheet"
       >
-        <i :class="['bi', categoryIcon(cat.id)]" aria-hidden="true"></i>{{ cat.label }}
+        <i class="bi bi-sliders" aria-hidden="true"></i>
+        <span aria-hidden="true">Filters</span>
+        <span
+          v-if="activeFilterCount"
+          class="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-primary text-white text-[11px]"
+          aria-hidden="true"
+        >{{ activeFilterCount }}</span>
       </button>
     </div>
 
-    <div class="mt-6 lg:grid lg:grid-cols-[248px_minmax(0,1fr)] lg:gap-6 lg:items-start">
+    <div class="mt-4 lg:mt-6 lg:grid lg:grid-cols-[248px_minmax(0,1fr)] lg:gap-6 lg:items-start">
       <!-- Desktop filter sidebar: changes apply immediately -->
       <aside class="hidden lg:block wm-card !p-5 sticky top-[calc(var(--wm-header-h)+16px)]" aria-labelledby="sidebar-filters-title">
         <div class="flex items-center justify-between mb-4">
@@ -47,27 +59,12 @@
       </aside>
 
       <section aria-labelledby="results-count">
-        <div class="flex items-center justify-between gap-3 mb-3">
-          <p id="results-count" class="wm-meta" aria-live="polite">
-            {{ results.length }} {{ results.length === 1 ? 'provider' : 'providers' }}
-            <template v-if="filters.category"> for {{ categoryLabel(filters.category) }}</template>
-            <template v-if="filters.area"> near {{ areaLabel(filters.area) || filters.area }}</template>
-          </p>
-          <button
-            type="button"
-            class="lg:hidden wm-btn wm-btn-secondary !min-h-11 !px-3.5 relative"
-            :aria-label="`Filters${activeFilterCount ? `, ${activeFilterCount} active` : ''}`"
-            @click="openSheet"
-          >
-            <i class="bi bi-sliders" aria-hidden="true"></i>
-            <span aria-hidden="true">Filters</span>
-            <span
-              v-if="activeFilterCount"
-              class="inline-flex items-center justify-center min-w-5 h-5 px-1 rounded-full bg-primary text-white text-[11px]"
-              aria-hidden="true"
-            >{{ activeFilterCount }}</span>
-          </button>
-        </div>
+        <!-- Read out to screen readers only -->
+        <p id="results-count" class="sr-only" aria-live="polite">
+          {{ results.length }} {{ results.length === 1 ? 'provider' : 'providers' }}
+          <template v-if="filters.category"> for {{ categoryLabel(filters.category) }}</template>
+          <template v-if="filters.area"> near {{ areaLabel(filters.area) || filters.area }}</template>
+        </p>
 
         <ul v-if="results.length" class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
           <li v-for="p in results" :key="p.id">
