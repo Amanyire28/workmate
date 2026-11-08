@@ -18,7 +18,7 @@
         <span class="truncate">{{ filters.category ? categoryLabel(filters.category) : 'All services' }}</span>
         <i class="bi bi-chevron-down absolute right-3.5 text-[12px]" aria-hidden="true"></i>
         <select
-          class="absolute inset-0 w-full opacity-0 cursor-pointer"
+          class="absolute inset-0 z-10 w-full opacity-0 cursor-pointer"
           aria-label="Service type"
           :value="filters.category || ''"
           @change="setQuery({ category: $event.target.value })"
