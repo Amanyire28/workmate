@@ -1,7 +1,6 @@
 <template>
   <div class="wm-container wm-page">
     <h1 class="wm-h1">My work</h1>
-    <p class="wm-lead mt-1.5">{{ isProvider ? "Requests customers sent you, providers you’ve contacted, jobs you’ve posted and jobs you’ve applied for." : "Providers you’ve contacted, jobs you’ve posted and jobs you’ve applied for." }}</p>
 
     <!-- Tabs -->
     <div class="mt-5 flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">

@@ -24,7 +24,7 @@
             </h1>
             <p v-if="provider.businessName" class="wm-meta -mt-1">{{ provider.name }}</p>
             <p class="text-[15px] text-ink">{{ tradeLabel(provider, 99) }}</p>
-            <span v-if="provider.isSample" class="wm-pill wm-pill-neutral" title="An invented profile shown while WorkMate is in development">
+            <span v-if="provider.isSample" class="wm-pill wm-pill-neutral" title="An invented example profile">
               Sample profile
             </span>
             <p class="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1 text-sm text-muted">

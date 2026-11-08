@@ -1,7 +1,6 @@
 <template>
   <div class="wm-container wm-page">
     <h1 class="wm-h1">Find work</h1>
-    <p class="wm-lead mt-1.5">Open jobs posted by people and businesses across Kampala.</p>
 
     <div class="mt-4">
       <SearchBar

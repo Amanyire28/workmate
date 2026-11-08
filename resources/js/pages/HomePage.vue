@@ -30,12 +30,9 @@
           <h1 id="home-heading" class="wm-rise text-[26px] sm:text-[32px] lg:text-[40px] leading-[1.12] font-bold tracking-[-0.025em] text-white">
             Trusted local services, right in <span class="text-[#4FA3FF]">Kampala</span>
           </h1>
-          <p class="wm-rise wm-rise-delay-1 mt-2 lg:mt-3 text-[14px] lg:text-[17px] text-white/85 leading-relaxed max-w-[460px]">
-            Find skilled workers or get hired for your next job. Simple, local and on your phone.
-          </p>
 
           <!-- Service + location search: results appear just below the hero -->
-          <ServiceSearchForm class="wm-rise wm-rise-delay-2 mt-4 lg:mt-6" on-dark @search="onSearch" />
+          <ServiceSearchForm class="wm-rise wm-rise-delay-2 mt-4 lg:mt-5" on-dark @search="onSearch" />
 
           <!-- A quiet invitation to offer services; not shown to providers or to people who answered already -->
           <p v-if="earnLine" class="wm-rise wm-rise-delay-2 mt-3 text-[13.5px] text-white/70">
@@ -50,19 +47,6 @@
          Renders nothing until the customer searches. -->
     <NearbySearchPanel ref="searchPanel" />
 
-    <!-- ============ Trust strip (website) ============ -->
-    <section class="hidden lg:block wm-glass-bar" aria-label="Why WorkMate">
-      <ul class="wm-container grid grid-cols-3 py-5">
-        <li v-for="t in trust" :key="t.title" class="flex items-center justify-center gap-3">
-          <i :class="['bi', t.icon, 'text-[26px] text-primary']" aria-hidden="true"></i>
-          <div>
-            <p class="text-sm font-semibold text-ink">{{ t.title }}</p>
-            <p class="text-[13px] text-[#64748B]">{{ t.text }}</p>
-          </div>
-        </li>
-      </ul>
-    </section>
-
     <!-- ============ Recent community posts ============ -->
     <HomeRecentPosts />
 
@@ -70,7 +54,7 @@
     <HomeRecentJobs />
 
     <!-- ============ Top rated workers ============ -->
-    <section class="wm-container pt-8 lg:pt-12" aria-labelledby="home-top">
+    <section class="wm-container pt-6 lg:pt-9" aria-labelledby="home-top">
       <div class="flex items-center justify-between gap-4 mb-3 lg:mb-4">
         <h2 id="home-top" class="text-xl font-semibold text-ink">Top Rated Workers</h2>
         <router-link to="/workers" class="wm-link !text-sm inline-flex items-center gap-1 min-h-11">
@@ -122,13 +106,13 @@
           </router-link>
         </li>
       </ul>
-      <p class="mt-3 text-xs text-[#64748B]">
-        <i class="bi bi-info-circle mr-1" aria-hidden="true"></i>Sample profiles shown while WorkMate is in development.
+      <p v-if="topRated.some(p => p.isSample)" class="mt-3 text-xs text-[#64748B]">
+        <i class="bi bi-info-circle mr-1" aria-hidden="true"></i>Includes sample profiles.
       </p>
     </section>
 
     <!-- ============ Categories ============ -->
-    <section class="wm-container pt-8 lg:pt-12" aria-labelledby="home-categories">
+    <section class="wm-container pt-6 lg:pt-9" aria-labelledby="home-categories">
       <div class="flex items-center justify-between gap-4 mb-3 lg:mb-4">
         <h2 id="home-categories" class="text-xl font-semibold text-ink">Browse by category</h2>
         <router-link to="/explore" class="wm-link !text-sm inline-flex items-center gap-1 min-h-11">
@@ -156,7 +140,7 @@
     </section>
 
     <!-- ============ Post a job CTA ============ -->
-    <section class="wm-container pt-8 lg:pt-12" aria-labelledby="home-cta">
+    <section class="wm-container pt-6 lg:pt-9" aria-labelledby="home-cta">
       <div class="flex flex-col sm:flex-row sm:items-center gap-5 lg:gap-8 rounded-[18px] bg-[#EFF6FF] border border-[#DBEAFE] p-6 lg:px-10 lg:py-8">
         <div class="flex items-start sm:items-center gap-4 lg:gap-6 flex-1">
           <span class="relative inline-flex items-center justify-center shrink-0 w-16 h-16 lg:w-20 lg:h-20 rounded-2xl bg-white text-primary text-[32px] lg:text-[40px] shadow-[0_6px_18px_rgba(23,105,210,0.15)]" aria-hidden="true">
@@ -176,10 +160,9 @@
     </section>
 
     <!-- ============ How it works (website) ============ -->
-    <section class="hidden lg:block wm-container pt-14" aria-labelledby="home-how">
+    <section class="hidden lg:block wm-container pt-10" aria-labelledby="home-how">
       <h2 id="home-how" class="text-xl font-semibold text-ink">How WorkMate Works</h2>
-      <p class="mt-1 text-[13px] text-[#64748B]">Get started in 3 simple steps</p>
-      <ol class="mt-6 grid grid-cols-3 gap-10">
+      <ol class="mt-4 grid grid-cols-3 gap-10">
         <li v-for="(s, i) in steps" :key="s.title">
           <span class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#EFF6FF] text-primary text-[22px]" aria-hidden="true">
             <i :class="['bi', s.icon]"></i>
@@ -191,9 +174,9 @@
     </section>
 
     <!-- ============ Client feedback (website) ============ -->
-    <section v-if="feedback.length" class="hidden lg:block wm-container pt-14 pb-16" aria-labelledby="home-feedback">
+    <section v-if="feedback.length" class="hidden lg:block wm-container pt-10 pb-12" aria-labelledby="home-feedback">
       <h2 id="home-feedback" class="text-xl font-semibold text-ink">What Clients Say</h2>
-      <p class="mt-1 text-[13px] text-[#64748B]">Feedback left on completed jobs. Sample data while WorkMate is in development.</p>
+      <p v-if="feedback.some(f => f.isSample)" class="mt-1 text-[13px] text-[#64748B]">Includes sample feedback.</p>
 
       <div class="mt-6 flex items-center gap-4">
         <button type="button" class="wm-icon-btn wm-glass-card shrink-0" aria-label="Previous feedback" @click="go(-1)">
@@ -236,7 +219,7 @@
 
     <!-- Footer belongs to the website; the mobile app ends above the tab bar -->
     <AppFooter class="hidden lg:block" />
-    <div class="h-8 lg:hidden" aria-hidden="true"></div>
+    <div class="h-3 lg:hidden" aria-hidden="true"></div>
   </div>
 </template>
 
@@ -274,12 +257,6 @@ const earnLine = computed(() => {
   if (answeredHire()) return null;
   return { ask: 'Offer a service?', link: 'Start earning on WorkMate', to: auth.user ? '/start-earning' : '/register?redirect=/start-earning' };
 });
-
-const trust = [
-  { icon: 'bi-patch-check', title: 'Verified providers',   text: 'Look for the tick on profiles' },
-  { icon: 'bi-chat-dots',   title: 'Chat before you hire', text: 'Agree price and details first' },
-  { icon: 'bi-people',      title: 'Local community',      text: 'Support local talent' },
-];
 
 // Seven categories that have providers today, then "More" for the full list
 const popularIds = ['plumbing', 'electrical', 'cleaning', 'moving', 'carpentry', 'painting', 'repairs'];

@@ -141,13 +141,13 @@ return [
             'group' => 'platform',
             'label' => 'Support phone',
             'description' => 'Shown in the site footer and on the Account page.',
-            'type' => 'string', 'max' => 30, 'default' => null, 'public' => true,
+            'type' => 'string', 'max' => 30, 'default' => '0787320647', 'public' => true,
         ],
         'platform.support_email' => [
             'group' => 'platform',
             'label' => 'Support email',
             'description' => 'Shown in the site footer and on the Account page.',
-            'type' => 'email', 'default' => null, 'public' => true,
+            'type' => 'email', 'default' => 'resnetsystems@gmail.com', 'public' => true,
         ],
         'platform.provider_signups' => [
             'group' => 'platform',

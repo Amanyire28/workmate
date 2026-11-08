@@ -1,7 +1,6 @@
 <template>
   <div class="wm-container wm-page">
     <h1 class="wm-h1">Services</h1>
-    <p class="wm-lead mt-1.5">Choose a service to see the providers who offer it.</p>
 
     <div class="mt-4 lg:max-w-[720px]">
       <SearchBar

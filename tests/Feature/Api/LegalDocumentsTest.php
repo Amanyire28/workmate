@@ -48,32 +48,55 @@ class LegalDocumentsTest extends ApiTestCase
     {
         $list = $this->getJson('/api/v1/legal')->assertOk()->json('data');
         $this->assertSame(array_merge(['terms', 'privacy', 'provider'], array_slice(self::EVERYONE, 2)), collect($list)->pluck('key')->all());
-        $this->assertSame('0.1', $list[0]['version']);
+        $this->assertSame('1.0', $list[0]['version']);
 
         $terms = $this->getJson('/api/v1/legal/terms')->assertOk()->json('data');
         $this->assertTrue($terms['is_current']);
         $this->assertStringContainsString('<h2>1. Introduction</h2>', $terms['html']);
-        // Facts not set yet show as "to be confirmed"; drafting notes are highlighted
-        $this->assertStringContainsString('[Registration number: to be confirmed]', $terms['html']);
-        $this->assertStringContainsString('class="wm-legal-note"', $terms['html']);
+        // Facts not set yet show as "to be confirmed"; the published text has no drafting notes
+        $this->assertStringContainsString('[Registered office: to be confirmed]', $terms['html']);
+        $this->assertStringContainsString('Email: resnetsystems@gmail.com', $terms['html']);
+        // The company number and PDPO certificate number aren't published
+        $this->assertStringNotContainsString('Registration number', $terms['html']);
+        $this->assertStringNotContainsString('Pdpo certificate', $terms['html']);
+        // Version 1.0 is final: everyone accepts it, with no notes or features the app lacks
+        foreach (collect($list)->pluck('key') as $key) {
+            $doc = $this->getJson("/api/v1/legal/{$key}")->json('data');
+            $this->assertTrue($doc['is_material'], $key);
+            foreach (['wm-legal-note', '[[', 'proposed', 'Download my data', 'Delete my account', 'Account → Privacy'] as $text) {
+                $this->assertStringNotContainsString($text, $doc['html'], $key);
+            }
+            $this->assertArrayNotHasKey('change_note', $doc['versions'][0], $key);
+        }
+        // Proposed figures stay as plain text
+        $this->assertStringContainsString('30 days', $this->getJson('/api/v1/legal/privacy')->json('data.html'));
 
         $this->getJson('/api/v1/legal/nothing-here')->assertNotFound();
+    }
+
+    public function test_drafting_notes_in_a_new_version_are_highlighted()
+    {
+        $version = $this->publishNewVersion('terms', false, "## 1. Changed\n\nWithin [[14]] days.");
+        $this->app['auth']->forgetGuards();
+
+        $html = $this->getJson('/api/v1/legal/terms?version_id='.$version->id)->assertOk()->json('data.html');
+        $this->assertStringContainsString('<mark class="wm-legal-note" title="Drafting note">14</mark>', $html);
     }
 
     public function test_company_facts_fill_the_documents_and_html_in_the_text_is_escaped()
     {
         $admin = $this->userWithRoles(['super_admin']);
-        app(PlatformSettings::class)->set('legal.registration_number', '80020001234567', $admin);
+        app(PlatformSettings::class)->set('legal.registered_office', 'Plot 12 Kampala Road', $admin);
         app(PlatformSettings::class)->set('legal.directors', '<b>A. Director</b>', $admin);
 
         $html = $this->getJson('/api/v1/legal/terms')->json('data.html');
-        $this->assertStringContainsString('Registration number: 80020001234567', $html);
+        $this->assertStringContainsString('Registered office: Plot 12 Kampala Road', $html);
         $this->assertStringContainsString('&lt;b&gt;A. Director&lt;/b&gt;', $html);
 
-        $this->publishNewVersion('terms', false, "## 1. Test\n\n<script>alert(1)</script> {{registration_number}}");
+        $this->publishNewVersion('terms', false, "## 1. Test\n\n<script>alert(1)</script> {{registered_office}}");
         $html = $this->getJson('/api/v1/legal/terms')->json('data.html');
         $this->assertStringNotContainsString('<script>', $html);
-        $this->assertStringContainsString('80020001234567', $html);
+        $this->assertStringContainsString('Plot 12 Kampala Road', $html);
     }
 
     public function test_drafts_stay_private_and_earlier_versions_stay_readable()
@@ -84,14 +107,14 @@ class LegalDocumentsTest extends ApiTestCase
 
         $this->app['auth']->forgetGuards();
         $this->getJson("/api/v1/legal/terms?version_id={$draftId}")->assertNotFound();
-        $this->getJson('/api/v1/legal/terms')->assertJsonPath('data.version', '0.1');
+        $this->getJson('/api/v1/legal/terms')->assertJsonPath('data.version', '1.0');
 
         $second = $this->publishNewVersion('privacy', true);
         $this->app['auth']->forgetGuards();
         $old = $this->getJson('/api/v1/legal/privacy?version_id='.$second->id)->assertOk();
         $this->assertTrue($old->json('data.is_current'));
-        $this->assertCount(2, $old->json('data.versions'));
-        $this->getJson('/api/v1/legal/terms?version_id='.$first->id)->assertOk()->assertJsonPath('data.version', '0.1');
+        $this->assertCount(3, $old->json('data.versions'));
+        $this->getJson('/api/v1/legal/terms?version_id='.$first->id)->assertOk()->assertJsonPath('data.version', '1.0');
     }
 
     /* ---------------- Signing up ---------------- */
@@ -248,7 +271,7 @@ class LegalDocumentsTest extends ApiTestCase
     public function test_publishing_needs_a_change_note_and_published_versions_never_change()
     {
         $this->signIn($this->userWithRoles(['super_admin']));
-        $id = $this->postJson('/api/v1/admin/legal/terms/drafts')->assertCreated()->assertJsonPath('data.version', '0.2')->json('data.id');
+        $id = $this->postJson('/api/v1/admin/legal/terms/drafts')->assertCreated()->assertJsonPath('data.version', '1.1')->json('data.id');
         // One draft at a time
         $this->postJson('/api/v1/admin/legal/terms/drafts')->assertStatus(409)->assertJson(['code' => 'legal_draft_exists']);
 
@@ -294,11 +317,11 @@ class LegalDocumentsTest extends ApiTestCase
     public function test_company_facts_are_settings_only_legal_managers_change()
     {
         $this->signIn($this->userWithRoles(['operations']));
-        $this->patchJson('/api/v1/admin/settings/legal.registration_number', ['value' => '123'])->assertNotFound();
+        $this->patchJson('/api/v1/admin/settings/legal.registered_office', ['value' => '123'])->assertNotFound();
 
         $this->signIn($this->userWithRoles(['super_admin']));
-        $this->patchJson('/api/v1/admin/settings/legal.registration_number', ['value' => '80020001234567'])->assertOk();
+        $this->patchJson('/api/v1/admin/settings/legal.registered_office', ['value' => 'Plot 12 Kampala Road'])->assertOk();
         $this->patchJson('/api/v1/admin/settings/legal.privacy_email', ['value' => 'not-an-email'])->assertStatus(422);
-        $this->assertStringContainsString('80020001234567', $this->getJson('/api/v1/legal/terms')->json('data.html'));
+        $this->assertStringContainsString('Plot 12 Kampala Road', $this->getJson('/api/v1/legal/terms')->json('data.html'));
     }
 }

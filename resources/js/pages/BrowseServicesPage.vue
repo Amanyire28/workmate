@@ -1,7 +1,6 @@
 <template>
   <div class="wm-container wm-page">
     <h1 class="wm-h1">Find a service provider</h1>
-    <p class="wm-lead mt-1.5">Compare skilled people and businesses across Kampala, then request a service.</p>
 
     <div class="mt-4">
       <SearchBar

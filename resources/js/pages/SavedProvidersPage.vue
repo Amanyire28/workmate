@@ -2,7 +2,6 @@
   <div class="wm-container wm-page">
     <BackLink to="/account">Account</BackLink>
     <h1 class="wm-h1 mt-1">Saved providers</h1>
-    <p class="wm-lead mt-1.5">People you liked, kept here so you can come back and hire them.</p>
 
     <div v-if="!saved.loaded" class="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3" aria-busy="true">
       <div v-for="n in 3" :key="n" class="wm-skeleton h-[150px] !rounded-[20px]"></div>

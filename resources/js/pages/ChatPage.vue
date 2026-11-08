@@ -40,7 +40,7 @@
 
       <p v-if="chat.is_sample_provider && chat.role === 'customer'" class="wm-notice wm-notice-info mt-3 !text-[13px]">
         <i class="bi bi-info-circle" aria-hidden="true"></i>
-        <span>This is a sample profile shown while WorkMate is in development, so nobody will reply.</span>
+        <span>This is a sample profile, so nobody will reply.</span>
       </p>
 
       <p class="wm-notice wm-notice-warning mt-3 !text-[13px]">

@@ -55,7 +55,7 @@
       <p class="mt-4 text-xs text-[#64748B] leading-relaxed">
         <i class="bi bi-info-circle mr-1" aria-hidden="true"></i>
         Distances are straight-line estimates to each provider’s registered base, not their live location<template v-if="origin.kind === 'area'">, measured from the centre of {{ origin.area.name }}</template>.
-        Sample providers shown while WorkMate is in development.
+        <template v-if="hasSample">Includes sample providers.</template>
       </p>
     </template>
 
@@ -94,6 +94,7 @@ const origin = computed(() => props.result.origin);
 const groups = computed(() => visibleGroups(props.result, props.showWider));
 const total = computed(() => groups.value.reduce((n, g) => n + g.items.length, 0));
 const hasServing = computed(() => groups.value.some(g => g.tier === 'serving'));
+const hasSample = computed(() => groups.value.some(g => g.items.some(i => i.provider.isSample)));
 
 // Headings only help when there's more than one group and enough to group
 const showHeadings = computed(() => groups.value.length > 1 && total.value > 2);
@@ -129,7 +130,7 @@ const empty = computed(() => {
     return {
       icon: 'bi-person-dash',
       title: `No ${r.people} on WorkMate yet`,
-      message: `None of WorkMate’s sample providers offer this yet. Post a job and let ${r.people} find you when they join.`,
+      message: `Nobody offers this yet. Post a job and let ${r.people} find you when they join.`,
     };
   }
   return {

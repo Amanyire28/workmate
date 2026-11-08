@@ -45,7 +45,7 @@
                 class="flex items-center gap-3 min-h-[52px] px-4 py-2 hover:bg-white/60" :aria-current="v.version_id === doc.version_id ? 'page' : undefined">
                 <span class="flex-1 min-w-0">
                   <span class="block text-[15px] font-medium text-ink">Version {{ v.version }} <span v-if="v.version_id === doc.version_id" class="wm-meta">(showing)</span></span>
-                  <span class="block wm-meta">{{ formatDate(v.published_at) }}<template v-if="v.change_note"> · {{ v.change_note }}</template></span>
+                  <span class="block wm-meta">{{ formatDate(v.published_at) }}</span>
                 </span>
                 <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
               </router-link>

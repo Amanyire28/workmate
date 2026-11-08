@@ -1,7 +1,6 @@
 <template>
   <div class="wm-container wm-container-sm wm-page">
     <h1 class="wm-h1">Messages</h1>
-    <p class="wm-lead mt-1.5">Chat with providers before you hire them.</p>
 
     <div v-if="state === 'loading'" class="mt-5 wm-card flex items-center gap-3 wm-meta" role="status">
       <span class="wm-spinner text-primary" aria-hidden="true"></span>Loading your chats…

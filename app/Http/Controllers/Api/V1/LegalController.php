@@ -52,7 +52,7 @@ class LegalController extends Controller
         $data = $this->legal->present($document, $version);
         $data['is_current'] = $version->id === $published->first()->id;
         $data['versions'] = $published->map(function (LegalDocumentVersion $v) {
-            return ['version_id' => $v->id, 'version' => $v->version, 'published_at' => $v->published_at->toIso8601String(), 'change_note' => $v->change_note];
+            return ['version_id' => $v->id, 'version' => $v->version, 'published_at' => $v->published_at->toIso8601String()];
         })->values();
 
         return response()->json(['data' => $data]);

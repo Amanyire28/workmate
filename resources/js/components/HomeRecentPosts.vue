@@ -1,11 +1,8 @@
 <template>
   <!-- The newest community posts, first thing under the hero -->
-  <section class="wm-container pt-6 lg:pt-10" aria-labelledby="home-recent">
+  <section class="wm-container pt-5 lg:pt-8" aria-labelledby="home-recent">
     <div class="flex items-center justify-between gap-4 mb-3 lg:mb-4">
-      <div>
-        <h2 id="home-recent" class="text-xl font-semibold text-ink">Recent from the community</h2>
-        <p class="text-[13px] text-[#64748B]">Work, tips and questions shared by people on WorkMate</p>
-      </div>
+      <h2 id="home-recent" class="text-xl font-semibold text-ink">Recent from the community</h2>
       <router-link to="/community" class="wm-link !text-sm inline-flex items-center gap-1 min-h-11 shrink-0">
         See all <i class="bi bi-arrow-right hidden lg:inline" aria-hidden="true"></i>
       </router-link>
@@ -23,7 +20,7 @@
     </p>
 
     <!-- Nothing yet -->
-    <div v-else-if="!posts.length" class="wm-glass-card rounded-[14px] p-5 flex flex-col sm:flex-row sm:items-center gap-3">
+    <div v-else-if="!posts.length" class="wm-glass-card rounded-[14px] p-4 flex flex-col sm:flex-row sm:items-center gap-2.5">
       <span class="wm-icon-tile shrink-0" aria-hidden="true"><i class="bi bi-chat-square-text"></i></span>
       <p class="flex-1 text-sm text-[#475569]">No posts yet. Share a job you’re proud of, a tip, or ask a question.</p>
       <router-link to="/community" class="wm-btn wm-btn-primary !rounded-[10px] shrink-0">Open the community</router-link>
