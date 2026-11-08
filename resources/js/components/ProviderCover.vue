@@ -1,12 +1,12 @@
 <template>
-  <div class="relative h-[140px] sm:h-[180px] lg:h-[220px] overflow-hidden wm-provider-cover">
+  <div class="relative h-[160px] sm:h-[220px] lg:h-[300px] overflow-hidden wm-provider-cover">
     <img v-if="src" :src="src" alt="" class="absolute inset-0 h-full w-full object-cover" />
     <span v-if="busy" class="absolute inset-0 flex items-center justify-center bg-white/50" aria-hidden="true">
       <span class="wm-spinner text-primary"></span>
     </span>
 
     <!-- The owner's tools; customers only see the picture -->
-    <div v-if="editable" class="absolute right-3 top-3 flex items-center gap-2">
+    <div v-if="editable" class="absolute inset-x-0 top-3 wm-container wm-container-md flex justify-end items-center gap-2">
       <button v-if="provider.coverUrl && !busy" type="button" class="wm-cover-btn" @click="remove">
         <i class="bi bi-trash3" aria-hidden="true"></i><span class="sr-only sm:not-sr-only">Remove</span>
       </button>
@@ -18,7 +18,7 @@
       </label>
     </div>
   </div>
-  <p v-if="message" :class="['px-5 pt-2 text-[13px]', isError ? 'text-error' : 'text-success']" role="status">{{ message }}</p>
+  <p v-if="message" :class="['wm-container wm-container-md pt-2 text-[13px]', isError ? 'text-error' : 'text-success']" role="status">{{ message }}</p>
 </template>
 
 <script setup>
