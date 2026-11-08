@@ -195,7 +195,7 @@
       <!-- ================= 5. Review and send ================= -->
       <section v-else-if="step === 'review'" class="mt-4">
         <h1 class="wm-h2">{{ correcting ? 'Send your corrections' : 'Check and send' }}</h1>
-        <p class="wm-meta mt-1">{{ correcting ? 'WorkMate will check what you changed.' : 'WorkMate checks your details and ID, usually within 2 working days.' }}</p>
+        <p class="wm-meta mt-1">{{ correcting ? 'WorkMate will check what you changed.' : 'WorkMate checks your details and ID as soon as possible.' }}</p>
 
         <ul class="wm-card !p-0 mt-4 divide-y divide-line overflow-hidden">
           <li v-for="row in summary" :key="row.step" class="flex items-start gap-3 px-4 py-3">
@@ -306,7 +306,7 @@ const STEPS = [
   { id: 'place', label: 'Where you work', intro: 'Choose your town or area.' },
   { id: 'profile', label: 'Your profile', intro: 'Your name, photo and prices.' },
   { id: 'documents', label: 'Your ID', intro: 'Photos of your National ID.' },
-  { id: 'review', label: 'Check and send', intro: 'WorkMate checks it, usually within 2 working days.' },
+  { id: 'review', label: 'Check and send', intro: 'WorkMate checks it as soon as possible.' },
 ];
 const PROVIDER_TYPES = [
   { id: 'individual', label: 'Just me', icon: 'bi-person' },
@@ -607,7 +607,7 @@ const hub = computed(() => {
   }
   return {
     title: 'WorkMate is checking your details',
-    text: 'We’ll let you know here and with a notification, usually within 2 working days. You can still use WorkMate as a customer meanwhile.',
+    text: 'We’ll let you know here and with a notification as soon as possible. You can still use WorkMate as a customer meanwhile.',
     timeline: [
       { label: 'Sent', icon: 'bi-send', state: 'done' },
       { label: 'Being checked', text: 'Your details and ID', icon: 'bi-search', state: 'now' },

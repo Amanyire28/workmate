@@ -390,7 +390,7 @@ const providerSummary = computed(() => PROVIDER_SUMMARIES[user.value?.provider_s
 const START_CARDS = {
   not_applied: { title: 'Start earning on WorkMate', text: 'Get found by customers and apply for jobs. 5 short steps.' },
   draft: { title: 'Finish becoming a provider', text: 'Your details are saved. Pick up where you left off.' },
-  pending_review: { title: 'Your application is being checked', text: 'We’ll let you know, usually within 2 working days.' },
+  pending_review: { title: 'Your application is being checked', text: 'We’ll let you know as soon as possible.' },
   more_info_required: { title: 'WorkMate asked you to fix something', text: 'See what to change and send it back.' },
   rejected: { title: 'Your application wasn’t approved', text: 'See why, and start again when you’re ready.' },
 };
