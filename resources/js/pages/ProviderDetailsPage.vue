@@ -1,7 +1,5 @@
 <template>
   <div class="wm-container wm-container-md wm-page !pt-3 lg:!pt-6">
-    <BackLink to="/browse">Back to providers</BackLink>
-
     <EmptyState
       v-if="!provider"
       icon="bi-person-x"
@@ -11,13 +9,17 @@
       <router-link to="/browse" class="wm-btn wm-btn-primary !min-h-12">Browse providers</router-link>
     </EmptyState>
 
-    <div v-else class="mt-2 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4 lg:gap-x-8 lg:gap-y-6">
+    <div v-else class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_320px] gap-4 lg:gap-x-8 lg:gap-y-6">
 
       <!-- Identity -->
-      <section class="wm-card wm-card-lg" aria-labelledby="provider-name">
-        <div class="flex flex-col items-center text-center sm:flex-row sm:items-center sm:text-left gap-4 lg:gap-6">
-          <UserAvatar :name="name" :src="provider.avatarUrl" :size="96" class="lg:!w-28 lg:!h-28 lg:!text-[40px]" />
-          <div class="min-w-0 flex flex-col gap-2 items-center sm:items-start">
+      <section class="wm-card wm-card-lg !p-0 overflow-hidden" aria-labelledby="provider-name">
+        <ProviderCover :provider="provider" :editable="isOwn" />
+        <div class="px-4 pb-5 lg:px-6 lg:pb-6 flex flex-col items-center text-center sm:flex-row sm:items-start sm:text-left gap-3 sm:gap-5">
+          <!-- The photo overlaps the bottom of the cover -->
+          <span class="relative -mt-12 lg:-mt-14 shrink-0 rounded-full bg-white p-1 shadow-[0_6px_18px_rgba(15,23,42,0.15)]">
+            <UserAvatar :name="name" :src="provider.avatarUrl" :size="96" class="lg:!w-28 lg:!h-28 lg:!text-[40px]" />
+          </span>
+          <div class="min-w-0 flex flex-col gap-2 items-center sm:items-start sm:pt-3">
             <h1 id="provider-name" class="text-2xl lg:text-[30px] font-bold leading-tight text-ink">
               {{ name }}
               <VerifiedBadge :provider="provider" class="text-[0.8em] ml-0.5" />
@@ -232,7 +234,7 @@
 import { ref, computed, watch } from 'vue';
 import { isOwnProvider } from '@/stores/auth.js';
 import { useRoute } from 'vue-router';
-import BackLink from '@/components/BackLink.vue';
+import ProviderCover from '@/components/ProviderCover.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import AvailabilityBadge from '@/components/AvailabilityBadge.vue';

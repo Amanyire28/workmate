@@ -31,6 +31,7 @@ class PublicProviderResource extends JsonResource
             'name' => $this->owner->name,
             'display_name' => $this->display_name,
             'avatar_url' => $this->owner->avatarUrl(),
+            'cover_url' => $this->coverUrl(),
             'type' => $this->type,
             'categories' => $professions->map(function ($profession) {
                 return $profession->category->slug;

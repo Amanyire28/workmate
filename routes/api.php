@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\V1\ReviewController;
 use App\Http\Controllers\Api\V1\SavedProviderController;
 use App\Http\Controllers\Api\V1\VerificationController;
 use App\Http\Controllers\Api\V1\ProfilePhotoController;
+use App\Http\Controllers\Api\V1\ProviderCoverController;
 use App\Http\Controllers\Api\V1\ProviderReportController;
 use App\Http\Controllers\Api\V1\PushSubscriptionController;
 use Illuminate\Http\Request;
@@ -75,6 +76,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('avatars/{file}', [ProfilePhotoController::class, 'show'])
         ->where('file', '[0-9a-f-]{36}\.jpg')
         ->name('avatars.show');
+    Route::get('covers/{file}', [ProviderCoverController::class, 'show'])
+        ->where('file', '[0-9a-f-]{36}\.jpg')
+        ->name('covers.show');
     Route::get('areas', [DirectoryController::class, 'areas'])->name('areas.index');
     Route::get('settings', [DirectoryController::class, 'settings'])->name('settings.public');
     Route::middleware('throttle:place-search')->group(function () {
@@ -127,6 +131,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::put('me/password', [PasswordController::class, 'update'])->middleware('throttle:login')->name('me.password');
         Route::post('me/photo', [ProfilePhotoController::class, 'store'])->middleware('throttle:account-email')->name('me.photo');
         Route::delete('me/photo', [ProfilePhotoController::class, 'destroy'])->name('me.photo.destroy');
+        Route::post('me/provider/cover', [ProviderCoverController::class, 'store'])->middleware('throttle:account-email')->name('me.provider.cover');
+        Route::delete('me/provider/cover', [ProviderCoverController::class, 'destroy'])->name('me.provider.cover.destroy');
         Route::post('me/email/verification-notification', [EmailVerificationController::class, 'send'])
             ->middleware('throttle:account-email')
             ->name('me.verification-notification');

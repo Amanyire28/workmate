@@ -229,6 +229,19 @@
             <ProviderApplicationPanel />
           </div>
         </div>
+
+        <router-link
+          v-if="['approved', 'suspended'].includes(user.provider_status) && user.provider_profile_id"
+          :to="`/provider/${user.provider_profile_id}`"
+          class="wm-card wm-card-link !py-0 flex items-center gap-3 min-h-[52px]"
+        >
+          <i class="bi bi-image text-xl text-muted" aria-hidden="true"></i>
+          <span class="flex-1">
+            <span class="block text-[15px] font-medium text-ink">Profile and cover photo</span>
+            <span class="block wm-meta">See your public profile and change its cover</span>
+          </span>
+          <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+        </router-link>
       </div>
     </section>
 

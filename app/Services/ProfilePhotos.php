@@ -69,10 +69,14 @@ class ProfilePhotos
         return $user;
     }
 
-    /** @param resource|\GdImage $image */
-    private function squareAndUpright($image, UploadedFile $file)
+    /**
+     * Phones often save photos sideways with an "orientation" note; apply it
+     *
+     * @param resource|\GdImage $image
+     * @return resource|\GdImage
+     */
+    public static function upright($image, UploadedFile $file)
     {
-        // Phones often save photos sideways with an "orientation" note; apply it
         if (function_exists('exif_read_data') && in_array(strtolower($file->getClientOriginalExtension()), ['jpg', 'jpeg'], true)) {
             $exif = @exif_read_data($file->getRealPath());
             $angles = [3 => 180, 6 => -90, 8 => 90];
@@ -82,6 +86,14 @@ class ProfilePhotos
                 $image = imagerotate($image, $angles[$orientation], 0);
             }
         }
+
+        return $image;
+    }
+
+    /** @param resource|\GdImage $image */
+    private function squareAndUpright($image, UploadedFile $file)
+    {
+        $image = self::upright($image, $file);
 
         // Centre crop to a square, then scale to the stored size
         $width = imagesx($image);

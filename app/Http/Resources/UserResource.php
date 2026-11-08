@@ -34,6 +34,7 @@ class UserResource extends JsonResource
                 'provider' => $this->isProvider(),
             ],
             'provider_status' => $this->providerProfile ? $this->providerProfile->status : 'not_applied',
+            'provider_profile_id' => optional($this->providerProfile)->id,
             // Provider businesses this account belongs to, so it isn't offered
             // requesting, messaging, reporting or rating itself
             'provider_ids' => ProviderMember::where('user_id', $this->id)->pluck('provider_profile_id')->values(),

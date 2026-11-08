@@ -59,6 +59,11 @@ class ProviderProfile extends Model
         'status' => self::STATUS_DRAFT,
     ];
 
+    public function coverUrl(): ?string
+    {
+        return $this->cover_path ? url('/api/v1/covers/'.basename($this->cover_path)) : null;
+    }
+
     public function owner()
     {
         return $this->belongsTo(User::class, 'owner_id');
