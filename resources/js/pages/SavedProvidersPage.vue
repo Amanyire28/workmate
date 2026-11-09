@@ -13,7 +13,7 @@
     </EmptyState>
 
     <template v-else>
-      <ul v-if="available.length" class="mt-5 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
+      <ul v-if="available.length" class="mt-5 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3 lg:gap-4">
         <li v-for="p in available" :key="p.id"><ProviderCard :provider="p" /></li>
       </ul>
 

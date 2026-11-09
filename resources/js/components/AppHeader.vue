@@ -1,7 +1,7 @@
 <template>
   <header class="sticky top-0 z-40 wm-glass-bar">
     <div class="wm-container flex items-center gap-4 h-[var(--wm-header-h)]">
-      <AppLogo />
+      <AppLogo :mobile-title="route.path.startsWith('/community') ? 'Community' : ''" />
 
       <!-- Desktop navigation -->
       <nav class="hidden lg:flex items-center gap-1 ml-4" aria-label="Main">

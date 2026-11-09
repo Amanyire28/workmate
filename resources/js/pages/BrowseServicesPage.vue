@@ -66,7 +66,7 @@
           <template v-if="filters.area"> near {{ areaLabel(filters.area) || filters.area }}</template>
         </p>
 
-        <ul v-if="results.length" class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+        <ul v-if="results.length" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2.5 sm:gap-3 lg:gap-4">
           <li v-for="p in results" :key="p.id">
             <ProviderCard :provider="p" />
           </li>

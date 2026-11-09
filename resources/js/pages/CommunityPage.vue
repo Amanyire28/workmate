@@ -43,26 +43,21 @@
       <!-- ============ Centre: the feed ============ -->
       <main class="min-w-0 mx-auto w-full max-w-[640px]">
         <div class="flex items-center justify-between gap-3">
-          <div>
-            <h1 class="wm-h1">{{ saved ? 'Saved posts' : 'Community' }}</h1>
-            <p v-if="!saved" class="wm-meta mt-1">Work, tips and questions from people across WorkMate.</p>
-          </div>
-          <div v-if="!saved" class="lg:hidden flex shrink-0 -mr-2">
-            <router-link to="/community/people" class="wm-icon-btn" aria-label="Discover people">
-              <i class="bi bi-person-plus text-lg" aria-hidden="true"></i>
-            </router-link>
-            <router-link v-if="auth.user" :to="`/community/people/${auth.user.id}`" class="wm-icon-btn" aria-label="My community page">
-              <i class="bi bi-person-circle text-lg" aria-hidden="true"></i>
-            </router-link>
-            <router-link v-if="auth.user" to="/community/saved" class="wm-icon-btn" aria-label="Saved posts">
-              <i class="bi bi-bookmark text-lg" aria-hidden="true"></i>
-            </router-link>
-          </div>
-          <router-link v-else-if="saved" to="/community" class="lg:hidden wm-btn wm-btn-ghost !min-h-10">Community</router-link>
+          <!-- On phones the top bar already says Community -->
+          <h1 class="wm-h1" :class="{ 'sr-only lg:not-sr-only': !saved }">{{ saved ? 'Saved posts' : 'Community' }}</h1>
+          <router-link v-if="saved" to="/community" class="lg:hidden wm-btn wm-btn-ghost !min-h-10">Community</router-link>
         </div>
 
-        <!-- Start a post -->
-        <div v-if="!saved" class="wm-card mt-4 flex items-center gap-3 !py-3">
+        <!-- Phones: people, your page and saved posts -->
+        <nav v-if="!saved" class="lg:hidden grid gap-2" :class="auth.user ? 'grid-cols-3' : 'grid-cols-1'" aria-label="Community pages">
+          <router-link v-for="l in phoneLinks" :key="l.to" :to="l.to"
+            class="flex min-h-12 items-center justify-center gap-1.5 rounded-2xl border border-primary/15 bg-primary-tint px-2 text-[14px] font-semibold text-primary shadow-[0_2px_8px_rgba(23,105,210,0.08)] hover:bg-[#DCEBFF]">
+            <i :class="['bi text-[17px]', l.icon]" aria-hidden="true"></i><span class="truncate">{{ l.label }}</span>
+          </router-link>
+        </nav>
+
+        <!-- Start a post (phones use the + button) -->
+        <div v-if="!saved" class="wm-card mt-4 hidden lg:flex items-center gap-3 !py-3">
           <UserAvatar v-if="auth.user" :name="auth.user.name" :src="auth.user.avatar_url || ''" :size="40" />
           <span v-else class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-tint text-primary" aria-hidden="true"><i class="bi bi-person"></i></span>
           <button type="button" class="min-h-11 flex-1 rounded-full bg-[#F1F5F9] px-4 text-left text-[15px] text-muted hover:bg-[#E9EEF5]" @click="compose()">
@@ -78,19 +73,6 @@
           <div v-if="tabs.length > 1" class="wm-segmented mt-4 grid sm:inline-grid" :style="{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }" role="tablist" aria-label="Feed">
             <button v-for="t in tabs" :key="t.id" type="button" role="tab" class="wm-segment" :aria-selected="tab === t.id" @click="setQuery({ tab: t.id === defaultTab ? '' : t.id })">{{ t.label }}</button>
           </div>
-          <div class="mt-3 wm-scroll-row lg:hidden" role="group" aria-label="Kind of post">
-            <button type="button" class="wm-chip" :aria-pressed="!!(filters.topic || filters.area)" @click="filtersOpen = true">
-              <i class="bi bi-sliders" aria-hidden="true"></i>Filters<template v-if="filters.topic || filters.area"> ({{ (filters.topic ? 1 : 0) + (filters.area ? 1 : 0) }})</template>
-            </button>
-            <button type="button" class="wm-chip" :aria-pressed="!filters.category" @click="setQuery({ category: '' })">All</button>
-            <button v-for="c in POST_CATEGORIES" :key="c.id" type="button" class="wm-chip" :aria-pressed="filters.category === c.id" @click="setQuery({ category: filters.category === c.id ? '' : c.id })">
-              <i :class="['bi', c.icon]" aria-hidden="true"></i>{{ c.label }}
-            </button>
-          </div>
-          <p v-if="filters.topic || filters.area" class="mt-2 flex flex-wrap items-center gap-x-3 text-sm text-muted lg:hidden">
-            <span>Showing {{ [filters.topic && categoryLabel(filters.topic), filters.area && 'near the chosen place'].filter(Boolean).join(', ') }}</span>
-            <button type="button" class="wm-link min-h-10" @click="clearFilters">Clear</button>
-          </p>
         </template>
 
         <!-- Posts -->
@@ -207,22 +189,6 @@
     <PostComposer :open="composerOpen || !!editing" :post="editing" @close="composerOpen = false; editing = null" @published="published" @updated="updated" />
     <ReportSheet :open="!!reporting" :about="reporting?.about || 'post'" :post-id="reporting?.postId" :comment-id="reporting?.commentId" @close="reporting = null" />
 
-    <BottomSheet :open="filtersOpen" title="Filters" @close="filtersOpen = false">
-      <div class="flex flex-col gap-4">
-        <div class="flex flex-col gap-1.5">
-          <label for="sheet-topic" class="wm-label">Profession</label>
-          <select id="sheet-topic" class="wm-input" :value="filters.topic" @change="setQuery({ topic: $event.target.value })">
-            <option value="">All professions</option>
-            <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.label }}</option>
-          </select>
-        </div>
-        <PlacePicker id="sheet-area" label="Place" :model-value="filters.area" any-label="Anywhere" placeholder="Near a place" @update:model-value="setQuery({ area: $event })" />
-      </div>
-      <template #footer>
-        <button v-if="filters.topic || filters.area" type="button" class="wm-btn wm-btn-secondary wm-btn-lg flex-1" @click="setQuery({ topic: '', area: '' })">Clear</button>
-        <button type="button" class="wm-btn wm-btn-primary wm-btn-lg flex-[2]" @click="filtersOpen = false">Show posts</button>
-      </template>
-    </BottomSheet>
   </div>
 </template>
 
@@ -232,7 +198,6 @@ import { useRoute, useRouter } from 'vue-router';
 import UserAvatar from '@/components/UserAvatar.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import PlacePicker from '@/components/PlacePicker.vue';
-import BottomSheet from '@/components/BottomSheet.vue';
 import ReportSheet from '@/components/ReportSheet.vue';
 import PostCard from '@/components/community/PostCard.vue';
 import PostComposer from '@/components/community/PostComposer.vue';
@@ -267,6 +232,13 @@ const sideLinks = computed(() => [
   { to: '/community/people', label: 'Discover people', icon: 'bi-person-plus', active: false },
   ...(auth.user ? [{ to: '/community/saved', label: 'Saved posts', icon: 'bi-bookmark', active: saved.value }] : []),
   ...(auth.user ? [{ to: `/community/people/${auth.user.id}`, label: 'My profile', icon: 'bi-person-circle', active: false }] : []),
+]);
+const phoneLinks = computed(() => [
+  { to: '/community/people', label: 'Discover', icon: 'bi-person-plus' },
+  ...(auth.user ? [
+    { to: `/community/people/${auth.user.id}`, label: 'My profile', icon: 'bi-person-circle' },
+    { to: '/community/saved', label: 'Saved', icon: 'bi-bookmark' },
+  ] : []),
 ]);
 
 /* People to follow and what's being talked about, both from real activity */
@@ -373,7 +345,6 @@ watch(() => state.posts.length, async () => { await nextTick(); if (sentinel.val
 const composerOpen = ref(false);
 const editing = ref(null);
 const reporting = ref(null);
-const filtersOpen = ref(false);
 
 function compose() {
   if (needsSignIn()) return;

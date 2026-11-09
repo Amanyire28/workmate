@@ -1,54 +1,48 @@
 <template>
-  <article class="wm-card wm-card-link relative flex flex-col gap-3 h-full">
-    <div class="flex items-start gap-3">
-      <UserAvatar :name="displayName(provider)" :src="provider.avatarUrl" :size="52" class="lg:!w-14 lg:!h-14" />
-      <div class="min-w-0 flex-1">
-        <h3 class="text-[15px] lg:text-base font-semibold text-ink leading-snug">
-          <!-- Stretched link makes the whole card clickable -->
-          <router-link :to="`/provider/${provider.id}`" class="after:absolute after:inset-0 after:rounded-[20px] focus:outline-none focus-visible:after:outline-2 focus-visible:after:outline-primary focus-visible:after:outline-offset-2">
-            {{ displayName(provider) }}
-          </router-link>
-          <VerifiedBadge :provider="provider" class="ml-1" />
-        </h3>
-        <p v-if="provider.businessName" class="wm-meta truncate">{{ provider.name }}</p>
-        <p class="text-sm text-ink mt-1">{{ tradeLabel(provider) }}</p>
-        <p class="wm-meta mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <span class="inline-flex items-center gap-1">
-            <i class="bi bi-geo-alt" aria-hidden="true"></i>{{ provider.area }}
-          </span>
-          <span v-if="provider.rating" class="inline-flex items-center gap-1">
-            <i class="bi bi-star-fill text-[#D97706]" aria-hidden="true"></i>
-            <span class="text-ink font-medium">{{ provider.rating }}</span>
-            <span>({{ provider.reviewCount }})</span>
-            <span class="sr-only">rating from {{ provider.reviewCount }} reviews</span>
-          </span>
-        </p>
-      </div>
-      <SaveProviderButton :provider-id="provider.id" :name="displayName(provider)" class="-mr-2 -mt-1.5" />
+  <article class="wm-card wm-card-link relative flex flex-col h-full !p-0 overflow-hidden">
+    <!-- Their cover photo, or the WorkMate blue banner -->
+    <div class="relative h-16 sm:h-20 wm-provider-cover">
+      <img v-if="provider.coverUrl" :src="provider.coverUrl" alt="" loading="lazy" decoding="async" class="absolute inset-0 h-full w-full object-cover" />
+      <SaveProviderButton
+        :provider-id="provider.id"
+        :name="displayName(provider)"
+        class="!absolute right-1.5 top-1.5 !h-9 !w-9 !min-h-9 rounded-full bg-white/90 shadow-sm"
+      />
     </div>
 
-    <div class="flex flex-wrap gap-1.5">
-      <AvailabilityBadge :provider="provider" show-detail />
-    </div>
+    <div class="flex flex-1 flex-col items-center px-3 pb-3 text-center">
+      <span class="relative -mt-8 rounded-full bg-white p-0.5 shadow-[0_4px_12px_rgba(15,23,42,0.12)]">
+        <UserAvatar :name="displayName(provider)" :src="provider.avatarUrl" :size="60" />
+      </span>
 
-    <div class="mt-auto pt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-3">
-      <p v-if="provider.priceFrom" class="text-sm min-w-0">
-        <span class="wm-meta">From </span>
-        <span class="font-semibold text-ink whitespace-nowrap">{{ formatPrice(provider.priceFrom) }}</span>
-        <span class="wm-meta block truncate">{{ provider.priceBasis }}</span>
+      <h3 class="mt-1.5 w-full text-[14.5px] font-semibold leading-snug text-ink line-clamp-2">
+        <!-- Stretched link makes the whole card clickable -->
+        <router-link :to="`/provider/${provider.id}`" class="after:absolute after:inset-0 after:rounded-[20px] focus:outline-none focus-visible:after:outline-2 focus-visible:after:outline-primary focus-visible:after:outline-offset-2">
+          {{ displayName(provider) }}
+        </router-link>
+        <VerifiedBadge :provider="provider" class="ml-0.5" />
+      </h3>
+      <p class="w-full truncate text-[13px] text-ink-soft">{{ tradeLabel(provider) }}</p>
+      <p class="mt-0.5 flex flex-wrap items-center justify-center gap-x-2 text-[12.5px] text-muted">
+        <span class="inline-flex items-center gap-0.5"><i class="bi bi-geo-alt" aria-hidden="true"></i>{{ provider.area }}</span>
+        <span v-if="provider.rating" class="inline-flex items-center gap-0.5">
+          <i class="bi bi-star-fill text-[#D97706]" aria-hidden="true"></i>
+          <span class="font-medium text-ink">{{ provider.rating }}</span>
+          <span class="sr-only">rating from {{ provider.reviewCount }} reviews</span>
+        </span>
       </p>
-      <span v-else class="wm-meta">Price on request</span>
-      <div class="flex items-center gap-1.5 shrink-0">
+
+      <div class="mt-auto flex w-full items-center gap-1.5 pt-3">
         <!-- Sits above the stretched link so it gets its own click -->
         <router-link
           v-if="!isOwnProvider(provider.id)"
           :to="`/messages/${provider.id}`"
-          class="relative z-10 wm-btn wm-btn-secondary !w-11 !px-0"
+          class="relative z-10 wm-btn wm-btn-secondary !min-h-10 !w-10 !px-0 shrink-0"
           :aria-label="`Message ${displayName(provider)}`"
         >
           <i class="bi bi-chat-dots text-base" aria-hidden="true"></i>
         </router-link>
-        <span class="wm-btn wm-btn-tint pointer-events-none" aria-hidden="true">View Profile</span>
+        <span class="wm-btn wm-btn-tint !min-h-10 flex-1 !px-2 text-[13px] pointer-events-none" aria-hidden="true">View profile</span>
       </div>
     </div>
   </article>
@@ -57,9 +51,8 @@
 <script setup>
 import UserAvatar from './UserAvatar.vue';
 import SaveProviderButton from './SaveProviderButton.vue';
-import AvailabilityBadge from './AvailabilityBadge.vue';
 import VerifiedBadge from './VerifiedBadge.vue';
-import { displayName, tradeLabel, formatPrice } from '@/utils/ui.js';
+import { displayName, tradeLabel } from '@/utils/ui.js';
 import { isOwnProvider } from '@/stores/auth.js';
 
 defineProps({
