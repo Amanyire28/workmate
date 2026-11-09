@@ -1,11 +1,12 @@
 <template>
-  <section :id="anchor" class="wm-card scroll-mt-24" aria-labelledby="comments-heading">
-    <h2 id="comments-heading" class="text-[16px] font-semibold text-ink">
+  <!-- In a sheet: comments scroll and the box to write one stays at the bottom -->
+  <section :id="anchor" :class="sheet ? 'flex h-full min-h-0 flex-col' : 'wm-card scroll-mt-24'" :aria-labelledby="sheet ? undefined : 'comments-heading'" :aria-label="sheet ? 'Comments' : undefined">
+    <h2 v-if="!sheet" id="comments-heading" class="text-[16px] font-semibold text-ink">
       Comments<span v-if="post.comments_count" class="ml-1 font-normal text-muted">({{ post.comments_count }})</span>
     </h2>
 
     <!-- Write a comment -->
-    <form class="mt-3 flex items-end gap-2.5" novalidate @submit.prevent="send(null)">
+    <form class="flex items-end gap-2.5" :class="sheet ? 'order-last border-t border-line bg-white px-4 pt-3 pb-[calc(12px+var(--wm-safe-bottom))]' : 'mt-3'" novalidate @submit.prevent="send(null)">
       <UserAvatar v-if="auth.user" :name="auth.user.name" :src="auth.user.avatar_url || ''" :size="36" class="mb-1" />
       <div class="min-w-0 flex-1">
         <label for="comment-new" class="sr-only">Write a comment</label>
@@ -17,40 +18,42 @@
         <span v-if="sending === 'new'" class="wm-spinner" aria-hidden="true"></span><span>Post</span>
       </button>
     </form>
-    <p v-if="error" class="wm-field-error mt-2" role="alert">{{ error }}</p>
+    <p v-if="error" class="wm-field-error mt-2" :class="{ 'order-last px-4 pb-2': sheet }" role="alert">{{ error }}</p>
 
     <!-- The comments -->
-    <div v-if="loading" class="mt-4 flex flex-col gap-4" aria-busy="true">
-      <div v-for="n in 2" :key="n" class="flex gap-3"><div class="wm-skeleton h-9 w-9 !rounded-full"></div><div class="flex-1"><div class="wm-skeleton h-4 w-32"></div><div class="wm-skeleton mt-2 h-4 w-full"></div></div></div>
+    <div :class="sheet ? 'order-first min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4' : ''">
+      <div v-if="loading" class="mt-4 flex flex-col gap-4" aria-busy="true">
+        <div v-for="n in 2" :key="n" class="flex gap-3"><div class="wm-skeleton h-9 w-9 !rounded-full"></div><div class="flex-1"><div class="wm-skeleton h-4 w-32"></div><div class="wm-skeleton mt-2 h-4 w-full"></div></div></div>
+      </div>
+      <p v-else-if="loadError" class="wm-notice wm-notice-error mt-4" role="alert">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>{{ loadError }} <button type="button" class="wm-link" @click="load(true)">Try again</button></span>
+      </p>
+      <p v-else-if="!comments.length" class="mt-4 text-sm text-muted">{{ post.category === 'question' ? 'No answers yet. Know something that could help?' : 'No comments yet. Be the first to say something.' }}</p>
+
+      <ul v-else class="mt-4 flex flex-col gap-4">
+        <li v-for="c in comments" :key="c.id">
+          <CommentItem :comment="c" @reply="startReply(c)" @delete="remove(c)" @report="$emit('report', c)" />
+
+          <ul v-if="c.replies.length || replyTo === c.id" class="mt-3 ml-11 flex flex-col gap-3 border-l-2 border-line/80 pl-3">
+            <li v-for="r in c.replies" :key="r.id">
+              <CommentItem :comment="r" small @reply="startReply(c, r)" @delete="remove(r, c)" @report="$emit('report', r)" />
+            </li>
+            <li v-if="replyTo === c.id">
+              <form class="flex items-end gap-2" novalidate @submit.prevent="send(c)">
+                <label :for="`reply-${c.id}`" class="sr-only">Write a reply</label>
+                <textarea :id="`reply-${c.id}`" v-model="replyDraft" rows="1" :maxlength="LIMITS.comment" class="wm-input !min-h-10 !py-2 resize-none flex-1"
+                  placeholder="Write a reply…" @input="grow($event.target)" @keydown.enter.exact.prevent="send(c)" @keydown.esc="replyTo = null"></textarea>
+                <button type="submit" class="wm-btn wm-btn-primary !min-h-10 !px-3.5" :disabled="sending === c.id || !replyDraft.trim()">Reply</button>
+              </form>
+            </li>
+          </ul>
+        </li>
+      </ul>
+
+      <button v-if="cursor && !loading" type="button" class="wm-btn wm-btn-ghost mt-3 !min-h-10" :disabled="loadingMore" @click="load()">
+        {{ loadingMore ? 'Loading…' : 'Show more comments' }}
+      </button>
     </div>
-    <p v-else-if="loadError" class="wm-notice wm-notice-error mt-4" role="alert">
-      <i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>{{ loadError }} <button type="button" class="wm-link" @click="load(true)">Try again</button></span>
-    </p>
-    <p v-else-if="!comments.length" class="mt-4 text-sm text-muted">{{ post.category === 'question' ? 'No answers yet. Know something that could help?' : 'No comments yet. Be the first to say something.' }}</p>
-
-    <ul v-else class="mt-4 flex flex-col gap-4">
-      <li v-for="c in comments" :key="c.id">
-        <CommentItem :comment="c" @reply="startReply(c)" @delete="remove(c)" @report="$emit('report', c)" />
-
-        <ul v-if="c.replies.length || replyTo === c.id" class="mt-3 ml-11 flex flex-col gap-3 border-l-2 border-line/80 pl-3">
-          <li v-for="r in c.replies" :key="r.id">
-            <CommentItem :comment="r" small @reply="startReply(c, r)" @delete="remove(r, c)" @report="$emit('report', r)" />
-          </li>
-          <li v-if="replyTo === c.id">
-            <form class="flex items-end gap-2" novalidate @submit.prevent="send(c)">
-              <label :for="`reply-${c.id}`" class="sr-only">Write a reply</label>
-              <textarea :id="`reply-${c.id}`" v-model="replyDraft" rows="1" :maxlength="LIMITS.comment" class="wm-input !min-h-10 !py-2 resize-none flex-1"
-                placeholder="Write a reply…" @input="grow($event.target)" @keydown.enter.exact.prevent="send(c)" @keydown.esc="replyTo = null"></textarea>
-              <button type="submit" class="wm-btn wm-btn-primary !min-h-10 !px-3.5" :disabled="sending === c.id || !replyDraft.trim()">Reply</button>
-            </form>
-          </li>
-        </ul>
-      </li>
-    </ul>
-
-    <button v-if="cursor && !loading" type="button" class="wm-btn wm-btn-ghost mt-3 !min-h-10" :disabled="loadingMore" @click="load()">
-      {{ loadingMore ? 'Loading…' : 'Show more comments' }}
-    </button>
   </section>
 </template>
 
@@ -67,6 +70,8 @@ import { LIMITS, needsSignIn, showCommunityError, personLink } from '@/stores/co
 const props = defineProps({
   post: { type: Object, required: true },
   anchor: { type: String, default: 'comments' },
+  // Shown in the comments sheet rather than on the post's page
+  sheet: { type: Boolean, default: false },
 });
 defineEmits(['report']);
 

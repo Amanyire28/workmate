@@ -78,7 +78,10 @@
       <span>
         <template v-if="post.likes_count"><i class="bi bi-hand-thumbs-up-fill text-primary" aria-hidden="true"></i> {{ post.likes_count }} {{ post.likes_count === 1 ? 'like' : 'likes' }}</template>
       </span>
-      <router-link v-if="post.comments_count" :to="`/community/post/${post.id}#comments`" class="hover:underline">{{ post.comments_count }} {{ post.comments_count === 1 ? 'comment' : 'comments' }}</router-link>
+      <template v-if="post.comments_count">
+        <button v-if="sheetComments" type="button" class="min-h-8 hover:underline" @click="onComment">{{ post.comments_count }} {{ post.comments_count === 1 ? 'comment' : 'comments' }}</button>
+        <router-link v-else :to="`/community/post/${post.id}#comments`" class="hover:underline">{{ post.comments_count }} {{ post.comments_count === 1 ? 'comment' : 'comments' }}</router-link>
+      </template>
     </p>
 
     <!-- Actions -->
@@ -86,7 +89,10 @@
       <button type="button" class="wm-post-action" :class="{ 'text-primary': post.liked }" :aria-pressed="post.liked" @click="toggleLike(post)">
         <i :class="['bi', post.liked ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up']" aria-hidden="true"></i><span>Like</span>
       </button>
-      <router-link :to="`/community/post/${post.id}#comments`" class="wm-post-action" @click="onComment">
+      <button v-if="sheetComments" type="button" class="wm-post-action" @click="onComment">
+        <i class="bi bi-chat" aria-hidden="true"></i><span>Comment</span>
+      </button>
+      <router-link v-else :to="`/community/post/${post.id}#comments`" class="wm-post-action" @click="onComment">
         <i class="bi bi-chat" aria-hidden="true"></i><span>Comment</span>
       </router-link>
       <button type="button" class="wm-post-action" @click="sharePost(post)">
@@ -115,6 +121,8 @@ const props = defineProps({
   post: { type: Object, required: true },
   // On the post's own page: the whole text, no "Read more"
   full: { type: Boolean, default: false },
+  // In the feed: comments open in a sheet over the page
+  sheetComments: { type: Boolean, default: false },
 });
 const emit = defineEmits(['edit', 'delete', 'report', 'comment']);
 

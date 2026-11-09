@@ -68,13 +68,6 @@
           </button>
         </div>
 
-        <!-- Feed and filters -->
-        <template v-if="!saved">
-          <div v-if="tabs.length > 1" class="wm-segmented mt-4 grid sm:inline-grid" :style="{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }" role="tablist" aria-label="Feed">
-            <button v-for="t in tabs" :key="t.id" type="button" role="tab" class="wm-segment" :aria-selected="tab === t.id" @click="setQuery({ tab: t.id === defaultTab ? '' : t.id })">{{ t.label }}</button>
-          </div>
-        </template>
-
         <!-- Posts -->
         <div v-if="state.loading && !state.posts.length" class="mt-4 flex flex-col gap-4" aria-busy="true" aria-label="Loading posts">
           <div v-for="n in 3" :key="n" class="wm-card">
@@ -105,10 +98,9 @@
         </EmptyState>
 
         <template v-else>
-          <p v-if="state.personalised && tab === 'for_you'" class="mt-4 wm-meta">From people you follow, your profession and your area, newest first.</p>
           <ul class="mt-4 flex flex-col gap-4">
             <li v-for="post in state.posts" :key="post.id">
-              <PostCard :post="post" @edit="editing = $event" @delete="remove" @report="reporting = { about: 'post', postId: $event.id }" />
+              <PostCard :post="post" sheet-comments @comment="commenting = $event" @edit="editing = $event" @delete="remove" @report="reporting = { about: 'post', postId: $event.id }" />
             </li>
           </ul>
 
@@ -186,6 +178,7 @@
       <i class="bi bi-plus-lg text-2xl" aria-hidden="true"></i>
     </button>
 
+    <CommentsSheet :post="commenting" @close="commenting = null" @report="reporting = { about: 'comment', commentId: $event.id }" />
     <PostComposer :open="composerOpen || !!editing" :post="editing" @close="composerOpen = false; editing = null" @published="published" @updated="updated" />
     <ReportSheet :open="!!reporting" :about="reporting?.about || 'post'" :post-id="reporting?.postId" :comment-id="reporting?.commentId" @close="reporting = null" />
 
@@ -201,6 +194,7 @@ import PlacePicker from '@/components/PlacePicker.vue';
 import ReportSheet from '@/components/ReportSheet.vue';
 import PostCard from '@/components/community/PostCard.vue';
 import PostComposer from '@/components/community/PostComposer.vue';
+import CommentsSheet from '@/components/community/CommentsSheet.vue';
 import PersonRow from '@/components/community/PersonRow.vue';
 import { api } from '@/api/client.js';
 import { auth, isProvider } from '@/stores/auth.js';
@@ -223,7 +217,8 @@ const tabs = computed(() => [
   ...(auth.user ? [{ id: 'following', label: 'Following' }] : []),
   { id: 'latest', label: 'Latest' },
 ]);
-const defaultTab = computed(() => (canPersonalise.value ? 'for_you' : 'latest'));
+// No tabs on the page: everyone sees all posts, newest first ("Following" stays a link on wide screens)
+const defaultTab = computed(() => 'latest');
 const tab = computed(() => (tabs.value.some(t => t.id === route.query.tab) ? route.query.tab : defaultTab.value));
 
 const sideLinks = computed(() => [
@@ -343,6 +338,8 @@ watch(() => state.posts.length, async () => { await nextTick(); if (sentinel.val
 
 /* ---------------- Writing, editing, deleting, reporting ---------------- */
 const composerOpen = ref(false);
+// The post whose comments are open in the sheet
+const commenting = ref(null);
 const editing = ref(null);
 const reporting = ref(null);
 
