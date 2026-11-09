@@ -1,117 +1,115 @@
 <template>
-  <div class="wm-container wm-container-sm wm-page !pt-3 lg:!pt-6 !pb-4">
-    <div v-if="state === 'loading'" class="wm-card mt-2 flex items-center gap-3 wm-meta" role="status">
-      <span class="wm-spinner text-primary" aria-hidden="true"></span>Opening chat…
-    </div>
+  <!-- Like a messaging app: the person at the top, messages in between, the box to write at the bottom -->
+  <div class="mx-auto flex h-[100dvh] w-full max-w-[860px] flex-col lg:h-[calc(100dvh-var(--wm-header-h)-1px)] lg:px-6 lg:py-4">
+    <div class="flex min-h-0 flex-1 flex-col bg-[#EEF3F9] lg:overflow-hidden lg:rounded-[22px] lg:border lg:border-line lg:shadow-[0_8px_30px_rgba(15,23,42,0.08)]">
 
-    <EmptyState
-      v-else-if="state === 'error'"
-      icon="bi-chat-left-dots"
-      title="This chat isn’t available"
-      :message="loadError"
-    >
-      <router-link to="/messages" class="wm-btn wm-btn-primary !min-h-12">Back to messages</router-link>
-    </EmptyState>
-
-    <template v-else-if="chat">
-      <!-- Conversation header -->
-      <header class="sticky top-[calc(var(--wm-header-h)+8px)] z-20 wm-card !py-2.5 !px-2 sm:!px-3 flex items-center gap-2">
+      <!-- The other person -->
+      <header class="z-20 flex shrink-0 items-center gap-1.5 border-b border-line bg-white/95 px-1.5 pb-2 pt-[calc(8px+env(safe-area-inset-top))] backdrop-blur sm:px-3 lg:pt-2">
         <router-link to="/messages" class="wm-icon-btn" aria-label="Back to messages">
-          <i class="bi bi-arrow-left text-lg" aria-hidden="true"></i>
+          <i class="bi bi-arrow-left text-xl" aria-hidden="true"></i>
         </router-link>
-        <component
-          :is="provider ? 'router-link' : 'div'"
-          :to="provider ? `/provider/${provider.id}` : undefined"
-          class="flex items-center gap-3 min-w-0 flex-1 min-h-11 rounded-xl"
-        >
-          <UserAvatar :name="name" :src="provider?.avatarUrl || chat.counterpart_avatar_url" :size="40" />
-          <span class="min-w-0">
-            <span class="block text-[15px] font-semibold text-ink truncate">
-              {{ name }} <VerifiedBadge v-if="provider" :provider="provider" />
+        <template v-if="chat">
+          <component
+            :is="provider ? 'router-link' : 'div'"
+            :to="provider ? `/provider/${provider.id}` : undefined"
+            class="flex min-h-11 min-w-0 flex-1 items-center gap-2.5 rounded-xl"
+          >
+            <UserAvatar :name="name" :src="provider?.avatarUrl || chat.counterpart_avatar_url" :size="40" />
+            <span class="min-w-0">
+              <span class="block truncate text-[16px] font-semibold text-ink">
+                {{ name }} <VerifiedBadge v-if="provider" :provider="provider" />
+              </span>
+              <span v-if="provider" class="block truncate text-[12.5px] text-muted">{{ availability.label }}<template v-if="availability.detail"> · {{ availability.detail }}</template></span>
+              <span v-else class="block truncate text-[12.5px] text-muted">Customer</span>
             </span>
-            <span v-if="provider" class="block wm-meta truncate">{{ availability.label }}<template v-if="availability.detail"> · {{ availability.detail }}</template></span>
-            <span v-else class="block wm-meta truncate">Customer</span>
-          </span>
-        </component>
-        <button v-if="chat" type="button" class="wm-icon-btn text-muted" :aria-label="chat.role === 'customer' ? 'Report this provider' : 'Report this customer'" @click="reportOpen = true">
-          <i class="bi bi-flag text-lg" aria-hidden="true"></i>
-        </button>
+          </component>
+          <button type="button" class="wm-icon-btn text-muted" :aria-label="chat.role === 'customer' ? 'Report this provider' : 'Report this customer'" @click="reportOpen = true">
+            <i class="bi bi-flag text-lg" aria-hidden="true"></i>
+          </button>
+        </template>
+        <span v-else class="flex-1 text-[16px] font-semibold text-ink">Chat</span>
       </header>
 
-      <p v-if="chat.is_sample_provider && chat.role === 'customer'" class="wm-notice wm-notice-info mt-3 !text-[13px]">
-        <i class="bi bi-info-circle" aria-hidden="true"></i>
-        <span>This is a sample profile, so nobody will reply.</span>
-      </p>
+      <div v-if="state === 'loading'" class="flex flex-1 items-center justify-center gap-3 wm-meta" role="status">
+        <span class="wm-spinner text-primary" aria-hidden="true"></span>Opening chat…
+      </div>
 
-      <p class="wm-notice wm-notice-warning mt-3 !text-[13px]">
-        <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
-        <span>
-          Keep chats and payments on WorkMate. Never send money before the work is agreed.
-        </span>
-      </p>
+      <div v-else-if="state === 'error'" class="flex-1 overflow-y-auto px-4">
+        <EmptyState icon="bi-chat-left-dots" title="This chat isn’t available" :message="loadError">
+          <router-link to="/messages" class="wm-btn wm-btn-primary !min-h-12">Back to messages</router-link>
+        </EmptyState>
+      </div>
 
-      <!-- Messages -->
-      <div role="log" aria-live="polite" aria-label="Conversation" class="mt-4 flex flex-col gap-2 min-h-[30dvh]">
-        <p v-if="!messages.length" class="text-center wm-meta my-6">
-          {{ chat.role === 'customer' ? 'Ask about availability, price or past work before you hire.' : 'No messages yet.' }}
-        </p>
+      <template v-else-if="chat">
+        <!-- Messages scroll; the bars stay put -->
+        <div role="log" aria-live="polite" aria-label="Conversation" class="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4">
+          <p class="mx-auto mb-1 max-w-[440px] rounded-xl bg-[#FEF3C7] px-3 py-2 text-center text-[12.5px] leading-snug text-[#92400E]">
+            <i class="bi bi-shield-exclamation mr-1" aria-hidden="true"></i>Keep chats and payments on WorkMate. Never send money before the work is agreed.
+          </p>
+          <p v-if="chat.is_sample_provider && chat.role === 'customer'" class="mx-auto max-w-[440px] rounded-xl bg-white/80 px-3 py-2 text-center text-[12.5px] text-muted">
+            This is a sample profile, so nobody will reply.
+          </p>
 
-        <div
-          v-for="m in messages"
-          :key="m.id"
-          class="flex flex-col max-w-[82%]"
-          :class="m.mine ? 'self-end items-end' : 'self-start items-start'"
-        >
-          <p
-            class="px-4 py-2.5 text-[15px] leading-snug whitespace-pre-wrap break-words"
-            :class="m.mine
-              ? 'rounded-[20px] rounded-br-md text-white bg-[linear-gradient(180deg,#2B7BE6,#1769D2)] shadow-[0_4px_12px_rgba(23,105,210,0.25)]'
-              : 'rounded-[20px] rounded-bl-md text-ink wm-glass-strong'"
-          >{{ m.body }}</p>
-          <span class="wm-meta !text-[11px] mt-0.5 px-1">{{ timeLabel(m.sent_at) }}</span>
+          <p v-if="!messages.length" class="my-6 text-center wm-meta">
+            {{ chat.role === 'customer' ? 'Ask about availability, price or past work before you hire.' : 'No messages yet.' }}
+          </p>
+
+          <div
+            v-for="m in messages"
+            :key="m.id"
+            class="flex max-w-[82%] flex-col"
+            :class="m.mine ? 'self-end items-end' : 'self-start items-start'"
+          >
+            <p
+              class="px-3.5 py-2 text-[15px] leading-snug whitespace-pre-wrap break-words"
+              :class="m.mine
+                ? 'rounded-[18px] rounded-br-md text-white bg-[linear-gradient(180deg,#2B7BE6,#1769D2)] shadow-[0_2px_8px_rgba(23,105,210,0.22)]'
+                : 'rounded-[18px] rounded-bl-md bg-white text-ink shadow-[0_1px_3px_rgba(15,23,42,0.08)]'"
+            >{{ m.body }}</p>
+            <span class="mt-0.5 px-1 wm-meta !text-[11px]">{{ timeLabel(m.sent_at) }}</span>
+          </div>
+
+          <!-- Suggested openers -->
+          <div v-if="!messages.length && chat.role === 'customer'" class="mt-2 flex flex-wrap justify-center gap-2" role="group" aria-label="Suggested messages">
+            <button
+              v-for="s in suggestions"
+              :key="s"
+              type="button"
+              class="wm-chip !h-auto min-h-[38px] max-w-full !shrink py-2 !whitespace-normal text-left"
+              @click="draft = s; input?.focus()"
+            >{{ s }}</button>
+          </div>
+          <div ref="endOfLog"></div>
         </div>
-        <div ref="endOfLog"></div>
-      </div>
 
-      <!-- Suggested openers -->
-      <div v-if="!messages.length && chat.role === 'customer'" class="mt-4 flex flex-wrap gap-2" role="group" aria-label="Suggested messages">
-        <button
-          v-for="s in suggestions"
-          :key="s"
-          type="button"
-          class="wm-chip !h-auto min-h-[38px] max-w-full !shrink py-2 !whitespace-normal text-left"
-          @click="draft = s; input?.focus()"
-        >{{ s }}</button>
-      </div>
-
-      <!-- Composer: floats above the mobile tab bar -->
-      <form
-        class="sticky bottom-[calc(var(--wm-nav-clearance)+8px)] lg:bottom-6 mt-4 z-20 wm-card !p-1.5 !rounded-full flex items-center gap-1.5"
-        @submit.prevent="send"
-      >
-        <label for="chat-input" class="sr-only">Message {{ name }}</label>
-        <input
-          id="chat-input"
-          ref="input"
-          v-model="draft"
-          type="text"
-          autocomplete="off"
-          enterkeyhint="send"
-          maxlength="2000"
-          :placeholder="`Message ${name}`"
-          class="flex-1 min-w-0 h-11 px-4 bg-transparent text-base text-ink placeholder:text-muted focus:outline-none"
-        />
-        <button
-          type="submit"
-          class="wm-btn wm-btn-primary !w-11 !px-0 shrink-0"
-          :disabled="!draft.trim() || sending"
-          aria-label="Send"
-        >
-          <i class="bi bi-send-fill" aria-hidden="true"></i>
-        </button>
-      </form>
-      <p v-if="sendError" class="wm-field-error mt-2 text-center" role="alert">{{ sendError }}</p>
-    </template>
+        <!-- Writing: always at the bottom -->
+        <div class="shrink-0 border-t border-line bg-white/95 px-2 pt-2 pb-[calc(8px+var(--wm-safe-bottom))] backdrop-blur sm:px-3 lg:pb-2">
+          <p v-if="sendError" class="wm-field-error mb-1.5 text-center" role="alert">{{ sendError }}</p>
+          <form class="flex items-center gap-2" @submit.prevent="send">
+            <label for="chat-input" class="sr-only">Message {{ name }}</label>
+            <input
+              id="chat-input"
+              ref="input"
+              v-model="draft"
+              type="text"
+              autocomplete="off"
+              enterkeyhint="send"
+              maxlength="2000"
+              :placeholder="`Message ${name}`"
+              class="h-11 min-w-0 flex-1 rounded-full border border-line bg-[#F1F5F9] px-4 text-base text-ink placeholder:text-muted focus:border-primary/40 focus:bg-white focus:outline-none"
+            />
+            <button
+              type="submit"
+              class="wm-btn wm-btn-primary !w-11 !px-0 shrink-0 !rounded-full"
+              :disabled="!draft.trim() || sending"
+              aria-label="Send"
+            >
+              <i class="bi bi-send-fill" aria-hidden="true"></i>
+            </button>
+          </form>
+        </div>
+      </template>
+    </div>
 
     <!-- Either side can report the other from the chat -->
     <ReportSheet v-if="chat" :open="reportOpen" :about="chat.role === 'customer' ? 'provider' : 'customer'" :name="name"
@@ -202,9 +200,10 @@ async function send() {
 }
 
 // Keep the newest message in view
-watch(() => messages.value.length, async () => {
+// Opening a chat lands on the newest message; new ones glide into view
+watch(() => messages.value.length, async (count, before) => {
   await nextTick();
-  endOfLog.value?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  endOfLog.value?.scrollIntoView({ block: 'end', behavior: before ? 'smooth' : 'auto' });
 });
 
 // Also runs when moving straight from one chat to another (same component instance)

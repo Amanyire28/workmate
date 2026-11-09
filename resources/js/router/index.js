@@ -47,9 +47,10 @@ const routes = [
     { path: '/community/people/:id', component: () => import('@/pages/CommunityPersonPage.vue'), meta: { title: 'Community – WorkMate' } },
     { path: '/community/post/:id',   component: () => import('@/pages/CommunityPostPage.vue'), meta: { title: 'Community post – WorkMate' } },
     { path: '/messages',             component: MessagesPage,           meta: { title: 'Messages – WorkMate', requiresAuth: true } },
-    { path: '/messages/:id',         component: ChatPage,               meta: { title: 'Chat – WorkMate', requiresAuth: true } },
+    // A chat fills the screen on phones: no app bar or tab bar, like a messaging app
+    { path: '/messages/:id',         component: ChatPage,               meta: { title: 'Chat – WorkMate', requiresAuth: true, immersive: true } },
     // A chat opened from the provider side (customers reach chats by provider id)
-    { path: '/messages/c/:conversationId', component: ChatPage,         meta: { title: 'Chat – WorkMate', requiresAuth: true } },
+    { path: '/messages/c/:conversationId', component: ChatPage,         meta: { title: 'Chat – WorkMate', requiresAuth: true, immersive: true } },
     // Signing in: guestOnly pages send signed-in people on to their account
     { path: '/sign-in',              alias: '/login', component: () => import('@/pages/SignInPage.vue'), meta: { title: 'Sign in – WorkMate', guestOnly: true } },
     { path: '/register',             component: () => import('@/pages/RegisterPage.vue'),       meta: { title: 'Create an account – WorkMate', guestOnly: true } },

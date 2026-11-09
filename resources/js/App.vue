@@ -10,9 +10,10 @@
       Skip to content
     </a>
 
-    <AppHeader />
+    <!-- Phones and tablets: a chat hides the app's bars and fills the screen -->
+    <AppHeader :class="{ 'max-lg:hidden': immersive }" />
 
-    <div v-if="catalog.status === 'error'" class="wm-container mt-3">
+    <div v-if="catalog.status === 'error'" class="wm-container mt-3" :class="{ 'max-lg:hidden': immersive }">
       <p class="wm-notice wm-notice-warning" role="alert">
         <i class="bi bi-cloud-slash" aria-hidden="true"></i>
         <span>
@@ -23,7 +24,7 @@
     </div>
 
     <!-- Admin → Settings → Maintenance mode -->
-    <div v-if="appSettings.maintenanceMode" class="wm-container mt-3">
+    <div v-if="appSettings.maintenanceMode" class="wm-container mt-3" :class="{ 'max-lg:hidden': immersive }">
       <p class="wm-notice wm-notice-warning" role="status">
         <i class="bi bi-tools" aria-hidden="true"></i>
         <span><strong class="font-semibold">WorkMate is having maintenance.</strong> You can browse and message people, but new jobs, requests and applications are paused for now.</span>
@@ -34,9 +35,11 @@
       <router-view />
     </main>
 
-    <div class="wm-bottom-nav-spacer" aria-hidden="true"></div>
-    <MobileBottomNav />
-    <AppStatusLayer />
+    <template v-if="!immersive">
+      <div class="wm-bottom-nav-spacer" aria-hidden="true"></div>
+      <MobileBottomNav />
+    </template>
+    <AppStatusLayer :with-nav="!immersive" />
     <RateProviderDialog />
     <PushReminder />
     <LegalGate />
@@ -65,4 +68,5 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 const route = useRoute();
 const isAdmin = computed(() => route.meta.layout === 'admin');
+const immersive = computed(() => !!route.meta.immersive);
 </script>
