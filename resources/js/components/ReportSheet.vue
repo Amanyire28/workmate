@@ -61,13 +61,14 @@ import { api, fieldErrors } from '@/api/client.js';
  */
 const props = defineProps({
   open:           { type: Boolean, default: false },
-  about:          { type: String, default: 'provider' },   // provider | customer | general | post | comment
+  about:          { type: String, default: 'provider' },   // provider | customer | general | post | comment | work
   name:           { type: String, default: '' },           // who it's about, for the title
   providerId:     { type: Number, default: null },
   requestId:      { type: Number, default: null },
   conversationId: { type: Number, default: null },
   postId:         { type: String, default: null },
   commentId:      { type: Number, default: null },
+  workId:         { type: String, default: null },         // a job on a provider's "Recent work"
 });
 const emit = defineEmits(['close', 'sent']);
 
@@ -98,6 +99,14 @@ const REASONS = {
     { id: 'misleading', label: 'Misleading or false' },
     { id: 'other', label: 'Something else' },
   ],
+  work: [
+    { id: 'misleading', label: 'Not their own work, or misleading', hint: 'Photos taken from someone else or the internet' },
+    { id: 'scam', label: 'Scam or fraud' },
+    { id: 'inappropriate', label: 'Inappropriate or offensive' },
+    { id: 'abusive', label: 'Rude, abusive or hateful' },
+    { id: 'spam', label: 'Spam or advertising' },
+    { id: 'other', label: 'Something else' },
+  ],
   general: [
     { id: 'payment', label: 'A payment problem' },
     { id: 'safety', label: 'A safety concern' },
@@ -106,8 +115,9 @@ const REASONS = {
   ],
 };
 
-const community = computed(() => props.about === 'post' || props.about === 'comment');
-const reasons = computed(() => (community.value ? REASONS.post : REASONS[props.about] || REASONS.general));
+// Reports about something people can see: it speaks for itself, so details are optional
+const community = computed(() => ['post', 'comment', 'work'].includes(props.about));
+const reasons = computed(() => (props.about === 'work' ? REASONS.work : community.value ? REASONS.post : REASONS[props.about] || REASONS.general));
 const title = computed(() => (community.value ? `Report this ${props.about}`
   : props.about === 'general' ? 'Report a problem' : `Report ${props.name || (props.about === 'customer' ? 'this customer' : 'this provider')}`));
 
@@ -143,6 +153,7 @@ async function submit() {
   if (props.conversationId) body.append('conversation', props.conversationId);
   if (props.postId) body.append('post', props.postId);
   if (props.commentId) body.append('comment', props.commentId);
+  if (props.workId) body.append('work', props.workId);
   for (const f of photos.value) body.append('photos[]', f);
 
   sending.value = true;

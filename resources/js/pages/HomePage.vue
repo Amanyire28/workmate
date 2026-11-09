@@ -27,6 +27,10 @@
       <div class="relative wm-container pt-4 pb-5 lg:py-11 xl:py-12">
         <!-- Location lives in the search form below, so the hero needs no separate picker -->
         <div class="mt-[112px] sm:mt-[150px] lg:mt-0 max-w-[560px] lg:max-w-[620px]">
+          <p v-if="firstName" class="wm-rise mb-2 lg:mb-3 font-bold text-white leading-tight">
+            <span class="block text-[16px] lg:text-[18px]">Welcome back,</span>
+            <span class="block text-[22px] lg:text-[28px] break-words">{{ firstName }}</span>
+          </p>
           <h1 id="home-heading" class="wm-rise text-[26px] sm:text-[32px] lg:text-[40px] leading-[1.12] font-bold tracking-[-0.025em] text-white">
             Trusted local services, right in <span class="text-[#4FA3FF]">Kampala</span>
           </h1>
@@ -248,6 +252,9 @@ async function onSearch(query) {
 }
 
 // Offering services: a light line under the search, depending on where the person stands
+// Signed in: greet them by their first name
+const firstName = computed(() => (auth.user?.name || '').trim().split(/\s+/)[0] || '');
+
 const earnLine = computed(() => {
   const status = auth.user ? auth.user.provider_status : null;
   if (status === 'draft') return { ask: 'Your provider details are saved.', link: 'Finish becoming a provider', to: '/start-earning' };

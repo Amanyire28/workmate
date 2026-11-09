@@ -67,6 +67,9 @@ export const CONNECTED = {
             ? post(`/admin/community/posts/${r.community.postId}/remove`, { reason: v.reason })
             : post(`/admin/community/comments/${r.community.commentId}/remove`, { reason: v.reason })),
         'restore-content': (r, v) => post(`/admin/community/posts/${r.community.postId}/restore`, { reason: v.reason }),
+        // Reported work on a provider's profile
+        'remove-work': (r, v) => post(`/admin/work/${r.work.id}/remove`, { reason: v.reason }),
+        'restore-work': (r, v) => post(`/admin/work/${r.work.id}/restore`, { reason: v.reason }),
     },
     restricted: {
         lift: (r, v) => (r.id.startsWith('P-')

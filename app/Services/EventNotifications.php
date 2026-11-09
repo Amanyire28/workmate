@@ -287,6 +287,16 @@ class EventNotifications
         ]);
     }
 
+    public function workRemoved(int $userId, string $url): void
+    {
+        $this->send('account', [$userId], [
+            'title' => 'Some of your work was removed',
+            'body' => 'WorkMate removed a job from your Recent work. See why on your profile.',
+            'url' => $url,
+            'tag' => 'work-removed-'.md5($url),
+        ]);
+    }
+
     /* ---------------- Helpers ---------------- */
 
     private function send(string $kind, iterable $userIds, array $message): void

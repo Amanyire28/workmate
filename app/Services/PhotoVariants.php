@@ -8,7 +8,8 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 /**
- * Photos people add: community posts and photos of a job on a request. Each
+ * Photos people add: community posts, photos of a job on a request and a
+ * provider's recent work. Each
  * one is re-drawn as JPEG, which drops hidden data such as GPS positions and
  * anything that isn't a picture, in a full size and a thumbnail. They live on
  * the local disk, never under public/, and are served only through the API,
@@ -17,7 +18,7 @@ use Illuminate\Support\Str;
 class PhotoVariants
 {
     /** Where each kind of photo is kept, under storage/app */
-    public const DIRECTORIES = ['community', 'request-photos'];
+    public const DIRECTORIES = ['community', 'request-photos', 'work'];
 
     private const FULL_SIDE = 1600;
     private const THUMB_SIDE = 720;

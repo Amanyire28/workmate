@@ -103,6 +103,9 @@
             </p>
           </aside>
 
+          <!-- Their recent work: first thing after the price and request buttons -->
+          <ProviderWorkSection :provider="provider" :is-own="isOwn" :provider-name="name" />
+
           <!-- About -->
           <section class="wm-card wm-card-lg flex flex-col gap-6" aria-label="About this provider">
             <div>
@@ -137,7 +140,7 @@
 
           <!-- Recent jobs & client feedback -->
           <section class="wm-card wm-card-lg" aria-labelledby="recent-jobs-heading">
-            <h2 id="recent-jobs-heading" class="text-[19px] lg:text-xl font-semibold text-ink">Recent jobs</h2>
+            <h2 id="recent-jobs-heading" class="text-[19px] lg:text-xl font-semibold text-ink">Customer reviews</h2>
 
             <template v-if="summary">
               <p class="wm-meta mt-1">Feedback from the {{ summary.count }} most recent clients</p>
@@ -240,6 +243,7 @@ import { ref, computed, watch } from 'vue';
 import { isOwnProvider } from '@/stores/auth.js';
 import { useRoute } from 'vue-router';
 import ProviderCover from '@/components/ProviderCover.vue';
+import ProviderWorkSection from '@/components/work/ProviderWorkSection.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import AvailabilityBadge from '@/components/AvailabilityBadge.vue';

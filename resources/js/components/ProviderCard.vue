@@ -31,6 +31,9 @@
           <span class="sr-only">rating from {{ provider.reviewCount }} reviews</span>
         </span>
       </p>
+      <p v-if="provider.workCount" class="mt-1 inline-flex items-center gap-1 text-[12px] font-medium text-primary">
+        <i class="bi bi-images" aria-hidden="true"></i>{{ provider.workCount }} {{ provider.workCount === 1 ? 'job' : 'jobs' }} shown
+      </p>
 
       <div class="mt-auto flex w-full items-center gap-1.5 pt-3">
         <!-- Sits above the stretched link so it gets its own click -->

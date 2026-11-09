@@ -32,6 +32,8 @@ class PublicProviderResource extends JsonResource
             'display_name' => $this->display_name,
             'avatar_url' => $this->owner->avatarUrl(),
             'cover_url' => $this->coverUrl(),
+            // How many jobs they show under "Recent work"
+            'work_count' => (int) ($this->work_count ?? 0),
             'type' => $this->type,
             'categories' => $professions->map(function ($profession) {
                 return $profession->category->slug;

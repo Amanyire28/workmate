@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\Admin\AdminPulseController;
 use App\Http\Controllers\Api\V1\Admin\CatalogueController;
 use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\CommunityModerationController;
+use App\Http\Controllers\Api\V1\Admin\WorkModerationController;
 use App\Http\Controllers\Api\V1\Admin\DocumentRequirementController;
 use App\Http\Controllers\Api\V1\Admin\DocumentVerificationController;
 use App\Http\Controllers\Api\V1\Admin\LegalDocumentController;
@@ -44,6 +45,7 @@ use App\Http\Controllers\Api\V1\SavedProviderController;
 use App\Http\Controllers\Api\V1\VerificationController;
 use App\Http\Controllers\Api\V1\ProfilePhotoController;
 use App\Http\Controllers\Api\V1\ProviderCoverController;
+use App\Http\Controllers\Api\V1\ProviderWorkController;
 use App\Http\Controllers\Api\V1\ProviderReportController;
 use App\Http\Controllers\Api\V1\PushSubscriptionController;
 use Illuminate\Http\Request;
@@ -113,6 +115,11 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('community/media/{file}', [CommunityController::class, 'media'])
         ->where('file', '[0-9a-f-]{36}(-t)?\.jpg')
         ->name('community.media');
+    // Providers' recent work
+    Route::get('providers/{provider}/work', [ProviderWorkController::class, 'index'])->whereNumber('provider')->name('providers.work');
+    Route::get('work/media/{file}', [ProviderWorkController::class, 'media'])
+        ->where('file', '[0-9a-f-]{36}(-t)?\.jpg')
+        ->name('work.media');
 
     // Signing in and out (cookie sessions; call GET /sanctum/csrf-cookie first)
     Route::prefix('auth')->name('auth.')->group(function () {
@@ -133,6 +140,12 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::delete('me/photo', [ProfilePhotoController::class, 'destroy'])->name('me.photo.destroy');
         Route::post('me/provider/cover', [ProviderCoverController::class, 'store'])->middleware('throttle:account-email')->name('me.provider.cover');
         Route::delete('me/provider/cover', [ProviderCoverController::class, 'destroy'])->name('me.provider.cover.destroy');
+        Route::get('me/provider/work', [ProviderWorkController::class, 'mine'])->name('me.provider.work');
+        Route::post('me/provider/work', [ProviderWorkController::class, 'store'])->middleware('throttle:provider-work')->name('me.provider.work.store');
+        Route::middleware('throttle:community-react')->group(function () {
+            Route::patch('me/provider/work/{item}', [ProviderWorkController::class, 'update'])->whereUuid('item')->name('me.provider.work.update');
+            Route::delete('me/provider/work/{item}', [ProviderWorkController::class, 'destroy'])->whereUuid('item')->name('me.provider.work.destroy');
+        });
         Route::post('me/email/verification-notification', [EmailVerificationController::class, 'send'])
             ->middleware('throttle:account-email')
             ->name('me.verification-notification');
@@ -316,6 +329,11 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::post('posts/{post}/remove', [CommunityModerationController::class, 'removePost'])->whereUuid('post')->name('posts.remove');
                 Route::post('posts/{post}/restore', [CommunityModerationController::class, 'restorePost'])->whereUuid('post')->name('posts.restore');
                 Route::post('comments/{comment}/remove', [CommunityModerationController::class, 'removeComment'])->whereNumber('comment')->name('comments.remove');
+            });
+            // Providers' recent work
+            Route::middleware('can:content.view')->prefix('work')->name('work.')->group(function () {
+                Route::post('{item}/remove', [WorkModerationController::class, 'remove'])->whereUuid('item')->name('remove');
+                Route::post('{item}/restore', [WorkModerationController::class, 'restore'])->whereUuid('item')->name('restore');
             });
 
             // Documents each profession needs; publishing adds a version

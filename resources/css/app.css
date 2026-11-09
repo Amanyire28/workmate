@@ -242,6 +242,11 @@
     }
     .wm-cover-btn:hover { background: rgba(15, 23, 42, 0.75); }
 
+    /* Full-screen photo viewer fading in and out */
+    .wm-fade-enter-active, .wm-fade-leave-active { transition: opacity 0.18s ease; }
+    .wm-fade-enter-from, .wm-fade-leave-to { opacity: 0; }
+    @media (prefers-reduced-motion: reduce) { .wm-fade-enter-active, .wm-fade-leave-active { transition: none; } }
+
     .wm-card-link {
         transition: background-color 0.2s, box-shadow 0.2s, transform 0.2s;
     }

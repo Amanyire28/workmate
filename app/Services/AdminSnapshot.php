@@ -14,6 +14,7 @@ use App\Models\ProfessionSuggestion;
 use App\Models\ProviderApplication;
 use App\Models\ProviderProfile;
 use App\Models\ProviderReport;
+use App\Models\ProviderWorkItem;
 use App\Models\Report;
 use App\Models\PushAnnouncement;
 use App\Models\PushSubscription;
@@ -433,9 +434,9 @@ class AdminSnapshot
         $statuses = [Report::STATUS_OPEN => 'new', Report::STATUS_UNDER_REVIEW => 'under_review', Report::STATUS_INFO_REQUESTED => 'info_requested',
             Report::STATUS_RESOLVED => 'resolved', Report::STATUS_CLOSED => 'closed'];
 
-        return Report::with(['reporter', 'provider', 'subjectUser', 'serviceRequest', 'assignee', 'communityPost.media', 'communityComment'])->latest()->get()->map(function (Report $r) use ($statuses) {
+        return Report::with(['reporter', 'provider', 'subjectUser', 'serviceRequest', 'assignee', 'communityPost.media', 'communityComment', 'workItem.photos'])->latest()->get()->map(function (Report $r) use ($statuses) {
             $community = in_array($r->subject_type, Report::COMMUNITY_SUBJECTS, true);
-            $about = $r->subject_type === Report::SUBJECT_PROVIDER
+            $about = in_array($r->subject_type, [Report::SUBJECT_PROVIDER, Report::SUBJECT_WORK], true)
                 ? ['P-'.$r->provider_profile_id, optional($r->provider)->display_name ?: 'Provider']
                 : ($r->subject_type === Report::SUBJECT_CUSTOMER || $community ? ['C-'.$r->subject_user_id, optional($r->subjectUser)->name ?: 'Member'] : [null, 'Something else']);
 
@@ -455,6 +456,8 @@ class AdminSnapshot
                 'canWarn' => $r->subject_user_id !== null, 'canSuspendProvider' => $r->provider_profile_id !== null,
                 // What was reported in the community, as it stands now
                 'community' => $community ? $this->reportedContent($r) : null,
+                // Reported work from a provider's profile, as it stands now
+                'work' => $r->subject_type === Report::SUBJECT_WORK ? $this->reportedWork($r) : null,
                 'notes' => [], 'history' => $this->historyFor(Report::class, $r->id),
             ];
         });
@@ -475,6 +478,23 @@ class AdminSnapshot
                 return $m->url(true);
             })->values()->all(),
             // published | removed | deleted (by its author)
+            'status' => $item->trashed() ? 'deleted' : $item->status, 'removedReason' => $item->removed_reason,
+        ];
+    }
+
+    private function reportedWork(Report $r): ?array
+    {
+        $item = $r->workItem;
+        if (! $item) {
+            return null;
+        }
+
+        return [
+            'id' => $item->uuid, 'providerId' => $item->provider_profile_id, 'title' => $item->title, 'text' => $item->description,
+            'photos' => $item->photos->map(function ($p) {
+                return $p->url(true);
+            })->values()->all(),
+            // published | removed | deleted (by the provider)
             'status' => $item->trashed() ? 'deleted' : $item->status, 'removedReason' => $item->removed_reason,
         ];
     }
@@ -730,7 +750,7 @@ class AdminSnapshot
         if (! $log->actor) {
             return 'System';
         }
-        if (Str::startsWith($log->action, ['provider.application_', 'provider.suspended', 'provider.reinstated', 'settings.', 'roles.', 'admin.', 'profession.', 'document.viewed',
+        if (Str::startsWith($log->action, ['provider.application_', 'provider.suspended', 'provider.reinstated', 'provider.work_removed', 'provider.work_restored', 'settings.', 'roles.', 'admin.', 'profession.', 'document.viewed',
             'verification.assigned', 'verification.document_accepted', 'verification.document_sent_back', 'verification.document_requested', 'verification.info_requested',
             'verification.approved', 'verification.rejected', 'verification.reopened', 'verification.note_added',
             'trust.report_assigned', 'trust.report_info_requested', 'trust.report_note', 'trust.report_resolved', 'trust.report_photo_viewed', 'trust.warning_sent'])) {
@@ -763,6 +783,9 @@ class AdminSnapshot
 
                 return ['type' => 'comment', 'id' => 'Comment '.$id, 'label' => $s ? $this->excerpt($s->body, 'A comment') : 'A comment',
                     'href' => $post && $post->isVisible() ? '/community/post/'.$post->uuid.'#comments' : null];
+            case ProviderWorkItem::class:
+                return ['type' => 'work', 'id' => 'Work '.($s ? Str::limit($s->uuid, 8, '') : $id), 'label' => $s ? '“'.$s->title.'”' : 'Some work',
+                    'href' => $s && $s->isVisible() ? '/provider/'.$s->provider_profile_id.'#work' : null];
             case Quotation::class:
                 return ['type' => 'quotation', 'id' => 'Q-'.$id, 'label' => 'Application for a job'];
             case ProviderReport::class:
@@ -866,6 +889,13 @@ class AdminSnapshot
             'community.post_restored' => "{$who} restored a post: {$what}",
             'community.comment_deleted' => "{$who} deleted a comment: {$what}",
             'community.comment_removed' => "{$who} removed a comment: {$what}",
+            'provider.work_added' => "{$who} added work to their profile: {$what}",
+            'provider.work_edited' => "{$who} edited their work {$what}",
+            'provider.work_deleted' => "{$who} deleted their work {$what}",
+            'provider.work_removed' => "{$who} removed work from a profile: {$what}",
+            'provider.work_restored' => "{$who} restored work: {$what}",
+            'provider.cover_changed' => "{$who} changed their cover photo",
+            'provider.cover_removed' => "{$who} removed their cover photo",
             'catalogue.category_created' => "{$who} added the category {$what} (hidden until shown)",
             'catalogue.category_updated' => "{$who} edited the category {$what}",
             'catalogue.category_shown' => "{$who} showed the category {$what} to customers",

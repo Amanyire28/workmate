@@ -115,6 +115,13 @@ class RouteServiceProvider extends ServiceProvider
 
             return [Limit::perMinute(10)->by('m'.$key), Limit::perHour(150)->by('h'.$key)];
         });
+        // Providers adding work to their profile, often several jobs in one go
+        RateLimiter::for('provider-work', function (Request $request) {
+            $key = optional($request->user())->id ?: $request->ip();
+
+            return [Limit::perMinute(10)->by('m'.$key), Limit::perDay(60)->by('d'.$key)];
+        });
+
         RateLimiter::for('community-react', function (Request $request) {
             return Limit::perMinute(90)->by(optional($request->user())->id ?: $request->ip());
         });

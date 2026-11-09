@@ -181,6 +181,8 @@ class DirectoryController extends Controller
             ->with(['owner:id,name,avatar_path', 'professions.category', 'baseArea', 'serviceAreas'])
             ->withCount(['reviews as published_reviews_count' => function ($query) {
                 $query->published();
+            }, 'workItems as work_count' => function ($query) {
+                $query->published();
             }])
             ->withAvg(['reviews as published_reviews_avg_rating' => function ($query) {
                 $query->published();

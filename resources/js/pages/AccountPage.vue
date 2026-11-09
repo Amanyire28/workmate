@@ -237,8 +237,8 @@
         >
           <i class="bi bi-image text-xl text-muted" aria-hidden="true"></i>
           <span class="flex-1">
-            <span class="block text-[15px] font-medium text-ink">Profile and cover photo</span>
-            <span class="block wm-meta">See your public profile and change its cover</span>
+            <span class="block text-[15px] font-medium text-ink">Your profile and work</span>
+            <span class="block wm-meta">Show your recent work and change your cover photo</span>
           </span>
           <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
         </router-link>

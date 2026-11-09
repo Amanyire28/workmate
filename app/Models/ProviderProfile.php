@@ -59,6 +59,12 @@ class ProviderProfile extends Model
         'status' => self::STATUS_DRAFT,
     ];
 
+    /** "Recent work" on their profile */
+    public function workItems()
+    {
+        return $this->hasMany(ProviderWorkItem::class);
+    }
+
     public function coverUrl(): ?string
     {
         return $this->cover_path ? url('/api/v1/covers/'.basename($this->cover_path)) : null;

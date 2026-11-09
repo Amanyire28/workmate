@@ -8,6 +8,7 @@ use App\Models\CommunityComment;
 use App\Models\CommunityPost;
 use App\Models\Conversation;
 use App\Models\ProviderProfile;
+use App\Models\ProviderWorkItem;
 use App\Models\Report;
 use App\Models\ServiceRequest;
 use App\Models\User;
@@ -47,7 +48,7 @@ class Reports
     /* ---------------- The reporter ---------------- */
 
     /**
-     * @param  array{about: string, provider: ?int, request: ?int, conversation: ?int, post: ?string, comment: ?int, reason: string, details: ?string}  $data
+     * @param  array{about: string, provider: ?int, request: ?int, conversation: ?int, post: ?string, comment: ?int, work: ?string, reason: string, details: ?string}  $data
      * @param  UploadedFile[]  $photos
      */
     public function submit(User $reporter, array $data, array $photos = []): Report
@@ -208,6 +209,9 @@ class Reports
         if (in_array($data['about'], Report::COMMUNITY_SUBJECTS, true)) {
             return $this->communitySubject($reporter, $data);
         }
+        if ($data['about'] === Report::SUBJECT_WORK) {
+            return $this->workSubject($reporter, $data);
+        }
         $request = null;
         if (! empty($data['request'])) {
             $request = ServiceRequest::withTrashed()->whereKey($data['request'])
@@ -287,6 +291,24 @@ class Reports
         return [
             'community_post_id' => $post->id, 'community_comment_id' => $comment ? $comment->id : null,
             'subject_user_id' => $author, 'provider_profile_id' => null, 'service_request_id' => null, 'conversation_id' => null,
+            'reporter_role' => $reporter->providerProfile && $reporter->providerProfile->isApproved() ? 'provider' : 'customer',
+        ];
+    }
+
+    /** Work someone else shows on their profile, that can still be seen */
+    private function workSubject(User $reporter, array $data): array
+    {
+        $item = ProviderWorkItem::where('uuid', (string) ($data['work'] ?? ''))->first();
+        if (! $item || ! $item->isVisible()) {
+            throw new BusinessRuleException('not_found', 'The requested item was not found.', 404);
+        }
+        if ($item->provider->hasMember($reporter)) {
+            throw new BusinessRuleException('own_content', 'You can’t report your own work. You can delete it instead.', 422);
+        }
+
+        return [
+            'provider_work_item_id' => $item->id, 'provider_profile_id' => $item->provider_profile_id, 'subject_user_id' => $item->provider->owner_id,
+            'service_request_id' => null, 'conversation_id' => null,
             'reporter_role' => $reporter->providerProfile && $reporter->providerProfile->isApproved() ? 'provider' : 'customer',
         ];
     }

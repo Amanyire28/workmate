@@ -18,8 +18,12 @@ class Report extends Model
     // Something posted in the community
     public const SUBJECT_POST = 'post';
     public const SUBJECT_COMMENT = 'comment';
-    public const SUBJECTS = [self::SUBJECT_PROVIDER, self::SUBJECT_CUSTOMER, self::SUBJECT_GENERAL, self::SUBJECT_POST, self::SUBJECT_COMMENT];
+    // Something on a provider's profile under "Recent work"
+    public const SUBJECT_WORK = 'work';
+    public const SUBJECTS = [self::SUBJECT_PROVIDER, self::SUBJECT_CUSTOMER, self::SUBJECT_GENERAL, self::SUBJECT_POST, self::SUBJECT_COMMENT, self::SUBJECT_WORK];
     public const COMMUNITY_SUBJECTS = [self::SUBJECT_POST, self::SUBJECT_COMMENT];
+    /** Reports about something people can see, which speaks for itself */
+    public const CONTENT_SUBJECTS = [self::SUBJECT_POST, self::SUBJECT_COMMENT, self::SUBJECT_WORK];
 
     /** Reasons offered for each kind of report */
     public const REASONS = [
@@ -28,6 +32,7 @@ class Report extends Model
         self::SUBJECT_GENERAL => ['payment', 'safety', 'app_problem', 'other'],
         self::SUBJECT_POST => ['spam', 'scam', 'abusive', 'inappropriate', 'misleading', 'other'],
         self::SUBJECT_COMMENT => ['spam', 'scam', 'abusive', 'inappropriate', 'misleading', 'other'],
+        self::SUBJECT_WORK => ['misleading', 'scam', 'inappropriate', 'abusive', 'spam', 'other'],
     ];
 
     public const HIGH_SEVERITY = ['scam', 'unsafe', 'fake', 'safety'];
@@ -91,6 +96,11 @@ class Report extends Model
     public function communityComment()
     {
         return $this->belongsTo(CommunityComment::class)->withTrashed();
+    }
+
+    public function workItem()
+    {
+        return $this->belongsTo(ProviderWorkItem::class, 'provider_work_item_id')->withTrashed();
     }
 
     public function assignee()

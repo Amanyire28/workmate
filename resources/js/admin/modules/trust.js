@@ -2,6 +2,8 @@ import { count, sum, within, kpiCount, statusOptions, statusTabs, setStatus, his
 
 // How a reported community post or comment stands now
 const COMMUNITY_STATUS = { published: 'still showing', removed: 'removed by WorkMate', deleted: 'deleted by its author' };
+// How reported work on a provider's profile stands now
+const WORK_STATUS = { published: 'still showing', removed: 'removed by WorkMate', deleted: 'deleted by the provider' };
 
 const OPEN = ['new', 'under_review', 'awaiting_information', 'escalated'];
 const severityOrder = { high: 0, medium: 1, low: 2 };
@@ -93,7 +95,7 @@ export default {
             ...statusTabs(['new', 'under_review', 'info_requested', 'resolved', 'closed']),
         ],
         filters: [
-            { key: 'target', label: 'About', options: [['provider', 'A provider'], ['customer', 'A customer'], ['post', 'A community post'], ['comment', 'A community comment'], ['general', 'Something else']] },
+            { key: 'target', label: 'About', options: [['provider', 'A provider'], ['customer', 'A customer'], ['post', 'A community post'], ['comment', 'A community comment'], ['work', 'Work on a profile'], ['general', 'Something else']] },
             { key: 'severity', label: 'Severity', options: statusOptions(['high', 'medium', 'low']) },
             { key: 'reporterType', label: 'Reported by', options: [['Customer', 'A customer'], ['Provider', 'A provider']] },
         ],
@@ -128,6 +130,14 @@ export default {
                         ...(r.community.status === 'published' ? [{ label: `Open the post in the community`, href: `/community/post/${r.community.postId}` }] : []),
                         ...r.community.photos.map((href, i) => ({ label: `Photo ${i + 1}`, href })),
                     ] }] : []),
+                ] : []),
+                ...(r.work ? [
+                    { title: `Reported work (${WORK_STATUS[r.work.status] || r.work.status})`, fields: [['Title', r.work.title], ['Description', r.work.text || '—']] },
+                    ...(r.work.removedReason ? [{ title: 'Removal', fields: [['Removed because', r.work.removedReason]] }] : []),
+                    { title: 'Look at it', files: [
+                        ...(r.work.status === 'published' ? [{ label: 'Open the provider’s profile', href: `/provider/${r.work.providerId}#work` }] : []),
+                        ...r.work.photos.map((href, i) => ({ label: `Photo ${i + 1}`, href })),
+                    ] },
                 ] : []),
                 { title: 'Their account', text: r.details || 'No details given.' },
                 { title: `Evidence photos (${r.evidence})`, permission: 'trust.view',
@@ -165,6 +175,13 @@ export default {
               fields: () => [{ key: 'reason', label: 'Reason (shown to the author)', type: 'textarea', required: true, minLength: 5, maxLength: 500, help: 'Say which rule it broke, e.g. “Advertising unrelated to your work”.' }] },
             { id: 'restore-content', label: 'Restore the post', done: 'Restored', permission: 'content.view', icon: 'bi-arrow-counterclockwise',
               when: r => r.community?.kind === 'post' && r.community.status === 'removed',
+              fields: () => [{ key: 'reason', label: 'Why it’s being restored', type: 'textarea', required: true, minLength: 5, maxLength: 500 }] },
+            { id: 'remove-work', label: 'Remove from their profile', done: 'Removed', permission: 'content.view', icon: 'bi-eye-slash', tone: 'danger',
+              when: r => r.work?.status === 'published',
+              message: () => 'The work disappears from their profile for everyone. The provider is notified and sees your reason; the reporter isn’t named. Resolve the report separately.',
+              fields: () => [{ key: 'reason', label: 'Reason (shown to the provider)', type: 'textarea', required: true, minLength: 5, maxLength: 500, help: 'Say which rule it broke, e.g. “These photos aren’t your own work”.' }] },
+            { id: 'restore-work', label: 'Restore the work', done: 'Restored', permission: 'content.view', icon: 'bi-arrow-counterclockwise',
+              when: r => r.work?.status === 'removed',
               fields: () => [{ key: 'reason', label: 'Why it’s being restored', type: 'textarea', required: true, minLength: 5, maxLength: 500 }] },
             { id: 'note', label: 'Add internal note', done: 'Note added', permission: 'trust.view', icon: 'bi-sticky',
               when: r => REPORT_OPEN.includes(r.status),

@@ -66,6 +66,7 @@ export function toProvider(p) {
         businessName: p.display_name !== p.name ? p.display_name : null,
         avatarUrl: p.avatar_url,
         coverUrl: p.cover_url || null,
+        workCount: p.work_count || 0,
         type: PROVIDER_TYPES[p.type] || p.type,
         services: p.categories,
         mainService: p.main_category,
