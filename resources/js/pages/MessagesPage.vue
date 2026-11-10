@@ -34,7 +34,13 @@
             </div>
             <div class="flex items-center justify-between gap-3">
               <p class="text-sm truncate" :class="t.unread ? 'text-ink font-medium' : 'text-muted'">
-                <span v-if="t.last.mine">You: </span>{{ t.last.body }}
+                <span v-if="t.last.mine">You: </span>
+                <template v-if="t.last.body">{{ t.last.body }}</template>
+                <!-- Only files: say what was sent, like a messaging app -->
+                <template v-else-if="t.last.attachments?.length">
+                  <i :class="['bi', t.last.attachments[0].kind === 'photo' ? 'bi-image' : 'bi-file-earmark-pdf']" aria-hidden="true"></i>
+                  {{ t.last.attachments[0].kind === 'photo' ? (t.last.attachments.length > 1 ? `${t.last.attachments.length} photos` : 'Photo') : 'Document' }}
+                </template>
               </p>
               <span
                 v-if="t.unread"

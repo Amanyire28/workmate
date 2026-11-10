@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\MessageAttachment;
 use App\Models\ProviderProfile;
 use App\Models\User;
 use App\Services\Messaging;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class ConversationController extends Controller
 {
@@ -28,7 +30,7 @@ class ConversationController extends Controller
 
         $conversations = Conversation::forParticipant($user)
             ->whereNotNull('last_message_at')
-            ->with(['provider.owner:id,name,avatar_path', 'customer:id,name,avatar_path', 'latestMessage'])
+            ->with(['provider.owner:id,name,avatar_path', 'customer:id,name,avatar_path', 'latestMessage.attachments'])
             ->withCount(['messages as unread_count' => function ($query) use ($user) {
                 $query->whereNull('read_at')->where('sender_id', '!=', $user->getKey());
             }])
@@ -64,11 +66,49 @@ class ConversationController extends Controller
 
     public function send(Request $request, Conversation $conversation): JsonResponse
     {
-        $data = $request->validate(['body' => ['required', 'string', 'max:2000']]);
+        // Outsiders learn nothing, not even which fields were wrong
+        $this->messaging->guardParticipant($conversation, $request->user());
 
-        $message = $this->messaging->send($conversation, $request->user(), trim($data['body']));
+        $data = $request->validate([
+            'body' => ['nullable', 'string', 'max:2000', 'required_without:attachments'],
+            'attachments' => ['nullable', 'array', 'max:'.MessageAttachment::MAX],
+            'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:10240'],
+        ], [
+            'body.required_without' => 'Write a message or add a photo or file.',
+            'attachments.max' => 'Send up to '.MessageAttachment::MAX.' photos or files at a time.',
+            'attachments.*.mimes' => 'Send photos (JPG, PNG or WebP) or PDF documents.',
+            'attachments.*.max' => 'Each photo or file can be up to 10 MB.',
+        ]);
+
+        $message = $this->messaging->send($conversation, $request->user(), trim((string) ($data['body'] ?? '')), $request->file('attachments', []));
 
         return response()->json(['data' => $this->message($message, $request->user())], 201);
+    }
+
+    /** A photo or PDF from the chat, for its two sides only */
+    public function attachment(Request $request, Conversation $conversation, string $file)
+    {
+        $this->messaging->guardParticipant($conversation, $request->user());
+        abort_unless(preg_match('/^([0-9a-f-]{36})(-t)?\.(jpg|pdf)$/', $file, $m), 404);
+
+        $attachment = MessageAttachment::where('conversation_id', $conversation->id)->where('uuid', $m[1])->first();
+        $isPhoto = $attachment && $attachment->kind === MessageAttachment::KIND_PHOTO;
+        // The link must match the kind: .jpg (or -t.jpg) for photos, .pdf for documents
+        abort_unless($attachment && ($m[3] === 'jpg') === $isPhoto && ($isPhoto || empty($m[2])), 404);
+
+        $path = ! empty($m[2]) ? $attachment->thumb_path : $attachment->path;
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        $headers = ['Content-Type' => $attachment->mime, 'X-Content-Type-Options' => 'nosniff'];
+        $response = $isPhoto
+            ? response()->file(Storage::disk('local')->path($path), $headers)
+            // Documents download rather than open inside the site
+            : response()->download(Storage::disk('local')->path($path), $attachment->original_name ?: 'Document.pdf', $headers);
+        // Private: never stored by shared caches or kept by the browser
+        $response->setPrivate();
+        $response->headers->addCacheControlDirective('no-store');
+
+        return $response;
     }
 
     /** Messages, oldest first. Opening the chat marks the other side's messages read. */
@@ -77,7 +117,7 @@ class ConversationController extends Controller
         $this->messaging->markRead($conversation, $user);
         $conversation->load(['provider.owner:id,name,avatar_path', 'customer:id,name,avatar_path']);
 
-        $messages = $conversation->messages()->latest('id')->limit(200)->get()->reverse()->values();
+        $messages = $conversation->messages()->with('attachments')->latest('id')->limit(200)->get()->reverse()->values();
 
         return response()->json(['data' => array_merge($this->summary($conversation, $user), [
             'messages' => $messages->map(function ($m) use ($user) {
@@ -113,6 +153,9 @@ class ConversationController extends Controller
             'id' => $m->id,
             'mine' => $m->sender_id === (int) $user->getKey(),
             'body' => $m->body,
+            'attachments' => $m->attachments->map(function (MessageAttachment $a) {
+                return $a->present();
+            })->values(),
             'sent_at' => $m->created_at->toIso8601String(),
             'read' => $m->read_at !== null,
         ];

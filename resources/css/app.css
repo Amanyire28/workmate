@@ -1007,3 +1007,9 @@
     .wm-glass-card, .wm-glass-pop, .wm-glass-bar { background: #FFFFFF; -webkit-backdrop-filter: none; backdrop-filter: none; }
     .wm-liquid::after { display: none; }
 }
+
+/* An open chat on a phone fills the visible screen; the page behind it stays still,
+   so the keyboard moves only the writing box (see ChatPage.vue) */
+@media (max-width: 1023.98px) {
+    html.wm-chat-open, html.wm-chat-open body { overflow: hidden; overscroll-behavior: none; }
+}

@@ -231,6 +231,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('me/conversations/{conversation}/messages', [ConversationController::class, 'send'])
             ->middleware('throttle:marketplace-write')
             ->name('me.conversations.send');
+        // Photos and PDFs sent in a chat (private files)
+        Route::get('me/conversations/{conversation}/attachments/{file}', [ConversationController::class, 'attachment'])
+            ->where('file', '[0-9a-f-]{36}(-t)?\.(jpg|pdf)')
+            ->name('me.conversations.attachment');
 
         // The account's own application to offer services
         Route::get('me/provider', [ProviderApplicationController::class, 'show'])->name('me.provider');

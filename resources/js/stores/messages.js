@@ -1,5 +1,5 @@
 import { ref, watch } from 'vue';
-import { api } from '@/api/client.js';
+import { api, upload } from '@/api/client.js';
 import { auth } from '@/stores/auth.js';
 
 /**
@@ -43,6 +43,13 @@ export async function openChat({ providerId, conversationId }) {
     return res.data;
 }
 
-export async function sendMessage(conversationId, body) {
-    return (await api(`/me/conversations/${conversationId}/messages`, { method: 'POST', body: { body } })).data;
+/** Text, photos and PDFs (files go as a form, with upload progress 0–1) */
+export async function sendMessage(conversationId, body, files = [], onProgress) {
+    const path = `/me/conversations/${conversationId}/messages`;
+    if (!files.length) return (await api(path, { method: 'POST', body: { body } })).data;
+
+    const form = new FormData();
+    if (body) form.append('body', body);
+    files.forEach(f => form.append('attachments[]', f));
+    return (await upload(path, form, { onProgress })).data;
 }

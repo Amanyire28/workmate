@@ -23,6 +23,11 @@ class Message extends Model
         return $this->belongsTo(Conversation::class);
     }
 
+    public function attachments()
+    {
+        return $this->hasMany(MessageAttachment::class)->orderBy('position');
+    }
+
     public function sender()
     {
         return $this->belongsTo(User::class, 'sender_id')->withTrashed();
