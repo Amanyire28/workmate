@@ -36,14 +36,16 @@ import { ref, computed, watch } from 'vue';
 import ProviderCard from './ProviderCard.vue';
 import { api } from '@/api/client.js';
 import { providers, catalog, appSettings } from '@/stores/catalog.js';
-import { searchOrigin, originChosen, openLocationSheet } from '@/stores/location.js';
+import { searchOrigin, originChosen, openLocationSheet, gpsPlaceName } from '@/stores/location.js';
+import { resolveOrigin } from '@/utils/nearbySearch.js';
 import { nearbySearch } from '@/stores/nearbySearch.js';
 import { getSearchLocation } from '@/data/searchLocations.js';
 
 const status = ref('loading');   // loading | ready | error | empty
 const result = ref(null);
 
-const areaId = computed(() => searchOrigin.value.areaId || appSettings.defaultArea || '');
+// Current location: the place it's in or near, even before the server has named it
+const areaId = computed(() => (searchOrigin.value.kind === 'gps' ? resolveOrigin(searchOrigin.value).area?.id : searchOrigin.value.areaId) || appSettings.defaultArea || '');
 // A service they searched for counts as what they're looking for
 const category = computed(() => nearbySearch.result?.serviceIds?.[0] || '');
 
@@ -60,8 +62,10 @@ const heading = computed(() => {
   if (!originChosen.value) {
     return { title: 'Discover workers', note: placeName.value ? `Around ${placeName.value}.` : '' };
   }
-  const near = searchOrigin.value.kind === 'gps' ? 'near you' : `near ${placeName.value}`;
-  if (close) return { title: `Recommended workers ${near}`, note: '' };
+  const gpsOn = searchOrigin.value.kind === 'gps';
+  const near = gpsOn ? 'near you' : `near ${placeName.value}`;
+  // Current location: say which place that is
+  if (close) return { title: `Recommended workers ${near}`, note: gpsOn && gpsPlaceName.value ? `Around ${gpsPlaceName.value}, where you are now.` : '' };
   const town = result.value?.area?.town;
   return {
     title: 'Recommended workers',

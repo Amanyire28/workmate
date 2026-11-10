@@ -99,7 +99,7 @@ import SearchLocationSheet from './SearchLocationSheet.vue';
 import { getSearchLocation } from '@/data/searchLocations.js';
 import {
   searchOrigin, openLocationSheet, locationSheetOpen,
-  gps, gpsMessages, requestDeviceLocation,
+  gps, gpsMessages, requestDeviceLocation, gpsPlaceName,
 } from '@/stores/location.js';
 
 defineProps({
@@ -116,7 +116,9 @@ const showEmptyError = ref(false);
 
 const usingGps = computed(() => searchOrigin.value.kind === 'gps');
 const originName = computed(() =>
-  usingGps.value ? 'Near me' : (getSearchLocation(searchOrigin.value.areaId)?.name || 'Kampala')
+  usingGps.value
+    ? (gpsPlaceName.value ? `Near me · ${gpsPlaceName.value}` : 'Near me')
+    : (getSearchLocation(searchOrigin.value.areaId)?.name || 'Kampala')
 );
 
 function submit() {

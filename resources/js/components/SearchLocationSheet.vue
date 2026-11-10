@@ -17,6 +17,7 @@
         <span class="block text-[15px] font-semibold text-ink">Use my current location</span>
         <span class="block text-[13px] text-muted">
           <template v-if="gps.status === 'locating'">Finding your location…</template>
+          <template v-else-if="usingGps && gpsPlaceName">You’re around {{ gpsPlaceName }}</template>
           <template v-else-if="usingGps">Searching near where you are now</template>
           <template v-else>Find professionals closest to where you are</template>
         </span>
@@ -79,7 +80,7 @@ import { searchPlaces, areaById } from '@/stores/catalog.js';
 import { resolveOrigin } from '@/utils/nearbySearch.js';
 import {
   searchOrigin, locationSheetOpen, chooseSearchArea,
-  gps, gpsMessages, requestDeviceLocation,
+  gps, gpsMessages, requestDeviceLocation, gpsPlaceName,
 } from '@/stores/location.js';
 
 const filter = ref('');

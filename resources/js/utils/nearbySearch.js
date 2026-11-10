@@ -225,11 +225,13 @@ export function visibleGroups(result, showWider = false) {
         .filter(g => g.items.length);
 }
 
-/** "Plumbers near Ntinda, Kampala" / "Professionals for “tiles” near you" */
+/** "Plumbers near Ntinda, Kampala" / "Professionals for “tiles” near you, around Kisaasi" */
 export function searchHeading(result) {
     const who = result.serviceIds.length === 1 ? capitalise(result.people) : `Professionals for “${result.query}”`;
-    const where = result.origin.kind === 'gps' ? 'you' : result.origin.label;
-    return `${who} near ${where}`;
+    if (result.origin.kind === 'gps') {
+        return result.origin.area ? `${who} near you, around ${result.origin.area.name}` : `${who} near you`;
+    }
+    return `${who} near ${result.origin.label}`;
 }
 
 /**

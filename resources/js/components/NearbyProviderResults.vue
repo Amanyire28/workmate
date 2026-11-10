@@ -109,7 +109,7 @@ function groupHeading(tier) {
   const people = props.result.people;
   if (tier === 'nearby')   return o.kind === 'gps' ? 'Closest to you' : `Closest to ${o.name}`;
   if (tier === 'extended') return `More ${people} around ${o.town || 'you'}`;
-  return o.kind === 'gps' ? 'Providers serving your area' : `Providers serving ${o.area.name}`;
+  return o.kind === 'gps' && !o.area ? 'Providers serving your area' : `Providers serving ${o.area.name}`;
 }
 
 const browseLink = computed(() => {

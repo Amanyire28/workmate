@@ -1,6 +1,6 @@
 import { ref, reactive, watch, computed } from 'vue';
 import { catalog, searchLocations, nearestPlace, appSettings } from '@/stores/catalog.js';
-import { SEARCH_CONFIG } from '@/utils/nearbySearch.js';
+import { SEARCH_CONFIG, resolveOrigin } from '@/utils/nearbySearch.js';
 import { getSearchLocation, findSearchLocationByName } from '@/data/searchLocations.js';
 
 /**
@@ -57,6 +57,13 @@ watch(() => catalog.status, (status) => {
  * they picked) rather than the default town, so pages only say "near you" when it is
  */
 export const originChosen = computed(() => searchOrigin.value.kind === 'gps' || !!read(ORIGIN_KEY));
+
+/**
+ * The place someone's current location is in or near ("Kisaasi"), so pages
+ * can say where "near me" is. Empty when not using it, or when the nearest
+ * known place is too far away to name honestly.
+ */
+export const gpsPlaceName = computed(() => (searchOrigin.value.kind === 'gps' ? resolveOrigin(searchOrigin.value).area?.name || '' : ''));
 
 export const locationSheetOpen = ref(false);
 export function openLocationSheet() { locationSheetOpen.value = true; }

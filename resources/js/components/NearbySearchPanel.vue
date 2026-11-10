@@ -107,7 +107,7 @@ const statusText = computed(() => {
 const detailText = computed(() => {
   const r = result.value;
   if (!r) return nearbySearch.stage === 'locating' ? 'Checking the location you shared' : '';
-  const where = r.origin.kind === 'gps' ? 'you' : r.origin.name;
+  const where = r.origin.kind === 'gps' ? (r.origin.area ? `you (around ${r.origin.area.name})` : 'you') : r.origin.name;
   if (nearbySearch.stage === 'nearby') return `Within ${SEARCH_CONFIG.nearbyKm} km of ${where}`;
   if (nearbySearch.stage === 'wider') return `Up to ${SEARCH_CONFIG.extendedKm} km, plus providers who travel to ${r.origin.area?.name || 'your area'}`;
   return '';
