@@ -2,7 +2,7 @@
   <div class="wm-container wm-page max-w-3xl">
     <BackLink to="/account">Account</BackLink>
     <h1 class="wm-h1 mt-1">Invite Friends</h1>
-    <p class="wm-lead mt-1.5">Share your link with people who could use WorkMate. When someone you invite joins and confirms their email, it counts towards your badges.</p>
+    <p class="wm-lead mt-1.5">Share your link with people who could use WorkMate. When someone you invite joins and confirms their email, you earn coins and move towards your next badge.</p>
 
     <div v-if="loading" class="mt-5 flex flex-col gap-3" aria-busy="true">
       <div class="wm-skeleton h-[140px] !rounded-[20px]"></div>
@@ -14,6 +14,19 @@
     </EmptyState>
 
     <template v-else-if="data">
+      <!-- Coins -->
+      <section v-if="data.coins" class="wm-card mt-5 flex items-center gap-4" aria-labelledby="invite-coins-heading">
+        <span class="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#FEF3C7] text-[26px] text-[#B45309]" aria-hidden="true">
+          <i class="bi bi-coin"></i>
+        </span>
+        <div class="min-w-0 flex-1">
+          <h2 id="invite-coins-heading" class="wm-meta">Your coins</h2>
+          <p class="text-[26px] font-bold leading-tight text-ink">{{ formatNumber(data.coins.balance) }} <span class="text-[15px] font-semibold text-muted">coins</span></p>
+          <p v-if="data.coins.value_ugx" class="text-[14px] text-ink">Worth UGX {{ formatNumber(data.coins.value_ugx) }}</p>
+          <p class="wm-meta mt-1">You earn {{ formatNumber(data.coins.per_invitation) }} coins for each friend who joins. Coins can be exchanged for cash.</p>
+        </div>
+      </section>
+
       <!-- Your link -->
       <section class="wm-card mt-5" aria-labelledby="invite-link-heading">
         <h2 id="invite-link-heading" class="text-[15px] font-semibold text-ink">Your invitation link</h2>
@@ -90,7 +103,7 @@
           <li v-for="(h, i) in data.history" :key="i" class="flex items-center gap-3 px-4 py-3">
             <span class="min-w-0 flex-1">
               <span class="block text-[15px] font-semibold text-ink truncate">{{ h.name || 'A member' }}</span>
-              <span class="block wm-meta">Joined {{ formatDate(h.joined_at) }}</span>
+              <span class="block wm-meta">Joined {{ formatDate(h.joined_at) }}<template v-if="h.coins"> · +{{ formatNumber(h.coins) }} coins</template></span>
             </span>
             <span :class="['wm-pill shrink-0', STATUS[h.status]?.pill || 'wm-pill-neutral']">{{ STATUS[h.status]?.label || h.status }}</span>
           </li>
@@ -99,8 +112,8 @@
       </section>
 
       <p class="wm-meta mt-6 px-1">
-        Invitation badges thank members for helping WorkMate grow. There’s no money, credit or reward attached, and badges aren’t a sign of skill,
-        identity or verification. Invitations that look unusual are checked by a person, and ones that turn out not to be genuine don’t count.
+        Badges thank members for helping WorkMate grow; they aren’t a sign of skill, identity or verification.
+        Invitations that look unusual are checked by a person, and ones that turn out not to be genuine don’t count or earn coins.
       </p>
     </template>
   </div>
@@ -166,6 +179,10 @@ async function share() {
       url: data.value.link,
     });
   } catch { /* closed the share sheet: nothing to do */ }
+}
+
+function formatNumber(n) {
+  return Number(n || 0).toLocaleString('en-GB');
 }
 
 function formatDate(iso) {

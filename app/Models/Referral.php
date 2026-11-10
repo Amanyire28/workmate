@@ -25,6 +25,7 @@ class Referral extends Model
     protected $casts = [
         'referrer_id' => 'integer',
         'referred_id' => 'integer',
+        'coins' => 'integer',
         'risk_flags' => 'array',
         'link_opened_at' => 'datetime',
         'qualified_at' => 'datetime',

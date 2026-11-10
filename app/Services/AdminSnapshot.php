@@ -153,6 +153,7 @@ class AdminSnapshot
                 'referrals' => $can('referrals.view') ? $this->referrals()->values() : [],
                 'milestones' => $can('referrals.view') ? $this->milestones()->values() : [],
                 'badgeAwards' => $can('referrals.view') ? $this->badgeAwards()->values() : [],
+                'referralCoinValue' => $can('referrals.view') ? app(Referrals::class)->coinValue() : 0,
             ],
         ];
     }
@@ -498,6 +499,8 @@ class AdminSnapshot
             ->latest()->limit(2000)->get()->map(function (Referral $r) use ($flags) {
                 return [
                     'id' => 'RF-'.$r->id, 'referralId' => $r->id, 'status' => $r->status,
+                    // Coins only count while the referral does
+                    'coins' => $r->status === Referral::STATUS_QUALIFIED ? (int) $r->coins : 0,
                     'inviterId' => 'C-'.$r->referrer_id, 'inviterName' => optional($r->referrer)->name ?: 'Deleted account',
                     'memberId' => 'C-'.$r->referred_id, 'memberName' => optional($r->referred)->name ?: 'Deleted account',
                     'emailConfirmed' => (bool) optional($r->referred)->email_verified_at,

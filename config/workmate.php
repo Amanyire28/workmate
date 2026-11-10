@@ -185,6 +185,24 @@ return [
             'description' => 'More sign-ups than this through one person’s link in 24 hours are held for a person to check instead of counting straight away.',
             'type' => 'integer', 'min' => 2, 'max' => 100, 'default' => 5,
         ],
+        'referrals.coins_per_referral' => [
+            'group' => 'referrals',
+            'label' => 'Coins for each counted invitation',
+            'description' => 'Coins a member earns when someone they invited joins and counts. Invitations that already counted keep the coins they earned.',
+            'type' => 'integer', 'min' => 0, 'max' => 100000, 'default' => 200,
+        ],
+        'referrals.coin_value_ugx' => [
+            'group' => 'referrals',
+            'label' => 'Value of one coin (UGX)',
+            'description' => 'What one coin is worth in Uganda shillings when it is exchanged for cash.',
+            'type' => 'integer', 'min' => 0, 'max' => 100000, 'default' => 5,
+        ],
+        'referrals.cash_out_minimum' => [
+            'group' => 'referrals',
+            'label' => 'Coins needed before cashing out',
+            'description' => 'The fewest coins a member can exchange for cash at once. Used when cashing out is switched on.',
+            'type' => 'integer', 'min' => 0, 'max' => 10000000, 'default' => 2000,
+        ],
         'legal.minimum_age' => [
             'group' => 'legal',
             'label' => 'Minimum age',

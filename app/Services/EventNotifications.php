@@ -289,11 +289,13 @@ class EventNotifications
 
     /* ---------------- Invite Friends ---------------- */
 
-    public function referralQualified(int $inviterId, string $name): void
+    public function referralQualified(int $inviterId, string $name, int $coins = 0): void
     {
         $this->send('referrals', [$inviterId], [
             'title' => $name.' joined WorkMate',
-            'body' => 'Someone you invited confirmed their account. Thank you for helping the community grow.',
+            'body' => $coins > 0
+                ? 'Someone you invited confirmed their account. You earned '.number_format($coins).' coins.'
+                : 'Someone you invited confirmed their account. Thank you for helping the community grow.',
             'url' => '/account/invite',
             'tag' => 'referral-qualified',
         ]);
@@ -313,7 +315,7 @@ class EventNotifications
     {
         $this->send('account', [$inviterId], [
             'title' => 'An invitation no longer counts',
-            'body' => 'After a review, one of your invitations was removed from your count. See Invite Friends.',
+            'body' => 'After a review, one of your invitations was removed from your count, with its coins. See Invite Friends.',
             'url' => '/account/invite',
             'tag' => 'referral-revoked',
         ]);

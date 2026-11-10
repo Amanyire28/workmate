@@ -4,18 +4,23 @@ import { SEARCH_CONFIG } from '@/utils/nearbySearch.js';
 import { getSearchLocation, findSearchLocationByName } from '@/data/searchLocations.js';
 
 /**
- * The user's chosen place (its id, e.g. "ntinda" or "kyebando-kampala"),
- * shared between pages and remembered in this browser. Empty string means
- * "All areas".
+ * The place pages work from (its id, e.g. "ntinda" or "kyebando-kampala"),
+ * shared between pages. Empty string means "All areas".
+ *
+ * WorkMate starts from the person's current location every time the app
+ * opens. A place they pick by hand is kept for this visit only (session
+ * storage), so the next visit starts from where they are again.
  */
 const KEY = 'workmate.area';
 
 function read(key) {
-    try { return localStorage.getItem(key) || ''; } catch { return ''; }
+    try { return sessionStorage.getItem(key) || ''; } catch { return ''; }
 }
 function write(key, value) {
-    try { localStorage.setItem(key, value); } catch { /* storage unavailable */ }
+    try { sessionStorage.setItem(key, value); } catch { /* storage unavailable */ }
 }
+// Earlier versions kept the last place for good; it no longer overrides the current location
+try { localStorage.removeItem(KEY); localStorage.removeItem('workmate.searchArea'); } catch { /* storage unavailable */ }
 
 export const selectedArea = ref(read(KEY));
 
@@ -26,7 +31,7 @@ watch(selectedArea, (value) => write(KEY, value));
  *   { kind: 'area', areaId }                                           a place the user picked
  *   { kind: 'gps', latitude, longitude, accuracy, timestamp, areaId }  a position the user chose to share,
  *                                                                      with the nearest place's id
- * Only place choices are remembered; device coordinates stay in memory for this visit.
+ * Only place choices are remembered, for this visit; device coordinates stay in memory.
  */
 const ORIGIN_KEY = 'workmate.searchArea';
 
@@ -48,8 +53,8 @@ watch(() => catalog.status, (status) => {
 }, { immediate: true });
 
 /**
- * Whether the place is the person's own choice (picked, or their shared
- * position) rather than the default town, so pages only say "near you" when it is
+ * Whether the place is the person's own (their current location, or a place
+ * they picked) rather than the default town, so pages only say "near you" when it is
  */
 export const originChosen = computed(() => searchOrigin.value.kind === 'gps' || !!read(ORIGIN_KEY));
 
@@ -95,9 +100,10 @@ export function gpsMaxAgeMs() {
 
 let pending = null;
 
-function fail(code) {
-    gps.status = 'error';
-    gps.error = code;
+function fail(code, quiet = false) {
+    // The automatic start-up check fails silently; a tap on "Use my location" explains why
+    gps.status = quiet ? 'idle' : 'error';
+    gps.error = quiet ? null : code;
     // Fall back to the last area the user picked, never to invented coordinates
     if (searchOrigin.value.kind === 'gps') searchOrigin.value = { kind: 'area', areaId: lastAreaId };
     const err = new Error(gpsMessages[code]);
@@ -106,13 +112,14 @@ function fail(code) {
 }
 
 /**
- * Ask the browser for the device position. Call only from a user action
- * (a tap on "Use my location", or a search the user started with "Near me").
+ * Ask the browser for the device position: when the app opens (see
+ * useCurrentLocation), on a tap on "Use my location", or for a "Near me" search.
+ * quiet: failures leave no error message (the start-up check).
  */
-export function requestDeviceLocation() {
+export function requestDeviceLocation({ quiet = false } = {}) {
     if (pending) return pending;
-    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return Promise.reject(fail('unsupported'));
-    if (!window.isSecureContext) return Promise.reject(fail('insecure'));
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return Promise.reject(fail('unsupported', quiet));
+    if (!window.isSecureContext) return Promise.reject(fail('insecure', quiet));
 
     gps.status = 'locating';
     gps.error = null;
@@ -129,19 +136,41 @@ export function requestDeviceLocation() {
                     timestamp: position.timestamp,
                 };
                 searchOrigin.value = origin;
+                // Their current location is the choice now, for the rest of this visit too
+                try { sessionStorage.removeItem(ORIGIN_KEY); } catch { /* storage unavailable */ }
                 gps.status = 'ready';
                 resolve(origin);
                 // Name the nearest place ("near Kisaasi"); searching works without it
                 nearestPlace(origin.latitude, origin.longitude)
                     .then((area) => {
-                        if (area && searchOrigin.value === origin) searchOrigin.value = { ...origin, areaId: area.id };
+                        if (!area || searchOrigin.value !== origin) return;
+                        searchOrigin.value = { ...origin, areaId: area.id };
+                        // Forms and browse pages start from the place they're in, unless they picked one this visit
+                        if (!read(ORIGIN_KEY) && getSearchLocation(area.id) && !getSearchLocation(area.id).wholeTown) selectedArea.value = area.id;
                     })
                     .catch(() => {});
             },
-            (error) => reject(fail(codes[error.code] || 'unavailable')),
+            (error) => reject(fail(codes[error.code] || 'unavailable', quiet)),
             { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
         );
     }).finally(() => { pending = null; });
 
     return pending;
+}
+
+/**
+ * The default every time the app opens: the person's current location, unless
+ * they already picked a place during this visit. If location is blocked or
+ * can't be found, the default town is used and nothing is shown as an error.
+ */
+let started = false;
+export function useCurrentLocation() {
+    if (started || read(ORIGIN_KEY)) return;
+    started = true;
+    if (typeof navigator === 'undefined' || !('geolocation' in navigator) || !window.isSecureContext) return;
+    const locate = () => requestDeviceLocation({ quiet: true }).catch(() => {});
+    const query = navigator.permissions?.query?.({ name: 'geolocation' });
+    if (!query) { locate(); return; }
+    // Blocked in this browser: don't ask again on every visit
+    query.then(status => { if (status.state !== 'denied') locate(); }).catch(locate);
 }

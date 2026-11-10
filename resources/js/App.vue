@@ -47,7 +47,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import AppHeader from '@/components/AppHeader.vue';
 import MobileBottomNav from '@/components/MobileBottomNav.vue';
@@ -57,6 +57,7 @@ import PushReminder from '@/components/PushReminder.vue';
 import LegalGate from '@/components/LegalGate.vue';
 import { catalog, loadCatalog, appSettings, refreshSettings } from '@/stores/catalog.js';
 import { startPresence } from '@/stores/presence.js';
+import { useCurrentLocation } from '@/stores/location.js';
 
 // While the app is open, a signed-in account checks in (Admin → Settings → presence)
 startPresence();
@@ -68,5 +69,8 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 const route = useRoute();
 const isAdmin = computed(() => route.meta.layout === 'admin');
+
+// Every visit starts from where the person is now (not on admin pages)
+watch(() => route.matched.length && !isAdmin.value, (customerPage) => { if (customerPage) useCurrentLocation(); }, { immediate: true });
 const immersive = computed(() => !!route.meta.immersive);
 </script>

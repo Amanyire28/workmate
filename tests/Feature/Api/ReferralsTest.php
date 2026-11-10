@@ -288,6 +288,7 @@ class ReferralsTest extends ApiTestCase
         $this->assertSame([], $data['referrals']);
         $this->assertSame([], $data['milestones']);
         $this->assertSame([], $data['badgeAwards']);
+        $this->assertSame(0, $data['referralCoinValue']);
 
         $this->signIn($this->userWithRoles(['trust_safety']));
         $ops = $this->getJson('/api/v1/admin/data')->assertOk()->json('data.ops');
@@ -296,8 +297,54 @@ class ReferralsTest extends ApiTestCase
         $this->assertSame('qualified', $ops['referrals'][0]['status']);
         $this->assertSame('First Connection', $ops['badgeAwards'][0]['badge']);
         $this->assertCount(5, $ops['milestones']);
+        // Admins see each inviter's coins and what a coin is worth
+        $this->assertSame(200, $ops['referrals'][0]['coins']);
+        $this->assertSame(5, $ops['referralCoinValue']);
         // Names only: the new member's email address isn't part of the record
         $this->assertStringNotContainsString('seen@example.com', json_encode($ops['referrals']));
+    }
+
+    /* ---------------- Coins ---------------- */
+
+    public function test_each_counted_invitation_earns_200_coins()
+    {
+        $inviter = $this->inviter();
+        $this->joinThrough($inviter, 'waiting@example.com');
+        $this->confirmEmail($this->joinThrough($inviter, 'one@example.com'));
+        $this->confirmEmail($this->joinThrough($inviter, 'two@example.com'));
+
+        $this->signIn($inviter->fresh());
+        $data = $this->getJson('/api/v1/me/referrals')->assertOk()->json('data');
+        // The one who hasn't confirmed their email earns nothing yet
+        $this->assertSame(['balance' => 400, 'per_invitation' => 200, 'value_ugx' => 2000], $data['coins']);
+        $this->assertEqualsCanonicalizing([200, 200, 0], array_column($data['history'], 'coins'));
+        // The inviter is told what it earned (unread ones are updated in place, not stacked)
+        $this->assertSame(1, UserNotification::where('user_id', $inviter->id)->where('body', 'like', '%You earned 200 coins.%')->count());
+    }
+
+    public function test_revoking_an_invitation_takes_back_its_coins()
+    {
+        $inviter = $this->inviter();
+        $this->confirmEmail($this->joinThrough($inviter, 'gone@example.com'));
+        $this->assertSame(200, app(Referrals::class)->coinBalance($inviter));
+
+        $this->signIn($this->userWithRoles(['trust_safety']));
+        $this->postJson('/api/v1/admin/referrals/'.Referral::first()->id.'/revoke', ['reason' => 'Duplicate account of the inviter'])->assertOk();
+
+        $this->assertSame(0, app(Referrals::class)->coinBalance($inviter));
+    }
+
+    public function test_a_new_rate_applies_to_new_invitations_only()
+    {
+        $inviter = $this->inviter();
+        $this->confirmEmail($this->joinThrough($inviter, 'before@example.com'));
+
+        $this->signIn($this->userWithRoles(['super_admin']));
+        $this->patchJson('/api/v1/admin/settings/referrals.coins_per_referral', ['value' => 300, 'reason' => 'Campaign month'])->assertOk();
+        $this->app['auth']->forgetGuards();
+        $this->confirmEmail($this->joinThrough($inviter, 'after@example.com'));
+
+        $this->assertSame(500, app(Referrals::class)->coinBalance($inviter));
     }
 
     public function test_held_referrals_are_approved_by_a_person()

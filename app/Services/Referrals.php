@@ -14,7 +14,9 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Invite Friends: recognition for bringing genuine new members to WorkMate.
- * There is no money, credit or other value in any of it.
+ * Each counted invitation also earns the inviter coins (200 by default), fixed
+ * when it counts. Coins can later be exchanged for cash; a revoked invitation's
+ * coins no longer count towards the balance.
  *
  * - Every account has a stable, random code (WM-XXXXXX).
  * - Opening an invitation link sets a cookie for a set number of days. The
@@ -237,14 +239,32 @@ class Referrals
     private function qualify(Referral $referral, ?User $admin, ?string $reason = null): void
     {
         $before = $referral->status;
-        $referral->forceFill(['status' => Referral::STATUS_QUALIFIED, 'qualified_at' => now()]
+        $referral->forceFill(['status' => Referral::STATUS_QUALIFIED, 'qualified_at' => now(), 'coins' => $this->coinsPerReferral()]
             + ($admin ? ['decided_at' => now(), 'decided_by' => $admin->getKey(), 'decision_reason' => $reason] : []))->save();
-        $this->audit->record('referral.qualified', $referral, ['status' => $before], ['status' => Referral::STATUS_QUALIFIED], $reason, $admin ?: $referral->referred);
+        $this->audit->record('referral.qualified', $referral, ['status' => $before], ['status' => Referral::STATUS_QUALIFIED, 'coins' => $referral->coins], $reason, $admin ?: $referral->referred);
+    }
+
+    /* ---------------- Coins ---------------- */
+
+    public function coinsPerReferral(): int
+    {
+        return max(0, (int) $this->settings->get('referrals.coins_per_referral'));
+    }
+
+    public function coinValue(): int
+    {
+        return max(0, (int) $this->settings->get('referrals.coin_value_ugx'));
+    }
+
+    /** Coins from someone's invitations that still count */
+    public function coinBalance(User $user): int
+    {
+        return (int) Referral::where('referrer_id', $user->getKey())->where('status', Referral::STATUS_QUALIFIED)->sum('coins');
     }
 
     private function afterQualified(Referral $referral): void
     {
-        $this->notify->referralQualified($referral->referrer_id, self::shortName(optional($referral->referred)->name));
+        $this->notify->referralQualified($referral->referrer_id, self::shortName(optional($referral->referred)->name), (int) $referral->coins);
         $this->syncBadges($referral->referrer, true);
     }
 
@@ -403,8 +423,15 @@ class Referrals
             return $held->has($m->id);
         })->last();
 
+        $coins = (int) $referrals->where('status', Referral::STATUS_QUALIFIED)->sum('coins');
+
         return [
             'can_invite' => $user->isActive() && $user->hasVerifiedEmail(),
+            'coins' => [
+                'balance' => $coins,
+                'per_invitation' => $this->coinsPerReferral(),
+                'value_ugx' => $coins * $this->coinValue(),
+            ],
             'code' => $this->codeFor($user),
             'link' => $this->linkFor($user),
             'attribution_days' => $this->attributionDays(),
@@ -422,7 +449,8 @@ class Referrals
             })->values(),
             // First name and initial only: never their contact details
             'history' => $referrals->take(50)->map(function (Referral $r) {
-                return ['name' => self::shortName(optional($r->referred)->name), 'status' => $r->status, 'joined_at' => $r->created_at->toIso8601String()];
+                return ['name' => self::shortName(optional($r->referred)->name), 'status' => $r->status, 'joined_at' => $r->created_at->toIso8601String(),
+                    'coins' => $r->status === Referral::STATUS_QUALIFIED ? (int) $r->coins : 0];
             })->values(),
         ];
     }

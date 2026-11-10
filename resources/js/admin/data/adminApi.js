@@ -573,7 +573,7 @@ const DATASETS = {
     'profession-suggestions': () => ops().professionSuggestions,
     // Invite Friends: who invited whom, the inviters, the badges and who holds them
     referrals: () => ops().referrals,
-    'referral-inviters': () => inviterRows(ops().referrals, ops().badgeAwards),
+    'referral-inviters': () => inviterRows(ops().referrals, ops().badgeAwards, ops().referralCoinValue || 0),
     'referral-badges': () => ops().milestones,
     // "held" here means the member holds the badge, not that it's on hold
     'referral-badge-holders': () => ops().badgeAwards.map(b => ({ ...b, status: b.status === 'held' ? 'awarded' : b.status })),

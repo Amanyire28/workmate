@@ -1,9 +1,10 @@
 /**
  * Invite Friends (Admin → Invitations): who invited whom, the people who
- * invite the most, the badges and who holds them. Badges carry no money or
- * other value; held referrals wait here for a person to decide.
+ * invite the most with their coins, the badges and who holds them. Each
+ * counted referral earns its inviter coins, later exchangeable for cash;
+ * held referrals wait here for a person to decide.
  */
-import { kpiCount, count, within, historySection, related } from './helpers.js';
+import { kpi, kpiCount, count, sum, within, historySection, related, formatUGX } from './helpers.js';
 import { ranking } from '../components/charts/builders.js';
 
 const WAITING = ['registered', 'review'];
@@ -12,6 +13,7 @@ const NOT_COUNTED = ['rejected', 'revoked'];
 const memberCols = [
     { key: 'memberName', label: 'Member', sub: r => r.memberId },
     { key: 'status', label: 'Status', format: 'status' },
+    { key: 'coins', label: 'Coins', format: 'number', align: 'right' },
     { key: 'joinedAt', label: 'Joined', format: 'relative' },
 ];
 
@@ -45,6 +47,7 @@ export default {
             { key: 'inviterName', label: 'Invited by', sortable: true, sub: r => r.inviterId },
             { key: 'memberName', label: 'New member', sortable: true, sub: r => `${r.memberId}${r.emailConfirmed ? '' : ' · email not confirmed'}` },
             { key: 'status', label: 'Status', format: 'status', sortable: true },
+            { key: 'coins', label: 'Coins', format: 'number', align: 'right', sortable: true },
             { key: 'flags', label: 'Flags', value: r => (r.flags.length ? r.flags.join(', ') : '—') },
             { key: 'joinedAt', label: 'Joined', format: 'relative', sortable: true },
         ],
@@ -52,7 +55,7 @@ export default {
             sections: (r) => [
                 { title: 'Who invited whom', fields: [['Invited by', `${r.inviterName} (${r.inviterId})`], ['New member', `${r.memberName} (${r.memberId})`],
                     ['Email confirmed', r.emailConfirmed, 'bool'], ['Account active', r.memberActive, 'bool'],
-                    ['Link opened', r.linkOpenedAt, 'date'], ['Joined', r.joinedAt, 'date'], ['Counted', r.qualifiedAt, 'date']] },
+                    ['Link opened', r.linkOpenedAt, 'date'], ['Joined', r.joinedAt, 'date'], ['Counted', r.qualifiedAt, 'date'], ['Coins earned', r.coins, 'number']] },
                 { title: 'Checks', fields: [['Flags', r.flags.length ? r.flags.join('; ') : 'None']],
                     text: 'Shared networks are common (families, offices, cafés), so a flag only asks a person to look. It never rejects a referral by itself.' },
                 { title: 'Decision', fields: [['Status', r.status, 'status'], ['Decided by', r.decidedBy], ['Decided', r.decidedAt, 'date'], ['Reason', r.reason]] },
@@ -74,7 +77,7 @@ export default {
             {
                 id: 'revoke', label: 'Revoke', done: 'Revoked', tone: 'danger', icon: 'bi-arrow-counterclockwise', permission: 'referrals.manage',
                 when: r => r.status === 'qualified', reason: 'required', reasonLabel: 'Reason (kept in the record)',
-                message: r => `It stops counting, and ${r.inviterName} loses any badge the new total no longer reaches.`,
+                message: r => `It stops counting: ${r.inviterName} loses its ${r.coins} coins and any badge the new total no longer reaches.`,
             },
         ],
     },
@@ -82,16 +85,18 @@ export default {
     /* ================= Inviters ================= */
     'referral-inviters': {
         type: 'records', entity: 'Inviter', statusKey: false,
-        description: 'Everyone who has invited at least one member, with what happened to each invitation.',
+        description: 'Only people who have invited at least one member, with their coins and what happened to each invitation.',
         search: { keys: ['id', 'name'], placeholder: 'Search inviter' },
         tabs: [
             { id: 'all', label: 'All' },
             { id: 'flagged', label: 'With flagged sign-ups', filter: r => r.flagged > 0 },
             { id: 'review', label: 'With decisions waiting', filter: r => r.review > 0 },
         ],
-        defaultSort: { key: 'counted', dir: 'desc' },
+        defaultSort: { key: 'coins', dir: 'desc' },
         kpis: (rows) => [
             kpiCount('People inviting', rows.length),
+            kpiCount('Coins held', sum(rows, r => r.coins)),
+            kpi('Worth', formatUGX(sum(rows, r => r.coinsValue))),
             kpiCount('Holding a badge', count(rows, r => r.badges.length)),
             kpiCount('With flagged sign-ups', count(rows, r => r.flagged > 0)),
         ],
@@ -103,6 +108,7 @@ export default {
         })] : []),
         columns: [
             { key: 'name', label: 'Inviter', sortable: true, sub: r => r.id },
+            { key: 'coins', label: 'Coins', format: 'number', align: 'right', sortable: true, sub: r => formatUGX(r.coinsValue) },
             { key: 'joined', label: 'Joined', format: 'number', align: 'right', sortable: true },
             { key: 'counted', label: 'Counted', format: 'number', align: 'right', sortable: true },
             { key: 'waiting', label: 'Waiting', format: 'number', align: 'right', sortable: true },
@@ -113,7 +119,8 @@ export default {
         ],
         detail: {
             sections: (r) => [
-                { title: 'Inviter', fields: [['Name', `${r.name} (${r.id})`], ['Joined through their link', r.joined, 'number'], ['Counted', r.counted, 'number'],
+                { title: 'Inviter', fields: [['Name', `${r.name} (${r.id})`], ['Coins', r.coins, 'number'], ['Worth', r.coinsValue, 'money'],
+                    ['Joined through their link', r.joined, 'number'], ['Counted', r.counted, 'number'],
                     ['Waiting', r.waiting, 'number'], ['Need a decision', r.review, 'number'], ['Not counted', r.notCounted, 'number'],
                     ['Flagged sign-ups', r.flagged, 'number'], ['Badges held', r.badgeList || 'None']] },
                 related('People they invited', r.members, memberCols, 'No one yet.'),
@@ -202,12 +209,16 @@ export default {
     },
 };
 
-/** One row per inviter, built from the referrals and badge awards */
-export function inviterRows(referrals, awards) {
+/**
+ * One row per inviter, built from the referrals and badge awards. Only people
+ * with at least one referral appear; coins count only from counted referrals.
+ */
+export function inviterRows(referrals, awards, coinValue = 0) {
     const byInviter = new Map();
     for (const r of referrals) {
-        const row = byInviter.get(r.inviterId) || { id: r.inviterId, name: r.inviterName, joined: 0, counted: 0, waiting: 0, review: 0, notCounted: 0, flagged: 0, lastJoinedAt: null, members: [], badges: [] };
+        const row = byInviter.get(r.inviterId) || { id: r.inviterId, name: r.inviterName, coins: 0, joined: 0, counted: 0, waiting: 0, review: 0, notCounted: 0, flagged: 0, lastJoinedAt: null, members: [], badges: [] };
         row.joined++;
+        row.coins += r.coins || 0;
         if (r.status === 'qualified') row.counted++;
         if (WAITING.includes(r.status)) row.waiting++;
         if (r.status === 'review') row.review++;
@@ -222,5 +233,5 @@ export function inviterRows(referrals, awards) {
         const row = byInviter.get(a.memberId);
         if (row) row.badges.push(a.badge);
     }
-    return [...byInviter.values()].map(r => ({ ...r, badgeList: r.badges.join(', ') }));
+    return [...byInviter.values()].map(r => ({ ...r, coinsValue: r.coins * coinValue, badgeList: r.badges.join(', ') }));
 }

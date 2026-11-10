@@ -24,7 +24,7 @@
       <span class="wm-icon-tile shrink-0" aria-hidden="true"><i class="bi bi-geo-alt"></i></span>
       <div class="min-w-0 flex-1">
         <p class="text-[15px] font-semibold text-ink">Location</p>
-        <p class="wm-meta">Only when you tap “Use my location”, to find providers and jobs near you. It isn’t stored or tracked; you can always choose your area by name instead.</p>
+        <p class="wm-meta">When you open WorkMate, to show providers and jobs near where you are. It isn’t stored or tracked, and you can choose a different area by name at any time.</p>
         <p v-if="location === 'denied'" class="mt-1 text-[13px] text-muted">Blocked in this browser. Allow it in the site settings, or keep choosing your area by name.</p>
       </div>
       <span v-if="location === 'granted'" class="wm-pill wm-pill-success shrink-0"><i class="bi bi-check-lg" aria-hidden="true"></i>Allowed</span>
