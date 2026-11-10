@@ -76,6 +76,19 @@ export const navGroups = [
         ],
     },
     {
+        id: 'invitations', label: 'Invitations', icon: 'bi-person-heart',
+        items: [
+            { id: 'referrals', label: 'Invitations', tabs: ['referrals', 'referral-inviters', 'referral-badges', 'referral-badge-holders'], path: '/admin/invitations', permission: 'referrals.view',
+              summary: 'Who invited whom, the people inviting the most, referrals waiting for a decision, and the invitation badges.' },
+            { id: 'referral-inviters', label: 'Inviters', hidden: true, tabOf: 'referrals', path: '/admin/invitations/inviters', permission: 'referrals.view',
+              summary: 'Everyone who has invited members, with what happened to each invitation.' },
+            { id: 'referral-badges', label: 'Badges', hidden: true, tabOf: 'referrals', path: '/admin/invitations/badges', permission: 'referrals.view',
+              summary: 'The invitation badges and how many counted invitations each needs.' },
+            { id: 'referral-badge-holders', label: 'Badge holders', hidden: true, tabOf: 'referrals', path: '/admin/invitations/badge-holders', permission: 'referrals.view',
+              summary: 'Who holds each badge, and badges taken back.' },
+        ],
+    },
+    {
         id: 'verification', label: 'Verification Management', icon: 'bi-file-earmark-check',
         items: [
             { id: 'verification-applications', label: 'Applications', path: '/admin/verification/applications', permission: 'documents.review',

@@ -1,4 +1,4 @@
-import { ref, reactive, watch } from 'vue';
+import { ref, reactive, watch, computed } from 'vue';
 import { catalog, searchLocations, nearestPlace, appSettings } from '@/stores/catalog.js';
 import { SEARCH_CONFIG } from '@/utils/nearbySearch.js';
 import { getSearchLocation, findSearchLocationByName } from '@/data/searchLocations.js';
@@ -46,6 +46,12 @@ watch(() => catalog.status, (status) => {
     lastAreaId = getSearchLocation(selectedArea.value)?.id || appSettings.defaultArea;
     searchOrigin.value = { kind: 'area', areaId: lastAreaId };
 }, { immediate: true });
+
+/**
+ * Whether the place is the person's own choice (picked, or their shared
+ * position) rather than the default town, so pages only say "near you" when it is
+ */
+export const originChosen = computed(() => searchOrigin.value.kind === 'gps' || !!read(ORIGIN_KEY));
 
 export const locationSheetOpen = ref(false);
 export function openLocationSheet() { locationSheetOpen.value = true; }

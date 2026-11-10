@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ProviderProfile;
 use App\Models\User;
 use App\Services\CommunityPeople;
+use App\Services\Referrals;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -57,7 +58,13 @@ class CommunityPeopleController extends Controller
             ? $this->people->withCard(User::query())->findOrFail($user)
             : $this->findPerson($user);
 
-        return response()->json(['data' => $this->cards(collect([$person]), $viewer)[0]]);
+        $card = $this->cards(collect([$person]), $viewer)[0];
+        // Invite Friends recognition: thanks for bringing members, not a sign of skill or verification
+        $card['badges'] = app(Referrals::class)->heldBadges($person)->map(function ($b) {
+            return Referrals::presentBadge($b);
+        })->values();
+
+        return response()->json(['data' => $card]);
     }
 
     /** The community card of a listed provider's owner, for their profile page */

@@ -4,6 +4,12 @@
     subtitle="One account lets you hire people now and offer your own services later."
     :error="error"
   >
+    <!-- Came through someone's invitation link -->
+    <p v-if="invitation.inviter" class="mb-4 flex items-center gap-2.5 rounded-2xl bg-primary-tint px-3.5 py-2.5 text-[14px] text-ink">
+      <i class="bi bi-person-heart text-lg text-primary" aria-hidden="true"></i>
+      <span><span class="font-semibold">{{ invitation.inviter }}</span> invited you to WorkMate.</span>
+    </p>
+
     <form class="flex flex-col gap-4" novalidate @submit.prevent="submit">
       <FormField v-model="form.name" label="Full name" autocomplete="name" required :error-message="errors.name" />
       <FormField
@@ -80,6 +86,7 @@ import { register, safeRedirect } from '@/stores/auth.js';
 import { fieldErrors } from '@/api/client.js';
 import { focusFirstError } from '@/utils/forms.js';
 import { appSettings } from '@/stores/catalog.js';
+import { invitation } from '@/stores/referral.js';
 
 const route = useRoute();
 const router = useRouter();

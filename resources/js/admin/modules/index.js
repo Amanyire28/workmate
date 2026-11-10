@@ -16,6 +16,7 @@ import administration from './administration.js';
 import verification from './verification.js';
 import reputation from './reputation.js';
 import usage from './usage.js';
+import referrals from './referrals.js';
 
 import { connectActions } from './connected.js';
 
@@ -23,5 +24,5 @@ import { connectActions } from './connected.js';
 export const modules = connectActions({
     ...overview, ...marketplace, ...location, ...trust, ...finance,
     ...content, ...comms, ...analytics, ...system, ...administration,
-    ...verification, ...reputation, ...usage,
+    ...verification, ...reputation, ...usage, ...referrals,
 });

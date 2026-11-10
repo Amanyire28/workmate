@@ -16,6 +16,7 @@ import { patches, created, settings } from '../stores/prototypeChanges.js';
 import { api } from '@/api/client.js';
 import { SEARCH_CONFIG } from '@/utils/nearbySearch.js';
 import { blueTickRules } from '../stores/blueTickRules.js';
+import { inviterRows } from '../modules/referrals.js';
 
 const SOURCE = 'database';
 const PLATFORMS = ['Android browser', 'iPhone browser', 'Installed web app', 'Desktop browser'];
@@ -570,6 +571,12 @@ const DATASETS = {
     announcements: () => ops().announcements,
     push: () => ops().pushAnnouncements,
     'profession-suggestions': () => ops().professionSuggestions,
+    // Invite Friends: who invited whom, the inviters, the badges and who holds them
+    referrals: () => ops().referrals,
+    'referral-inviters': () => inviterRows(ops().referrals, ops().badgeAwards),
+    'referral-badges': () => ops().milestones,
+    // "held" here means the member holds the badge, not that it's on hold
+    'referral-badge-holders': () => ops().badgeAwards.map(b => ({ ...b, status: b.status === 'held' ? 'awarded' : b.status })),
     help: () => ops().help,
     translations: () => ops().translations,
     notifications: () => ops().notificationTypes,

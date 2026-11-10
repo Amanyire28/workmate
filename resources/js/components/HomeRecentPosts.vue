@@ -1,6 +1,6 @@
 <template>
-  <!-- The newest community posts, first thing under the hero -->
-  <section class="wm-container pt-5 lg:pt-8" aria-labelledby="home-recent">
+  <!-- The newest community posts, below the marketplace; nothing at all until there are some -->
+  <section v-if="status !== 'ready' || posts.length" class="wm-container pt-6 lg:pt-9" aria-labelledby="home-recent">
     <div class="flex items-center justify-between gap-4 mb-3 lg:mb-4">
       <h2 id="home-recent" class="text-xl font-semibold text-ink">Recent from the community</h2>
       <router-link to="/community" class="wm-link !text-sm inline-flex items-center gap-1 min-h-11 shrink-0">
@@ -18,13 +18,6 @@
       Recent posts couldn’t load.
       <button type="button" class="wm-link font-medium" @click="load">Try again</button>
     </p>
-
-    <!-- Nothing yet -->
-    <div v-else-if="!posts.length" class="wm-glass-card rounded-[14px] p-4 flex flex-col sm:flex-row sm:items-center gap-2.5">
-      <span class="wm-icon-tile shrink-0" aria-hidden="true"><i class="bi bi-chat-square-text"></i></span>
-      <p class="flex-1 text-sm text-[#475569]">No posts yet. Share a job you’re proud of, a tip, or ask a question.</p>
-      <router-link to="/community" class="wm-btn wm-btn-primary !rounded-[10px] shrink-0">Open the community</router-link>
-    </div>
 
     <ul v-else class="wm-home-row">
       <li v-for="p in posts" :key="p.id" class="wm-home-row-item">

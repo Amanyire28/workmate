@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\Admin\CatalogueController;
 use App\Http\Controllers\Api\V1\Admin\AuditLogController;
 use App\Http\Controllers\Api\V1\Admin\CommunityModerationController;
 use App\Http\Controllers\Api\V1\Admin\WorkModerationController;
+use App\Http\Controllers\Api\V1\Admin\ReferralController as AdminReferralController;
 use App\Http\Controllers\Api\V1\Admin\DocumentRequirementController;
 use App\Http\Controllers\Api\V1\Admin\DocumentVerificationController;
 use App\Http\Controllers\Api\V1\Admin\LegalDocumentController;
@@ -46,6 +47,7 @@ use App\Http\Controllers\Api\V1\VerificationController;
 use App\Http\Controllers\Api\V1\ProfilePhotoController;
 use App\Http\Controllers\Api\V1\ProviderCoverController;
 use App\Http\Controllers\Api\V1\ProviderWorkController;
+use App\Http\Controllers\Api\V1\ReferralController;
 use App\Http\Controllers\Api\V1\ProviderReportController;
 use App\Http\Controllers\Api\V1\PushSubscriptionController;
 use Illuminate\Http\Request;
@@ -88,6 +90,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('areas/nearest', [DirectoryController::class, 'nearestArea'])->name('areas.nearest');
     });
     Route::get('providers', [DirectoryController::class, 'providers'])->name('providers.index');
+    Route::get('providers/recommended', [DirectoryController::class, 'recommended'])->middleware('throttle:place-search')->name('providers.recommended');
     Route::get('providers/{id}', [DirectoryController::class, 'provider'])->whereNumber('id')->name('providers.show');
     Route::get('reviews/recent', [DirectoryController::class, 'recentReviews'])->name('reviews.recent');
     Route::get('jobs', [JobController::class, 'index'])->name('jobs.index');
@@ -115,6 +118,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('community/media/{file}', [CommunityController::class, 'media'])
         ->where('file', '[0-9a-f-]{36}(-t)?\.jpg')
         ->name('community.media');
+    // Invite Friends: an invitation link was opened
+    Route::post('referrals/visit', [ReferralController::class, 'visit'])->middleware('throttle:referral-visit')->name('referrals.visit');
     // Providers' recent work
     Route::get('providers/{provider}/work', [ProviderWorkController::class, 'index'])->whereNumber('provider')->name('providers.work');
     Route::get('work/media/{file}', [ProviderWorkController::class, 'media'])
@@ -141,6 +146,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('me/provider/cover', [ProviderCoverController::class, 'store'])->middleware('throttle:account-email')->name('me.provider.cover');
         Route::delete('me/provider/cover', [ProviderCoverController::class, 'destroy'])->name('me.provider.cover.destroy');
         Route::get('me/provider/work', [ProviderWorkController::class, 'mine'])->name('me.provider.work');
+        Route::get('me/referrals', [ReferralController::class, 'mine'])->name('me.referrals');
         Route::post('me/provider/work', [ProviderWorkController::class, 'store'])->middleware('throttle:provider-work')->name('me.provider.work.store');
         Route::middleware('throttle:community-react')->group(function () {
             Route::patch('me/provider/work/{item}', [ProviderWorkController::class, 'update'])->whereUuid('item')->name('me.provider.work.update');
@@ -329,6 +335,16 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::post('posts/{post}/remove', [CommunityModerationController::class, 'removePost'])->whereUuid('post')->name('posts.remove');
                 Route::post('posts/{post}/restore', [CommunityModerationController::class, 'restorePost'])->whereUuid('post')->name('posts.restore');
                 Route::post('comments/{comment}/remove', [CommunityModerationController::class, 'removeComment'])->whereNumber('comment')->name('comments.remove');
+            });
+            // Invitations: decisions on referrals, and the badges
+            Route::middleware('can:referrals.manage')->prefix('referrals/{referral}')->name('referrals.')->group(function () {
+                Route::post('approve', [AdminReferralController::class, 'approve'])->name('approve');
+                Route::post('reject', [AdminReferralController::class, 'reject'])->name('reject');
+                Route::post('revoke', [AdminReferralController::class, 'revoke'])->name('revoke');
+            });
+            Route::middleware('can:referrals.configure')->name('milestones.')->group(function () {
+                Route::post('milestones', [AdminReferralController::class, 'storeMilestone'])->name('store');
+                Route::patch('milestones/{milestone}', [AdminReferralController::class, 'updateMilestone'])->whereNumber('milestone')->name('update');
             });
             // Providers' recent work
             Route::middleware('can:content.view')->prefix('work')->name('work.')->group(function () {

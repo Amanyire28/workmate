@@ -65,6 +65,10 @@ class ProviderApplications
                 'skills', 'availability_status', 'availability_note', 'price_from', 'price_basis',
             ])));
             $profile->owner_id = $user->getKey();
+            // Saving their availability confirms it is current, changed or not
+            if (array_key_exists('availability_status', $data)) {
+                $profile->forceFill(['availability_updated_at' => now()]);
+            }
 
             if (array_key_exists('base_area', $data)) {
                 // The base is the area's centre point, never the provider's own position

@@ -625,6 +625,28 @@
         .wm-home-row-item:nth-child(n + 4) { display: none; }
     }
 
+    /* Worker cards on the home page: two and a bit on phones to show there's more, a grid on wider screens */
+    .wm-worker-row {
+        display: flex;
+        gap: 10px;
+        overflow-x: auto;
+        scroll-snap-type: x mandatory;
+        margin-inline: -16px;
+        padding: 2px 16px 6px;
+        scroll-padding-inline: 16px;
+        scrollbar-width: none;
+    }
+    .wm-worker-row::-webkit-scrollbar { display: none; }
+    .wm-worker-row-item { flex: 0 0 44%; max-width: 210px; scroll-snap-align: start; }
+    @media (min-width: 640px) {
+        .wm-worker-row { margin-inline: -24px; padding-inline: 24px; }
+        .wm-worker-row-item { flex-basis: 30%; }
+    }
+    @media (min-width: 768px) {
+        .wm-worker-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; overflow: visible; margin-inline: 0; padding-inline: 0; }
+        .wm-worker-row-item { max-width: none; }
+    }
+
     /* ---- Legal documents (Markdown rendered by the server) ---- */
     .wm-legal-body { color: var(--color-ink-soft); font-size: 0.9375rem; line-height: 1.7; overflow-wrap: anywhere; }
     .wm-legal-body > * + * { margin-top: 0.75rem; }

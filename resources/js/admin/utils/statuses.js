@@ -10,6 +10,8 @@ export const STATUS = {
     submitted: ['Application submitted', 'info'], pending_review: ['Pending review', 'warning'],
     info_requested: ['More info requested', 'warning'], approved: ['Approved', 'success'], rejected: ['Rejected', 'error'],
     added: ['Added', 'success'], declined: ['Declined', 'neutral'],
+    // invitations (referrals)
+    registered: ['Waiting for email', 'neutral'], review: ['Needs a decision', 'warning'], qualified: ['Counted', 'success'], revoked: ['Revoked', 'error'],
     verified: ['Verified', 'success'], not_provided: ['Not provided', 'neutral'], not_checked: ['Not checked', 'neutral'], failed_check: ['Failed', 'error'],
     // jobs, quotes and bookings
     open: ['Open', 'info'], booked: ['Booked', 'success'], expired: ['Expired', 'neutral'], searching: ['Searching', 'info'],

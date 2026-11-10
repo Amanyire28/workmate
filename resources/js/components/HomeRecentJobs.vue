@@ -3,9 +3,14 @@
   <section class="wm-container pt-6 lg:pt-9" aria-labelledby="home-jobs">
     <div class="flex items-center justify-between gap-4 mb-3 lg:mb-4">
       <h2 id="home-jobs" class="text-xl font-semibold text-ink">Recent jobs</h2>
-      <router-link to="/find-work" class="wm-link !text-sm inline-flex items-center gap-1 min-h-11 shrink-0">
-        See all <i class="bi bi-arrow-right hidden lg:inline" aria-hidden="true"></i>
-      </router-link>
+      <div class="flex items-center gap-3 shrink-0">
+        <router-link to="/post-job" class="wm-btn wm-btn-tint !min-h-9 !px-3 !text-[13px]">
+          <i class="bi bi-plus-lg" aria-hidden="true"></i> Post a job
+        </router-link>
+        <router-link to="/find-work" class="wm-link !text-sm inline-flex items-center gap-1 min-h-11">
+          See all <i class="bi bi-arrow-right hidden lg:inline" aria-hidden="true"></i>
+        </router-link>
+      </div>
     </div>
 
     <div v-if="!recent.length" class="wm-glass-card rounded-[14px] p-4 flex flex-col sm:flex-row sm:items-center gap-2.5">

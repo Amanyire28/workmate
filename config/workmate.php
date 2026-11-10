@@ -41,6 +41,12 @@ return [
             'view_permission' => 'legal.manage',
             'change_permission' => 'legal.manage',
         ],
+        // Invite Friends (Admin → Invitations)
+        'referrals' => [
+            'label' => 'Invitations',
+            'view_permission' => 'referrals.view',
+            'change_permission' => 'referrals.configure',
+        ],
     ],
 
     'settings' => [
@@ -166,6 +172,18 @@ return [
             'label' => 'Ask people to accept the legal documents',
             'description' => 'Shows the welcome and terms on first opening, and asks signed-in people to accept new or materially changed documents.',
             'type' => 'boolean', 'default' => true, 'public' => true,
+        ],
+        'referrals.attribution_days' => [
+            'group' => 'referrals',
+            'label' => 'Days an invitation link counts',
+            'description' => 'Someone who opens an invitation link and signs up within this many days is credited to the person who invited them.',
+            'type' => 'integer', 'min' => 1, 'max' => 90, 'default' => 30,
+        ],
+        'referrals.daily_review_limit' => [
+            'group' => 'referrals',
+            'label' => 'Sign-ups in a day before a review',
+            'description' => 'More sign-ups than this through one person’s link in 24 hours are held for a person to check instead of counting straight away.',
+            'type' => 'integer', 'min' => 2, 'max' => 100, 'default' => 5,
         ],
         'legal.minimum_age' => [
             'group' => 'legal',

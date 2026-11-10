@@ -21,9 +21,12 @@ use App\Models\PushSubscription;
 use App\Models\Quotation;
 use App\Models\CommunityComment;
 use App\Models\CommunityPost;
+use App\Models\RecognitionMilestone;
+use App\Models\Referral;
 use App\Models\Review;
 use App\Models\ServiceRequest;
 use App\Models\User;
+use App\Models\UserBadge;
 use App\Models\VerificationDocument;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -146,6 +149,10 @@ class AdminSnapshot
                 'pushAnnouncements' => $can('comms.view') ? $this->pushAnnouncements()->values() : [],
                 'professionSuggestions' => $can('providers.review') ? $this->professionSuggestions()->values() : [],
                 'verifications' => $can('documents.review') ? $this->verifications()->values() : [],
+                // Invite Friends: who invited whom, the badges and who holds them
+                'referrals' => $can('referrals.view') ? $this->referrals()->values() : [],
+                'milestones' => $can('referrals.view') ? $this->milestones()->values() : [],
+                'badgeAwards' => $can('referrals.view') ? $this->badgeAwards()->values() : [],
             ],
         ];
     }
@@ -482,6 +489,51 @@ class AdminSnapshot
         ];
     }
 
+    private function referrals(): Collection
+    {
+        $flags = ['same_network_as_inviter' => 'Same network as the inviter', 'many_sign_ups_today' => 'Many sign-ups through this link today',
+            'inviter_joined_today' => 'The inviter joined today'];
+
+        return Referral::with(['referrer:id,name,status', 'referred:id,name,status,email_verified_at,created_at', 'decider:id,name'])
+            ->latest()->limit(2000)->get()->map(function (Referral $r) use ($flags) {
+                return [
+                    'id' => 'RF-'.$r->id, 'referralId' => $r->id, 'status' => $r->status,
+                    'inviterId' => 'C-'.$r->referrer_id, 'inviterName' => optional($r->referrer)->name ?: 'Deleted account',
+                    'memberId' => 'C-'.$r->referred_id, 'memberName' => optional($r->referred)->name ?: 'Deleted account',
+                    'emailConfirmed' => (bool) optional($r->referred)->email_verified_at,
+                    'memberActive' => optional($r->referred)->status === User::STATUS_ACTIVE,
+                    'flags' => collect($r->risk_flags ?: [])->map(function ($f) use ($flags) {
+                        return $flags[$f] ?? $f;
+                    })->values(),
+                    'flagged' => ! empty($r->risk_flags),
+                    'linkOpenedAt' => optional($r->link_opened_at)->toIso8601String(), 'joinedAt' => $r->created_at->toIso8601String(),
+                    'qualifiedAt' => optional($r->qualified_at)->toIso8601String(), 'decidedAt' => optional($r->decided_at)->toIso8601String(),
+                    'decidedBy' => optional($r->decider)->name, 'reason' => $r->decision_reason,
+                    'history' => $this->historyFor(Referral::class, $r->id),
+                ];
+            });
+    }
+
+    private function milestones(): Collection
+    {
+        $holders = UserBadge::held()->selectRaw('recognition_milestone_id, COUNT(*) AS n')->groupBy('recognition_milestone_id')->pluck('n', 'recognition_milestone_id');
+
+        return RecognitionMilestone::orderBy('threshold')->get()->map(function (RecognitionMilestone $m) use ($holders) {
+            return ['id' => 'BM-'.$m->id, 'milestoneId' => $m->id, 'key' => $m->key, 'name' => $m->name, 'description' => $m->description,
+                'threshold' => $m->threshold, 'icon' => $m->icon, 'status' => $m->is_active ? 'active' : 'inactive', 'holders' => (int) ($holders[$m->id] ?? 0),
+                'history' => $this->historyFor(RecognitionMilestone::class, $m->id)];
+        });
+    }
+
+    private function badgeAwards(): Collection
+    {
+        return UserBadge::with(['milestone', 'user:id,name'])->latest('awarded_at')->limit(2000)->get()->map(function (UserBadge $b) {
+            return ['id' => 'BA-'.$b->id, 'memberId' => 'C-'.$b->user_id, 'memberName' => optional($b->user)->name ?: 'Deleted account',
+                'badge' => optional($b->milestone)->name, 'status' => $b->revoked_at ? 'revoked' : 'held',
+                'awardedAt' => $b->awarded_at->toIso8601String(), 'revokedAt' => optional($b->revoked_at)->toIso8601String(), 'reason' => $b->revoked_reason];
+        });
+    }
+
     private function reportedWork(Report $r): ?array
     {
         $item = $r->workItem;
@@ -750,7 +802,7 @@ class AdminSnapshot
         if (! $log->actor) {
             return 'System';
         }
-        if (Str::startsWith($log->action, ['provider.application_', 'provider.suspended', 'provider.reinstated', 'provider.work_removed', 'provider.work_restored', 'settings.', 'roles.', 'admin.', 'profession.', 'document.viewed',
+        if (Str::startsWith($log->action, ['provider.application_', 'provider.suspended', 'provider.reinstated', 'provider.work_removed', 'provider.work_restored', 'referral.rejected', 'referral.revoked', 'badge.milestone_', 'settings.', 'roles.', 'admin.', 'profession.', 'document.viewed',
             'verification.assigned', 'verification.document_accepted', 'verification.document_sent_back', 'verification.document_requested', 'verification.info_requested',
             'verification.approved', 'verification.rejected', 'verification.reopened', 'verification.note_added',
             'trust.report_assigned', 'trust.report_info_requested', 'trust.report_note', 'trust.report_resolved', 'trust.report_photo_viewed', 'trust.warning_sent'])) {
@@ -786,6 +838,12 @@ class AdminSnapshot
             case ProviderWorkItem::class:
                 return ['type' => 'work', 'id' => 'Work '.($s ? Str::limit($s->uuid, 8, '') : $id), 'label' => $s ? '“'.$s->title.'”' : 'Some work',
                     'href' => $s && $s->isVisible() ? '/provider/'.$s->provider_profile_id.'#work' : null];
+            case Referral::class:
+                return ['type' => 'referral', 'id' => 'RF-'.$id, 'label' => 'an invitation'];
+            case UserBadge::class:
+                return ['type' => 'badge', 'id' => 'BA-'.$id, 'label' => $s && $s->milestone ? 'the '.$s->milestone->name.' badge' : 'a badge'];
+            case RecognitionMilestone::class:
+                return ['type' => 'badge', 'id' => 'BM-'.$id, 'label' => $s ? '“'.$s->name.'”' : 'a badge'];
             case Quotation::class:
                 return ['type' => 'quotation', 'id' => 'Q-'.$id, 'label' => 'Application for a job'];
             case ProviderReport::class:
@@ -889,6 +947,15 @@ class AdminSnapshot
             'community.post_restored' => "{$who} restored a post: {$what}",
             'community.comment_deleted' => "{$who} deleted a comment: {$what}",
             'community.comment_removed' => "{$who} removed a comment: {$what}",
+            'referral.registered' => "{$who} joined through an invitation",
+            'referral.held_for_review' => 'An invitation was held for a review',
+            'referral.qualified' => "{$who} counted {$what}",
+            'referral.rejected' => "{$who} rejected {$what}",
+            'referral.revoked' => "{$who} revoked {$what}",
+            'badge.awarded' => "{$who} earned {$what}",
+            'badge.revoked' => "{$what} was taken back",
+            'badge.milestone_created' => "{$who} added the badge {$what}",
+            'badge.milestone_updated' => "{$who} changed the badge {$what}",
             'provider.work_added' => "{$who} added work to their profile: {$what}",
             'provider.work_edited' => "{$who} edited their work {$what}",
             'provider.work_deleted' => "{$who} deleted their work {$what}",

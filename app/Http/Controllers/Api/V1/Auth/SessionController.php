@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Accounts;
 use App\Services\AuditLogger;
 use App\Services\LegalDocuments;
+use App\Services\Referrals;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -24,11 +25,15 @@ use Illuminate\Validation\ValidationException;
  */
 class SessionController extends Controller
 {
-    public function register(RegisterRequest $request, Accounts $accounts, LegalDocuments $legal): JsonResponse
+    public function register(RegisterRequest $request, Accounts $accounts, LegalDocuments $legal, Referrals $referrals): JsonResponse
     {
         $this->requireSession($request);
 
         $user = $accounts->register($request->validated());
+
+        // Came through someone's invitation link: credit them (it counts once the email is confirmed)
+        $referrals->attachAtSignUp($user, $referrals->fromCookie($request->cookie(Referrals::COOKIE)), $request);
+        Cookie::queue(Cookie::forget(Referrals::COOKIE));
 
         // New accounts stay signed in on this device (Account → Devices to sign out)
         $guard = Auth::guard('web');

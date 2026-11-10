@@ -269,6 +269,14 @@
       <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
     </router-link>
 
+    <router-link v-if="user" to="/account/invite" class="wm-card wm-card-link mt-3 flex items-center gap-4">
+      <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-person-heart"></i></span>
+      <span class="min-w-0 flex-1">
+        <span class="block text-[15px] font-semibold text-ink">Invite Friends</span>
+        <span class="block wm-meta">Share your link and earn badges as people join</span>
+      </span>
+      <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+    </router-link>
     <router-link v-if="user" to="/account/devices" class="wm-card wm-card-link mt-3 flex items-center gap-4">
       <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-phone"></i></span>
       <span class="min-w-0 flex-1">

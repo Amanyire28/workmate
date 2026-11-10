@@ -115,6 +115,11 @@ class RouteServiceProvider extends ServiceProvider
 
             return [Limit::perMinute(10)->by('m'.$key), Limit::perHour(150)->by('h'.$key)];
         });
+        // Opening invitation links: generous for real people, too slow for guessing codes
+        RateLimiter::for('referral-visit', function (Request $request) {
+            return [Limit::perMinute(20)->by($request->ip()), Limit::perDay(300)->by('d'.$request->ip())];
+        });
+
         // Providers adding work to their profile, often several jobs in one go
         RateLimiter::for('provider-work', function (Request $request) {
             $key = optional($request->user())->id ?: $request->ip();

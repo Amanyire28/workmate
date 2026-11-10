@@ -17,6 +17,7 @@ import ChatPage              from '@/pages/ChatPage.vue';
 import { adminRoutes }       from '@/admin/routes.js';
 import { auth, loadSession, safeRedirect } from '@/stores/auth.js';
 import { loadCatalog } from '@/stores/catalog.js';
+import { noteInvitation } from '@/stores/referral.js';
 
 const routes = [
     { path: '/',                     component: HomePage,               meta: { title: 'WorkMate – Find Trusted Service Providers' } },
@@ -38,6 +39,7 @@ const routes = [
     { path: '/get-started',          component: () => import('@/pages/GetStartedPage.vue'), meta: { title: 'Welcome – WorkMate', requiresAuth: true } },
     { path: '/start-earning',        component: () => import('@/pages/StartEarningPage.vue'), meta: { title: 'Start earning – WorkMate', requiresAuth: true } },
     { path: '/account/devices',      component: () => import('@/pages/DevicesPage.vue'), meta: { title: 'Devices – WorkMate', requiresAuth: true } },
+    { path: '/account/invite',       component: () => import('@/pages/InviteFriendsPage.vue'), meta: { title: 'Invite Friends – WorkMate', requiresAuth: true } },
     { path: '/account/legal',        component: () => import('@/pages/LegalSettingsPage.vue'), meta: { title: 'Legal and privacy – WorkMate', requiresAuth: true } },
     { path: '/saved',                component: () => import('@/pages/SavedProvidersPage.vue'), meta: { title: 'Saved providers – WorkMate', requiresAuth: true } },
     { path: '/notifications',        component: () => import('@/pages/NotificationsPage.vue'), meta: { title: 'Notifications – WorkMate', requiresAuth: true } },
@@ -75,6 +77,9 @@ const router = createRouter({
 
 // Already signed in: skip the sign-in and register pages
 router.beforeEach(async (to) => {
+    // An invitation link: remember who invited them (the page carries on straight away)
+    if (to.query.ref) noteInvitation(to.query.ref);
+
     // The admin area: signed-in administrators only (the API checks every request too)
     if (to.meta?.layout === 'admin') {
         const user = await loadSession();

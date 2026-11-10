@@ -38,6 +38,17 @@ export const CONNECTED = {
         match: (r, v) => post(`/admin/profession-suggestions/${num(r.id)}/match`, { profession: v.profession, reason: v.reason || null }),
         decline: (r, v) => post(`/admin/profession-suggestions/${num(r.id)}/decline`, { reason: v.reason }),
     },
+    referrals: {
+        approve: (r, v) => post(`/admin/referrals/${r.referralId}/approve`, { reason: v.reason }),
+        reject: (r, v) => post(`/admin/referrals/${r.referralId}/reject`, { reason: v.reason }),
+        revoke: (r, v) => post(`/admin/referrals/${r.referralId}/revoke`, { reason: v.reason }),
+    },
+    'referral-badges': {
+        create: (v) => post('/admin/milestones', { name: v.name, description: v.description, threshold: v.threshold, icon: v.icon }),
+        edit: (r, v) => patch(`/admin/milestones/${r.milestoneId}`, { name: v.name, description: v.description, threshold: v.threshold, icon: v.icon, reason: v.reason }),
+        'turn-off': (r, v) => patch(`/admin/milestones/${r.milestoneId}`, { is_active: false, reason: v.reason }),
+        'turn-on': (r, v) => patch(`/admin/milestones/${r.milestoneId}`, { is_active: true, reason: v.reason }),
+    },
     reviews: {
         dismiss: review('published'),
         hide: review('hidden'),

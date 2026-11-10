@@ -11,6 +11,7 @@ use App\Models\ProviderProfile;
 use App\Models\Review;
 use App\Models\ServiceRequest;
 use App\Services\PlatformSettings;
+use App\Services\ProviderRecommendations;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -149,6 +150,25 @@ class DirectoryController extends Controller
     public function providers()
     {
         return PublicProviderResource::collection($this->listed()->orderBy('id')->limit(500)->get());
+    }
+
+    /**
+     * Recommended workers for the home page: provider ids in order, and how
+     * far the search had to reach from the place (see ProviderRecommendations).
+     * The app already has the providers, so only ids travel.
+     */
+    public function recommended(Request $request, ProviderRecommendations $recommendations): JsonResponse
+    {
+        $data = $request->validate([
+            'area' => ['nullable', 'string', 'max:80'],
+            'category' => ['nullable', 'string', 'max:60'],
+        ]);
+        $area = ! empty($data['area']) ? Area::active()->where('slug', $data['area'])->first() : null;
+        $result = $recommendations->recommend($area, $data['category'] ?? null);
+
+        return response()->json(['data' => $result + [
+            'area' => $area ? ['slug' => $area->slug, 'name' => $area->name, 'town' => $area->town, 'whole_town' => (bool) $area->is_whole_town] : null,
+        ]]);
     }
 
     public function provider(int $id): PublicProviderResource

@@ -31,6 +31,10 @@
                 <button type="button" class="hover:underline" @click="openList('followers')"><strong class="font-semibold text-ink">{{ person.followers_count }}</strong> <span class="text-muted">{{ person.followers_count === 1 ? 'follower' : 'followers' }}</span></button>
                 <button type="button" class="hover:underline" @click="openList('following')"><strong class="font-semibold text-ink">{{ person.following_count }}</strong> <span class="text-muted">following</span></button>
               </p>
+              <!-- Invitation badges: thanks for inviting members, never a verification tick -->
+              <div v-if="person.badges?.length" class="mt-2.5 flex flex-wrap gap-1.5">
+                <RecognitionBadge v-for="b in person.badges" :key="b.key" :badge="b" />
+              </div>
             </div>
           </div>
           <div class="mt-4 flex flex-wrap gap-2">
@@ -93,6 +97,7 @@ import EmptyState from '@/components/EmptyState.vue';
 import BottomSheet from '@/components/BottomSheet.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import VerifiedBadge from '@/components/VerifiedBadge.vue';
+import RecognitionBadge from '@/components/invite/RecognitionBadge.vue';
 import ReportSheet from '@/components/ReportSheet.vue';
 import PostCard from '@/components/community/PostCard.vue';
 import PostComposer from '@/components/community/PostComposer.vue';

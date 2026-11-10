@@ -28,8 +28,12 @@
         <span v-if="provider.rating" class="inline-flex items-center gap-0.5">
           <i class="bi bi-star-fill text-[#D97706]" aria-hidden="true"></i>
           <span class="font-medium text-ink">{{ provider.rating }}</span>
+          <span v-if="detailed">({{ provider.reviewCount }})</span>
           <span class="sr-only">rating from {{ provider.reviewCount }} reviews</span>
         </span>
+      </p>
+      <p v-if="detailed && provider.priceFrom" class="mt-1 text-[12.5px] text-muted">
+        From <span class="font-semibold text-ink">{{ formatPrice(provider.priceFrom) }}</span><template v-if="provider.priceBasis"> / {{ provider.priceBasis }}</template>
       </p>
       <p v-if="provider.workCount" class="mt-1 inline-flex items-center gap-1 text-[12px] font-medium text-primary">
         <i class="bi bi-images" aria-hidden="true"></i>{{ provider.workCount }} {{ provider.workCount === 1 ? 'job' : 'jobs' }} shown
@@ -55,10 +59,12 @@
 import UserAvatar from './UserAvatar.vue';
 import SaveProviderButton from './SaveProviderButton.vue';
 import VerifiedBadge from './VerifiedBadge.vue';
-import { displayName, tradeLabel } from '@/utils/ui.js';
+import { displayName, tradeLabel, formatPrice } from '@/utils/ui.js';
 import { isOwnProvider } from '@/stores/auth.js';
 
 defineProps({
   provider: { type: Object, required: true },
+  // Also the review count and starting price (home page)
+  detailed: { type: Boolean, default: false },
 });
 </script>

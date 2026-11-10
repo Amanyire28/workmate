@@ -51,6 +51,7 @@ class ProviderProfile extends Model
         'suspended_at' => 'datetime',
         'document_verified_at' => 'datetime',
         'blue_tick_awarded_at' => 'datetime',
+        'availability_updated_at' => 'datetime',
     ];
 
     public const AVAILABILITY_STATUSES = ['available', 'busy', 'unavailable'];

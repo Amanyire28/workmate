@@ -287,6 +287,48 @@ class EventNotifications
         ]);
     }
 
+    /* ---------------- Invite Friends ---------------- */
+
+    public function referralQualified(int $inviterId, string $name): void
+    {
+        $this->send('referrals', [$inviterId], [
+            'title' => $name.' joined WorkMate',
+            'body' => 'Someone you invited confirmed their account. Thank you for helping the community grow.',
+            'url' => '/account/invite',
+            'tag' => 'referral-qualified',
+        ]);
+    }
+
+    public function badgeEarned(int $userId, string $badge): void
+    {
+        $this->send('referrals', [$userId], [
+            'title' => 'You earned the '.$badge.' badge',
+            'body' => 'A thank-you for inviting new members to WorkMate. See it in Invite Friends.',
+            'url' => '/account/invite',
+            'tag' => 'badge-earned',
+        ]);
+    }
+
+    public function referralRevoked(int $inviterId): void
+    {
+        $this->send('account', [$inviterId], [
+            'title' => 'An invitation no longer counts',
+            'body' => 'After a review, one of your invitations was removed from your count. See Invite Friends.',
+            'url' => '/account/invite',
+            'tag' => 'referral-revoked',
+        ]);
+    }
+
+    public function badgeRevoked(int $userId, string $badge): void
+    {
+        $this->send('account', [$userId], [
+            'title' => 'Your '.$badge.' badge was removed',
+            'body' => 'Your invitation count no longer reaches it. See Invite Friends.',
+            'url' => '/account/invite',
+            'tag' => 'badge-revoked',
+        ]);
+    }
+
     public function workRemoved(int $userId, string $url): void
     {
         $this->send('account', [$userId], [

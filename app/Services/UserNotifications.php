@@ -24,6 +24,7 @@ class UserNotifications
         'community_posts' => ['Posts from people you follow', 'When someone you follow shares something (at most every few hours each)'],
         'community_likes' => ['Likes', 'When people like your posts'],
         'community_follows' => ['New followers', 'When someone follows you in the community'],
+        'referrals' => ['Invites and badges', 'When someone you invited joins, and when you earn a badge'],
     ];
 
     /** Decisions, documents, reports, warnings and removals: always sent */

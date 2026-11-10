@@ -49,7 +49,8 @@ const emptyCore = () => ({
 const OPS_KEYS = ['reports', 'videos', 'portfolio', 'deliveries', 'templates', 'campaigns', 'notificationTypes',
     'homepageSections', 'announcements', 'help', 'translations', 'areas', 'coverage', 'unmatched', 'alerts',
     'health', 'errors', 'integrations', 'failedJobs', 'scheduled', 'audit', 'security', 'adminUsers', 'flags',
-    'dataRequests', 'events', 'searchLocations', 'pushAnnouncements', 'professionSuggestions', 'verifications'];
+    'dataRequests', 'events', 'searchLocations', 'pushAnnouncements', 'professionSuggestions', 'verifications',
+    'referrals', 'milestones', 'badgeAwards'];
 const emptyOps = () => Object.fromEntries(OPS_KEYS.map(k => [k, []]));
 
 let coreData = emptyCore();

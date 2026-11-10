@@ -51,69 +51,11 @@
          Renders nothing until the customer searches. -->
     <NearbySearchPanel ref="searchPanel" />
 
-    <!-- ============ Recent community posts ============ -->
-    <HomeRecentPosts />
+    <!-- ============ Recommended workers: near the chosen place first ============ -->
+    <HomeRecommendedWorkers />
 
     <!-- ============ Recent jobs: providers apply from here ============ -->
     <HomeRecentJobs />
-
-    <!-- ============ Top rated workers ============ -->
-    <section class="wm-container pt-6 lg:pt-9" aria-labelledby="home-top">
-      <div class="flex items-center justify-between gap-4 mb-3 lg:mb-4">
-        <h2 id="home-top" class="text-xl font-semibold text-ink">Top Rated Workers</h2>
-        <router-link to="/workers" class="wm-link !text-sm inline-flex items-center gap-1 min-h-11">
-          See all <i class="bi bi-arrow-right hidden lg:inline" aria-hidden="true"></i>
-        </router-link>
-      </div>
-
-      <!-- Mobile app: list rows (3 on phones, 4 in two columns on tablets) -->
-      <ul class="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <li v-for="p in topRated" :key="p.id" class="[&:nth-child(4)]:hidden sm:[&:nth-child(4)]:block">
-          <router-link :to="`/provider/${p.id}`" class="flex items-center gap-3.5 p-4 wm-glass-card rounded-[14px] hover:border-[#CBD5E1]">
-            <UserAvatar :name="displayName(p)" :src="p.avatarUrl" :size="56" />
-            <div class="min-w-0 flex-1">
-              <p class="text-[15px] font-semibold text-ink truncate">
-                {{ displayName(p) }} <VerifiedBadge :provider="p" />
-              </p>
-              <p class="text-[13px] text-[#64748B] truncate">{{ tradeLabel(p, 1) }} • {{ p.area }}</p>
-              <p class="mt-1 text-[13px] text-[#64748B]">
-                <i class="bi bi-star-fill text-[#F59E0B]" aria-hidden="true"></i>
-                <span class="font-medium text-ink"> {{ p.rating }}</span> ({{ p.reviewCount }} reviews)
-              </p>
-              <p class="mt-1 text-[15px] font-semibold text-ink">
-                {{ formatPrice(p.priceFrom) }}<span class="text-[13px] font-normal text-[#64748B]"> / {{ p.priceBasis }}</span>
-              </p>
-            </div>
-            <i class="bi bi-chevron-right text-[#94A3B8]" aria-hidden="true"></i>
-          </router-link>
-        </li>
-      </ul>
-
-      <!-- Website: cards -->
-      <ul class="hidden lg:grid grid-cols-4 gap-4">
-        <li v-for="p in topRated" :key="p.id" class="flex flex-col wm-glass-card rounded-[14px] p-4 transition-shadow hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)]">
-          <div class="relative flex items-center justify-center h-[150px] rounded-[10px] overflow-hidden" :style="{ background: tintFor(p) }">
-            <UserAvatar :name="displayName(p)" :src="p.avatarUrl" :size="84" class="!bg-white shadow-[0_6px_18px_rgba(15,23,42,0.12)]" />
-            <span class="absolute top-2.5 left-2.5"><AvailabilityBadge :provider="p" /></span>
-          </div>
-          <p class="mt-3.5 text-base font-semibold text-ink truncate">{{ displayName(p) }} <VerifiedBadge :provider="p" /></p>
-          <p class="text-[13px] text-[#64748B] truncate">{{ tradeLabel(p, 1) }} • {{ p.area }}</p>
-          <p class="mt-2 text-[13px] text-[#64748B]">
-            <i class="bi bi-star-fill text-[#F59E0B]" aria-hidden="true"></i>
-            <span class="font-medium text-ink"> {{ p.rating }}</span> ({{ p.reviewCount }} reviews)
-          </p>
-          <p class="mt-2 text-[15px] font-semibold text-ink">
-            {{ formatPrice(p.priceFrom) }}<span class="text-[13px] font-normal text-[#64748B]"> / {{ p.priceBasis }}</span>
-          </p>
-          <router-link :to="`/provider/${p.id}`" class="wm-btn wm-btn-primary !rounded-[10px] mt-4">
-            View Profile<span class="sr-only">: {{ displayName(p) }}</span>
-          </router-link>
-        </li>
-      </ul>
-      <p v-if="topRated.some(p => p.isSample)" class="mt-3 text-xs text-[#64748B]">
-        <i class="bi bi-info-circle mr-1" aria-hidden="true"></i>Includes sample profiles.
-      </p>
-    </section>
 
     <!-- ============ Categories ============ -->
     <section class="wm-container pt-6 lg:pt-9" aria-labelledby="home-categories">
@@ -143,83 +85,8 @@
       </ul>
     </section>
 
-    <!-- ============ Post a job CTA ============ -->
-    <section class="wm-container pt-6 lg:pt-9" aria-labelledby="home-cta">
-      <div class="flex flex-col sm:flex-row sm:items-center gap-5 lg:gap-8 rounded-[18px] bg-[#EFF6FF] border border-[#DBEAFE] p-6 lg:px-10 lg:py-8">
-        <div class="flex items-start sm:items-center gap-4 lg:gap-6 flex-1">
-          <span class="relative inline-flex items-center justify-center shrink-0 w-16 h-16 lg:w-20 lg:h-20 rounded-2xl bg-white text-primary text-[32px] lg:text-[40px] shadow-[0_6px_18px_rgba(23,105,210,0.15)]" aria-hidden="true">
-            <i class="bi bi-clipboard-check"></i>
-          </span>
-          <div>
-            <h2 id="home-cta" class="text-lg lg:text-xl font-semibold text-ink">Need a skilled worker?</h2>
-            <p class="mt-1 text-sm text-[#475569] leading-relaxed max-w-[440px]">
-              Post a job and get responses from professionals in your area.
-            </p>
-          </div>
-        </div>
-        <router-link to="/post-job" class="wm-btn wm-btn-primary wm-btn-lg !rounded-[12px] self-start sm:self-auto shrink-0 ml-20 sm:ml-0">
-          Post a Job
-        </router-link>
-      </div>
-    </section>
-
-    <!-- ============ How it works (website) ============ -->
-    <section class="hidden lg:block wm-container pt-10" aria-labelledby="home-how">
-      <h2 id="home-how" class="text-xl font-semibold text-ink">How WorkMate Works</h2>
-      <ol class="mt-4 grid grid-cols-3 gap-10">
-        <li v-for="(s, i) in steps" :key="s.title">
-          <span class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[#EFF6FF] text-primary text-[22px]" aria-hidden="true">
-            <i :class="['bi', s.icon]"></i>
-          </span>
-          <h3 class="mt-3 text-base font-semibold text-ink">{{ i + 1 }}. {{ s.title }}</h3>
-          <p class="mt-1 text-sm text-[#64748B] leading-relaxed">{{ s.text }}</p>
-        </li>
-      </ol>
-    </section>
-
-    <!-- ============ Client feedback (website) ============ -->
-    <section v-if="feedback.length" class="hidden lg:block wm-container pt-10 pb-12" aria-labelledby="home-feedback">
-      <h2 id="home-feedback" class="text-xl font-semibold text-ink">What Clients Say</h2>
-      <p v-if="feedback.some(f => f.isSample)" class="mt-1 text-[13px] text-[#64748B]">Includes sample feedback.</p>
-
-      <div class="mt-6 flex items-center gap-4">
-        <button type="button" class="wm-icon-btn wm-glass-card shrink-0" aria-label="Previous feedback" @click="go(-1)">
-          <i class="bi bi-chevron-left text-base" aria-hidden="true"></i>
-        </button>
-
-        <figure class="flex-1 flex items-start gap-5 wm-glass-card rounded-[14px] p-6" aria-live="polite">
-          <UserAvatar :name="current.clientName" :size="52" />
-          <div class="min-w-0">
-            <blockquote class="text-[15px] text-ink leading-relaxed">“{{ current.comment }}”</blockquote>
-            <figcaption class="mt-2 text-[13px] text-[#64748B]">
-              {{ current.clientName }}, {{ current.area }} · for
-              <router-link :to="`/provider/${current.providerId}`" class="wm-hit inline-block text-primary font-medium hover:underline">{{ current.providerName }}</router-link>
-            </figcaption>
-            <p class="mt-1.5 text-[#F59E0B] text-sm" role="img" :aria-label="`${current.rating} out of 5`">
-              <i v-for="n in 5" :key="n" :class="['bi', n <= current.rating ? 'bi-star-fill' : 'bi-star']" aria-hidden="true"></i>
-            </p>
-          </div>
-        </figure>
-
-        <button type="button" class="wm-icon-btn wm-glass-card shrink-0" aria-label="Next feedback" @click="go(1)">
-          <i class="bi bi-chevron-right text-base" aria-hidden="true"></i>
-        </button>
-      </div>
-
-      <div class="mt-3 flex justify-center" role="group" aria-label="Choose feedback">
-        <button
-          v-for="(f, i) in feedback"
-          :key="f.id"
-          type="button"
-          class="inline-flex items-center justify-center w-11 h-11"
-          :aria-label="`Show feedback ${i + 1} of ${feedback.length}`"
-          :aria-current="i === slide ? 'true' : undefined"
-          @click="slide = i"
-        >
-          <span class="block h-2 rounded-full transition-all" :class="i === slide ? 'w-5 bg-primary' : 'w-2 bg-[#CBD5E1]'"></span>
-        </button>
-      </div>
-    </section>
+    <!-- ============ Recent community posts (hidden until there are some) ============ -->
+    <HomeRecentPosts />
 
     <!-- Footer belongs to the website; the mobile app ends above the tab bar -->
     <AppFooter class="hidden lg:block" />
@@ -231,17 +98,15 @@
 import { ref, computed, nextTick } from 'vue';
 import ServiceSearchForm from '@/components/ServiceSearchForm.vue';
 import NearbySearchPanel from '@/components/NearbySearchPanel.vue';
-import UserAvatar from '@/components/UserAvatar.vue';
-import VerifiedBadge from '@/components/VerifiedBadge.vue';
-import AvailabilityBadge from '@/components/AvailabilityBadge.vue';
 import AppFooter from '@/components/AppFooter.vue';
 import HomeRecentPosts from '@/components/HomeRecentPosts.vue';
 import HomeRecentJobs from '@/components/HomeRecentJobs.vue';
-import { providers, providerReviews } from '@/stores/catalog.js';
+import HomeRecommendedWorkers from '@/components/HomeRecommendedWorkers.vue';
+import { providers } from '@/stores/catalog.js';
 import { startNearbySearch } from '@/stores/nearbySearch.js';
 import { auth } from '@/stores/auth.js';
 import { answeredHire } from '@/utils/getStarted.js';
-import { categoryIcon, categoryColor, displayName, tradeLabel, formatPrice, categoryLabel } from '@/utils/ui.js';
+import { categoryIcon, categoryColor, categoryLabel } from '@/utils/ui.js';
 
 // Nearby-first search runs in place; the radar and results show under the hero
 const searchPanel = ref(null);
@@ -278,27 +143,4 @@ const popular = [
   })),
   { id: 'more', label: 'More', icon: 'bi-grid', color: categoryColor(''), to: '/explore', count: null },
 ];
-
-const topRated = [...providers].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 4);
-
-function tintFor(p) {
-  return `linear-gradient(160deg, ${categoryColor(p.services[0]).bg}, #FFFFFF)`;
-}
-
-const steps = [
-  { icon: 'bi-search',           title: 'Search or Post', text: 'Find the right service, or post your job in a few minutes.' },
-  { icon: 'bi-chat-square-dots', title: 'Connect',        text: 'Message providers and agree on price and details.' },
-  { icon: 'bi-tools',            title: 'Get It Done',    text: 'Meet, check the work, and pay the provider directly.' },
-];
-
-// Client feedback from completed jobs (the same data shown on provider profiles)
-const feedback = providerReviews
-  .filter(r => r.rating === 5 && r.wouldHireAgain)
-  .slice(0, 5)
-  .map(r => ({ ...r, providerName: displayName(providers.find(p => p.id === r.providerId)) }));
-const slide = ref(0);
-const current = computed(() => feedback[slide.value]);
-function go(dir) {
-  slide.value = (slide.value + dir + feedback.length) % feedback.length;
-}
 </script>

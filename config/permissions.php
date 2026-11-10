@@ -43,6 +43,9 @@ return [
         'usage.view' => 'View aggregate app usage and installs',
         'activity.users' => 'View individual users’ activity and online presence',
         'legal.manage' => 'Draft, publish and export legal documents, and set the company facts they show',
+        'referrals.view' => 'View invitations, referral records and badges',
+        'referrals.manage' => 'Approve, reject or revoke referrals that need a decision',
+        'referrals.configure' => 'Change the invitation badges and their milestones',
         'admin.manage' => 'Manage admin users, roles and platform settings',
     ],
 
@@ -76,7 +79,7 @@ return [
         'trust_safety' => [
             'name' => 'Trust and Safety Moderator',
             'description' => 'Disputes, reports, restrictions and verification issues.',
-            'permissions' => ['dashboard.view', 'activity.view', 'marketplace.view', 'trust.view', 'content.view', 'documents.view', 'reputation.view', 'bluetick.override'],
+            'permissions' => ['dashboard.view', 'activity.view', 'marketplace.view', 'trust.view', 'content.view', 'documents.view', 'reputation.view', 'bluetick.override', 'referrals.view', 'referrals.manage'],
         ],
         'content' => [
             'name' => 'Content Moderator',
