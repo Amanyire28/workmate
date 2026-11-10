@@ -1,9 +1,15 @@
 <template>
-  <BottomSheet :open="open" :title="editing ? 'Edit work' : 'Add work'" @close="cancel">
+  <BottomSheet :open="open" :title="sheetTitle" @close="cancel">
     <form :id="formId" class="flex flex-col gap-4" novalidate @submit.prevent="submit">
+      <!-- A featured project: what it is, in one line -->
+      <p v-if="!editing && featured" class="flex items-start gap-2.5 rounded-xl bg-[#FFFBEB] px-3 py-2.5 text-[13.5px] text-[#92400E]">
+        <i class="bi bi-stars mt-0.5" aria-hidden="true"></i>
+        <span>One of your best jobs, shown first on your profile, with up to {{ maxPhotos }} photos. Before, during and after works well.</span>
+      </p>
+
       <!-- Photos first: they're what customers look at -->
       <div v-if="!editing">
-        <p class="wm-label">Photos <span class="font-normal text-muted">(up to {{ MAX_PHOTOS }})</span></p>
+        <p class="wm-label">Photos <span class="font-normal text-muted">(up to {{ maxPhotos }})</span></p>
         <ul class="grid grid-cols-4 gap-2">
           <li v-for="(p, i) in photos" :key="p.key" class="relative aspect-square overflow-hidden rounded-xl bg-[#E2E8F0]">
             <img :src="p.preview" alt="" class="h-full w-full object-cover" />
@@ -13,7 +19,7 @@
               <i class="bi bi-x-lg text-[12px]" aria-hidden="true"></i>
             </button>
           </li>
-          <li v-if="photos.length < MAX_PHOTOS">
+          <li v-if="photos.length < maxPhotos">
             <label :for="`${formId}-photos`"
               class="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-primary/30 bg-primary-tint text-primary hover:border-primary/60"
               :class="{ 'pointer-events-none opacity-60': busy }">
@@ -26,6 +32,15 @@
         <p class="wm-field-hint mt-1.5">Clear photos of the finished job work best. Before-and-after photos are great too.</p>
       </div>
       <p v-else class="wm-field-hint">Photos can’t be changed. To use different photos, delete this work and add it again.</p>
+
+      <!-- Editing: feature it at the top of the profile, or stop -->
+      <label v-if="editing && (item.featured || canFeatureItem)" class="flex items-start gap-3 rounded-xl bg-[#FFFBEB] p-3 cursor-pointer">
+        <input v-model="featuredOn" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-[#B45309]" />
+        <span>
+          <span class="block text-[14.5px] font-medium text-ink">Feature at the top of my profile</span>
+          <span class="block text-[13px] text-muted">Up to {{ MAX_FEATURED_PROJECTS }} featured projects. Unticked, it stays under Recent work.</span>
+        </span>
+      </label>
 
       <FormField v-model="title" label="What was the job?" required maxlength="120" placeholder="e.g. Fixed a leaking kitchen pipe" :error-message="errors.title" />
 
@@ -81,12 +96,18 @@ import { showFlash } from '@/stores/flash.js';
 import { preparePhoto } from '@/utils/photos.js';
 
 const MAX_PHOTOS = 4;
+const MAX_FEATURED_PHOTOS = 6;
+const MAX_FEATURED_PROJECTS = 3;
 const PHOTO_MB = 8;
 
 const props = defineProps({
   open: { type: Boolean, default: false },
   // Work of the provider's own to edit (details only)
   item: { type: Object, default: null },
+  // Adding a featured project (up to 6 photos) rather than everyday work (up to 4)
+  featured: { type: Boolean, default: false },
+  // Room for another featured project
+  canFeature: { type: Boolean, default: true },
 });
 const emit = defineEmits(['close', 'saved']);
 
@@ -107,6 +128,14 @@ const busy = ref(false);
 const progress = ref(0);
 let keys = 0;
 
+const featuredOn = ref(false);
+const maxPhotos = computed(() => (props.featured ? MAX_FEATURED_PHOTOS : MAX_PHOTOS));
+const canFeatureItem = computed(() => !!props.item && props.canFeature && props.item.status !== 'removed');
+const sheetTitle = computed(() => {
+  if (editing.value) return props.item.featured ? 'Edit project' : 'Edit work';
+  return props.featured ? 'Add a featured project' : 'Add work';
+});
+
 const preparing = computed(() => photos.value.some(p => p.preparing));
 const progressLabel = computed(() => (editing.value ? 'Saving…' : progress.value > 0 && progress.value < 1 ? `Uploading ${Math.round(progress.value * 100)}%` : 'Saving…'));
 
@@ -120,6 +149,7 @@ watch(() => props.open, (open) => {
     doneOn.value = props.item.done_on || '';
     area.value = props.item.area || '';
     description.value = props.item.description || '';
+    featuredOn.value = !!props.item.featured;
   }
 });
 
@@ -127,8 +157,8 @@ async function pickPhotos(e) {
   const chosen = [...e.target.files];
   e.target.value = '';
   error.value = '';
-  const room = MAX_PHOTOS - photos.value.length;
-  if (chosen.length > room) error.value = `You can add up to ${MAX_PHOTOS} photos. The first ${room} were added.`;
+  const room = maxPhotos.value - photos.value.length;
+  if (chosen.length > room) error.value = `You can add up to ${maxPhotos.value} photos. The first ${room} were added.`;
 
   for (const file of chosen.slice(0, room)) {
     if (!file.type.startsWith('image/')) { error.value = `${file.name} isn’t a photo.`; continue; }
@@ -168,7 +198,9 @@ function reset() {
 
 function cancel() {
   if (busy.value) return;
-  const unsaved = editing.value ? title.value !== props.item.title || description.value !== (props.item.description || '') : (title.value.trim() || photos.value.length);
+  const unsaved = editing.value
+    ? title.value !== props.item.title || description.value !== (props.item.description || '') || featuredOn.value !== !!props.item.featured
+    : (title.value.trim() || photos.value.length);
   if (unsaved && !window.confirm(editing.value ? 'Discard your changes?' : 'Discard this work?')) return;
   if (!editing.value) reset();
   emit('close');
@@ -188,9 +220,10 @@ async function submit() {
     if (editing.value) {
       const updated = (await api(`/me/provider/work/${props.item.id}`, { method: 'PATCH', body: {
         title: title.value.trim(), description: description.value.trim() || null, category: category.value || null, area: area.value || null, done_on: doneOn.value || null,
+        ...(featuredOn.value !== !!props.item.featured ? { featured: featuredOn.value } : {}),
       } })).data;
       emit('saved', updated, false);
-      showFlash('Work updated.');
+      showFlash(updated.featured === !!props.item.featured ? 'Saved.' : (updated.featured ? 'Now featured on your profile.' : 'Moved to Recent work.'));
     } else {
       const form = new FormData();
       form.append('title', title.value.trim());
@@ -199,10 +232,12 @@ async function submit() {
       if (area.value) form.append('area', area.value);
       if (doneOn.value) form.append('done_on', doneOn.value);
       if (share.value) form.append('share', '1');
+      if (props.featured) form.append('featured', '1');
       photos.value.forEach(p => form.append('photos[]', p.file, p.file.name || 'photo.jpg'));
       const res = await upload('/me/provider/work', form, { onProgress: (v) => { progress.value = v; } });
       emit('saved', res.data, true);
-      showFlash(res.share_error ? `Added to your profile. It couldn’t be shared in the Community: ${res.share_error}` : 'Added to your profile.');
+      const done = props.featured ? 'Featured on your profile.' : 'Added to your profile.';
+      showFlash(res.share_error ? `${done} It couldn’t be shared in the Community: ${res.share_error}` : done);
       reset();
     }
     emit('close');

@@ -36,6 +36,9 @@
           <p v-if="slide.item.status === 'removed'" class="mb-3 rounded-xl bg-[#7F1D1D]/60 px-3 py-2 text-[13px]">
             <i class="bi bi-eye-slash mr-1" aria-hidden="true"></i>Removed by WorkMate<template v-if="slide.item.removed_reason">: {{ slide.item.removed_reason }}</template>. Only you can see it.
           </p>
+          <p v-if="slide.item.featured" class="mb-1.5 inline-flex items-center gap-1 rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[12px] font-semibold text-[#92400E]">
+            <i class="bi bi-star-fill text-[10px]" aria-hidden="true"></i>Featured project · {{ slide.item.photos.length }} photos
+          </p>
           <h2 class="text-[18px] font-semibold leading-snug">{{ slide.item.title }}</h2>
           <p class="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[13.5px] text-white/70">
             <span v-if="slide.item.category_name" class="inline-flex items-center gap-1"><i class="bi bi-tools" aria-hidden="true"></i>{{ slide.item.category_name }}</span>

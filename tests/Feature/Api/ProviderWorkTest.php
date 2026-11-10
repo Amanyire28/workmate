@@ -101,6 +101,67 @@ class ProviderWorkTest extends ApiTestCase
         $this->assertSame(0, ProviderWorkItem::count());
     }
 
+    /* ---------------- Featured projects ---------------- */
+
+    public function test_a_featured_project_has_as_many_photos_as_the_provider_chooses_up_to_six()
+    {
+        $provider = $this->provider();
+        $this->signIn($provider->owner);
+
+        $this->add(['featured' => '1'], 0)->assertStatus(422)->assertJsonPath('errors.photos.0', 'Add at least one photo of the project.');
+        $this->add(['featured' => '1'], 7)->assertStatus(422)->assertJsonPath('errors.photos.0', 'Add up to 6 photos.');
+        // Ordinary work stays at four
+        $this->add([], 5)->assertStatus(422)->assertJsonPath('errors.photos.0', 'Add up to 4 photos.');
+        $this->assertSame(0, ProviderWorkItem::count());
+
+        // One photo is enough; six is the most
+        $this->add(['featured' => '1', 'title' => 'Gate for a school in Kira'], 1)->assertCreated()->assertJsonPath('data.featured', true);
+        $item = $this->add(['featured' => '1', 'share' => '1', 'title' => 'Full house plumbing in Kira'], 6)->assertCreated()
+            ->assertJsonPath('data.featured', true)->assertJsonPath('share_error', null)->json('data');
+        $this->assertCount(6, $item['photos']);
+        $this->assertSame(6, \App\Models\CommunityPostMedia::count());
+
+        // Customers see them marked as featured
+        $this->app['auth']->forgetGuards();
+        $this->getJson("/api/v1/providers/{$provider->id}/work")->assertJsonCount(2, 'data')->assertJsonPath('data.0.featured', true)->assertJsonPath('data.1.featured', true);
+    }
+
+    public function test_a_provider_features_up_to_three_projects()
+    {
+        $this->signIn($this->provider()->owner);
+
+        for ($i = 0; $i < 3; $i++) {
+            $this->add(['featured' => '1'], 2)->assertCreated();
+        }
+        $this->add(['featured' => '1'], 2)->assertStatus(422)->assertJsonPath('code', 'featured_limit');
+
+        // Stop featuring one: it stays as ordinary work, and there's room again
+        $first = ProviderWorkItem::first();
+        $this->patchJson("/api/v1/me/provider/work/{$first->uuid}", ['featured' => false])->assertOk()->assertJsonPath('data.featured', false);
+        $this->add(['featured' => '1'], 2)->assertCreated();
+        $this->assertSame(3, ProviderWorkItem::where('is_featured', true)->count());
+        $this->assertSame(1, AuditLog::where('action', 'provider.work_edited')->count());
+    }
+
+    public function test_any_of_their_work_can_be_featured_later()
+    {
+        $this->signIn($this->provider()->owner);
+        $single = $this->add([], 1)->assertCreated()->json('data.id');
+
+        $this->patchJson("/api/v1/me/provider/work/{$single}", ['featured' => true])->assertOk()->assertJsonPath('data.featured', true);
+        $this->assertTrue(ProviderWorkItem::first()->is_featured);
+    }
+
+    public function test_nobody_else_can_feature_a_providers_work()
+    {
+        $this->signIn($this->provider()->owner);
+        $item = $this->add([], 2)->assertCreated()->json('data.id');
+
+        $this->signIn($this->provider()->owner);
+        $this->patchJson("/api/v1/me/provider/work/{$item}", ['featured' => true])->assertNotFound();
+        $this->assertFalse(ProviderWorkItem::first()->is_featured);
+    }
+
     public function test_a_provider_can_show_up_to_thirty_jobs()
     {
         $provider = $this->provider();

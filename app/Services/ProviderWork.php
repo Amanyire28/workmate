@@ -51,6 +51,12 @@ class ProviderWork
         if ($profile->workItems()->count() >= ProviderWorkItem::MAX_ITEMS) {
             throw new BusinessRuleException('work_limit', 'You can show up to '.ProviderWorkItem::MAX_ITEMS.' jobs. Delete an older one to add this.', 422);
         }
+        $featured = ! empty($data['featured']);
+        if ($featured) {
+            $this->guardFeatured($profile, count($photos));
+        } elseif (count($photos) > ProviderWorkItem::MAX_PHOTOS) {
+            throw new BusinessRuleException('work_photos', 'Add up to '.ProviderWorkItem::MAX_PHOTOS.' photos, or make it a featured project for more.', 422);
+        }
 
         $stored = [];
         try {
@@ -59,15 +65,20 @@ class ProviderWork
             }
 
             $item = DB::transaction(function () use ($owner, $profile, $data, $stored) {
+                if (! empty($data['featured'])) {
+                    // Checked again under a lock, so two quick taps can't make a fourth
+                    ProviderProfile::whereKey($profile->id)->lockForUpdate()->first();
+                    $this->guardFeatured($profile, count($stored));
+                }
                 $item = new ProviderWorkItem();
-                $item->forceFill(['uuid' => (string) Str::uuid(), 'provider_profile_id' => $profile->id] + $this->details($data, $profile))->save();
+                $item->forceFill(['uuid' => (string) Str::uuid(), 'provider_profile_id' => $profile->id, 'is_featured' => ! empty($data['featured'])] + $this->details($data, $profile))->save();
 
                 foreach ($stored as $i => $file) {
                     $photo = new ProviderWorkPhoto();
                     $photo->forceFill($file + ['provider_work_item_id' => $item->id, 'position' => $i])->save();
                 }
 
-                $this->audit->record('provider.work_added', $item, [], ['title' => $item->title, 'photos' => count($stored)], null, $owner);
+                $this->audit->record('provider.work_added', $item, [], ['title' => $item->title, 'photos' => count($stored), 'featured' => $item->is_featured], null, $owner);
 
                 return $item;
             });
@@ -91,7 +102,7 @@ class ProviderWork
             'category' => 'my_work',
             'body' => trim($item->title."\n\n".($item->description ?? '')),
             'topic' => $item->category ? $item->category->slug : null,
-        ], $photos);
+        ], array_slice($photos, 0, CommunityPost::MAX_PHOTOS));
         $item->forceFill(['community_post_id' => $post->id])->save();
     }
 
@@ -105,9 +116,20 @@ class ProviderWork
         }
 
         return DB::transaction(function () use ($owner, $profile, $item, $data) {
-            $before = $item->only(['title', 'description', 'category_id', 'area_id', 'done_on']);
-            $item->forceFill($this->details($data, $profile, $item))->save();
-            $this->audit->record('provider.work_edited', $item, $before, $item->only(['title', 'description', 'category_id', 'area_id', 'done_on']), null, $owner);
+            $fields = ['title', 'description', 'category_id', 'area_id', 'done_on', 'is_featured'];
+            $before = $item->only($fields);
+            $changes = $this->details($data, $profile, $item);
+            if (array_key_exists('featured', $data)) {
+                $featured = (bool) $data['featured'];
+                if ($featured && ! $item->is_featured) {
+                    // One at a time per provider, so two taps can't make a fourth
+                    ProviderProfile::whereKey($profile->id)->lockForUpdate()->first();
+                    $this->guardFeatured($profile, $item->photos()->count());
+                }
+                $changes['is_featured'] = $featured;
+            }
+            $item->forceFill($changes)->save();
+            $this->audit->record('provider.work_edited', $item, $before, $item->only($fields), null, $owner);
 
             return $item;
         });
@@ -125,6 +147,17 @@ class ProviderWork
             $item->delete();
             $this->audit->record('provider.work_deleted', $item, [], ['title' => $item->title], null, $owner);
         });
+    }
+
+    /** A featured project has up to six photos (the provider chooses how many), and a provider features up to three */
+    private function guardFeatured(ProviderProfile $profile, int $photos): void
+    {
+        if ($photos > ProviderWorkItem::FEATURED_MAX_PHOTOS) {
+            throw new BusinessRuleException('featured_photos', 'A featured project can have up to '.ProviderWorkItem::FEATURED_MAX_PHOTOS.' photos.', 422);
+        }
+        if ($profile->workItems()->where('is_featured', true)->count() >= ProviderWorkItem::MAX_FEATURED) {
+            throw new BusinessRuleException('featured_limit', 'You can feature up to '.ProviderWorkItem::MAX_FEATURED.' projects. Stop featuring one first.', 422);
+        }
     }
 
     /* ---------------- Moderation ---------------- */
@@ -174,6 +207,7 @@ class ProviderWork
             'area' => $item->area ? $item->area->slug : null,
             'area_name' => $item->area ? $item->area->name : null,
             'done_on' => $item->done_on ? $item->done_on->format('Y-m') : null,
+            'featured' => (bool) $item->is_featured,
             'photos' => $item->photos->map(function (ProviderWorkPhoto $p) {
                 return ['url' => $p->url(), 'thumb_url' => $p->url(true), 'width' => $p->width, 'height' => $p->height];
             })->values()->all(),

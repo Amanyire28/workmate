@@ -42,11 +42,13 @@ class ProviderWorkController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        // 1 to 6 photos for a featured project, 1 to 4 for other work; the provider picks how many
+        $featured = $request->boolean('featured');
         $data = $request->validate($this->rules() + [
             'share' => ['nullable', 'boolean'],
-            'photos' => ['required', 'array', 'min:1', 'max:'.ProviderWorkItem::MAX_PHOTOS],
+            'photos' => ['required', 'array', 'min:1', 'max:'.($featured ? ProviderWorkItem::FEATURED_MAX_PHOTOS : ProviderWorkItem::MAX_PHOTOS)],
             'photos.*' => ['file', 'mimes:jpg,jpeg,png,webp', 'max:8192'],
-        ], $this->messages());
+        ], $this->messages($featured));
 
         $photos = $request->file('photos', []);
         $item = $this->work->add($request->user(), $data, $photos);
@@ -123,12 +125,21 @@ class ProviderWorkController extends Controller
             'category' => ['nullable', 'string', Rule::exists('categories', 'slug')->where('is_active', true)],
             'area' => ['nullable', 'string', Rule::exists('areas', 'slug')->where('is_active', true)],
             'done_on' => ['nullable', 'date_format:Y-m', 'before_or_equal:'.now()->format('Y-m')],
+            'featured' => ['nullable', 'boolean'],
         ];
     }
 
-    private function messages(): array
+    private function messages(bool $featured = false): array
     {
-        return [
+        $photos = $featured
+            ? [
+                'photos.required' => 'Add at least one photo of the project.',
+                'photos.min' => 'Add at least one photo of the project.',
+                'photos.max' => 'Add up to '.ProviderWorkItem::FEATURED_MAX_PHOTOS.' photos.',
+            ]
+            : [];
+
+        return $photos + [
             'title.required' => 'Say what the job was.',
             'title.max' => 'Keep the title under 120 characters.',
             'description.max' => 'Keep the description under 500 characters.',
