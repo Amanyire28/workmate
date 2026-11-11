@@ -46,6 +46,8 @@
     <RateProviderDialog />
     <PushReminder />
     <LocationIntro v-if="!isAdmin" />
+    <!-- "What's New": mounted once for the whole app (it waits on admin pages, chats and dialogs) -->
+    <WhatsNew />
     <LegalGate />
   </template>
 </template>
@@ -60,6 +62,7 @@ import RateProviderDialog from '@/components/RateProviderDialog.vue';
 import PushReminder from '@/components/PushReminder.vue';
 import LocationIntro from '@/components/LocationIntro.vue';
 import EmailVerifyReminder from '@/components/EmailVerifyReminder.vue';
+import WhatsNew from '@/components/WhatsNew.vue';
 import LegalGate from '@/components/LegalGate.vue';
 import { catalog, loadCatalog, appSettings, refreshSettings } from '@/stores/catalog.js';
 import { startPresence } from '@/stores/presence.js';

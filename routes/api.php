@@ -46,6 +46,7 @@ use App\Http\Controllers\Api\V1\SavedProviderController;
 use App\Http\Controllers\Api\V1\VerificationController;
 use App\Http\Controllers\Api\V1\ProfilePhotoController;
 use App\Http\Controllers\Api\V1\ProviderCoverController;
+use App\Http\Controllers\Api\V1\AnnouncementController;
 use App\Http\Controllers\Api\V1\ProviderScheduleController;
 use App\Http\Controllers\Api\V1\ProviderServiceController;
 use App\Http\Controllers\Api\V1\ProviderWorkController;
@@ -87,6 +88,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         ->name('covers.show');
     Route::get('areas', [DirectoryController::class, 'areas'])->name('areas.index');
     Route::get('settings', [DirectoryController::class, 'settings'])->name('settings.public');
+    // "What's New": the release announcement, if one is switched on
+    Route::get('announcements/current', [AnnouncementController::class, 'current'])->name('announcements.current');
     Route::middleware('throttle:place-search')->group(function () {
         Route::get('areas/search', [DirectoryController::class, 'searchAreas'])->name('areas.search');
         Route::get('areas/nearest', [DirectoryController::class, 'nearestArea'])->name('areas.nearest');
@@ -155,6 +158,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // The provider's own services and prices
         Route::get('me/provider/services', [ProviderServiceController::class, 'mine'])->name('me.provider.services');
         Route::get('me/provider/schedule', [ProviderScheduleController::class, 'show'])->name('me.provider.schedule');
+        // Seen a release announcement (once per person; on every device)
+        Route::post('me/announcements/{announcement}/acknowledge', [AnnouncementController::class, 'acknowledge'])
+            ->where('announcement', '[a-z0-9-]{1,80}')->middleware('throttle:marketplace-write')->name('me.announcements.acknowledge');
         Route::middleware('throttle:marketplace-write')->group(function () {
             Route::post('me/provider/services', [ProviderServiceController::class, 'store'])->name('me.provider.services.store');
             Route::post('me/provider/services/order', [ProviderServiceController::class, 'reorder'])->name('me.provider.services.order');
