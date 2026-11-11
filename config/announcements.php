@@ -29,7 +29,7 @@ return [
         // everyone | signed_in | guests
         'audience' => 'everyone',
         // How long the small card stays before it goes by itself (it counts as seen)
-        'display_seconds' => 10,
+        'display_seconds' => 20,
         // Wait this long after the app is ready before showing it
         'delay_seconds' => 2,
 

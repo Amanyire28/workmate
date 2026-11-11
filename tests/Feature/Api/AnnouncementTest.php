@@ -25,7 +25,7 @@ class AnnouncementTest extends ApiTestCase
         $this->getJson('/api/v1/announcements/current')->assertOk()
             ->assertJsonPath('data.id', self::ID)
             ->assertJsonPath('data.title', 'Finding and booking services just got easier!')
-            ->assertJsonPath('data.display_seconds', 10)
+            ->assertJsonPath('data.display_seconds', 20)
             ->assertJsonPath('data.delay_seconds', 2)
             ->assertJsonCount(6, 'data.items')
             ->assertJsonPath('data.acknowledged', false);
