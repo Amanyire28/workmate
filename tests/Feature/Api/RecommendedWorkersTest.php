@@ -68,6 +68,31 @@ class RecommendedWorkersTest extends ApiTestCase
         $this->assertNotContains($far->id, $data['ids']);
     }
 
+    public function test_the_current_location_is_measured_from_where_the_person_is()
+    {
+        $entebbe = collect(range(1, 4))->map(function () {
+            return $this->provider('entebbe')->id;
+        });
+        $ntinda = $this->provider('ntinda')->id;
+
+        // In Entebbe without a named place: Entebbe workers are within 5 km of them
+        $data = $this->recommended(['latitude' => 0.05, 'longitude' => 32.46]);
+        $this->assertSame('5km', $data['reach']);
+        $this->assertEqualsCanonicalizing($entebbe->all(), $data['ids']);
+        $this->assertNotContains($ntinda, $data['ids']);
+
+        // The same place name, but the person is in Entebbe: measured from them, not the place's centre
+        $this->app['cache']->flush();
+        $data = $this->recommended(['area' => 'kampala-central', 'latitude' => 0.05, 'longitude' => 32.46]);
+        $this->assertEqualsCanonicalizing($entebbe->all(), $data['ids']);
+    }
+
+    public function test_a_position_must_be_complete_and_in_uganda()
+    {
+        $this->getJson('/api/v1/providers/recommended?latitude=0.35')->assertStatus(422)->assertJsonValidationErrors('longitude');
+        $this->getJson('/api/v1/providers/recommended?latitude=51.5&longitude=0')->assertStatus(422);
+    }
+
     public function test_the_search_widens_step_by_step_when_few_are_close()
     {
         $bukoto = [$this->provider('bukoto')->id, $this->provider('kololo')->id];

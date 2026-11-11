@@ -27,7 +27,7 @@
         <i class="bi bi-info-circle" aria-hidden="true"></i>
         <span>
           No {{ result.people }} found within {{ SEARCH_CONFIG.nearbyKm }} km yet.
-          Showing the closest matches around {{ origin.town || 'you' }}<template v-if="hasServing">, including people who travel to {{ origin.area?.name || 'your area' }}</template>.
+          Showing the closest matches around {{ origin.town || 'you' }}<template v-if="hasServing">, including people who travel to {{ originPlaceName(origin) }}</template>.
         </span>
       </p>
 
@@ -80,7 +80,7 @@
 import { computed, useId } from 'vue';
 import ProviderResultCard from './ProviderResultCard.vue';
 import EmptyState from './EmptyState.vue';
-import { SEARCH_CONFIG, visibleGroups, searchHeading } from '@/utils/nearbySearch.js';
+import { SEARCH_CONFIG, visibleGroups, searchHeading, originPlaceName } from '@/utils/nearbySearch.js';
 import { openLocationSheet, chooseSearchArea } from '@/stores/location.js';
 
 const props = defineProps({
@@ -109,7 +109,7 @@ function groupHeading(tier) {
   const people = props.result.people;
   if (tier === 'nearby')   return o.kind === 'gps' ? 'Closest to you' : `Closest to ${o.name}`;
   if (tier === 'extended') return `More ${people} around ${o.town || 'you'}`;
-  return o.kind === 'gps' && !o.area ? 'Providers serving your area' : `Providers serving ${o.area.name}`;
+  return `Providers serving ${originPlaceName(o)}`;
 }
 
 const browseLink = computed(() => {

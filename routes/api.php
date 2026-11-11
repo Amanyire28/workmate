@@ -88,6 +88,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::middleware('throttle:place-search')->group(function () {
         Route::get('areas/search', [DirectoryController::class, 'searchAreas'])->name('areas.search');
         Route::get('areas/nearest', [DirectoryController::class, 'nearestArea'])->name('areas.nearest');
+        // The app's way: the position travels in the body, not the address
+        Route::post('areas/nearest', [DirectoryController::class, 'nearestArea'])->name('areas.nearest.lookup');
     });
     Route::get('providers', [DirectoryController::class, 'providers'])->name('providers.index');
     Route::get('providers/recommended', [DirectoryController::class, 'recommended'])->middleware('throttle:place-search')->name('providers.recommended');

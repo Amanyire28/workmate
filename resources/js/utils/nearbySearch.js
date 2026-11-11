@@ -10,6 +10,7 @@ import { getSearchLocation, searchLocations, locationLabel } from '@/data/search
 import { categoriesMatching } from './search.js';
 import { displayName, tradeLabel } from './ui.js';
 import { preferMainSkill } from './recommend.js';
+import { placeConfidence } from './gpsQuality.js';
 
 /**
  * Search settings. Administrators change them in Admin → Settings → Matching;
@@ -93,26 +94,35 @@ export function formatKm(km) {
  */
 export function resolveOrigin(state) {
     if (state?.kind === 'gps') {
-        // The nearest place the server named, else the nearest known one,
-        // so "serves your area" can still be checked
+        // The nearest place the server named, else the nearest known one
         let area = getSearchLocation(state.areaId);
+        let km = area ? (state.placeDistanceKm ?? (hasCoords(area) ? haversineKm(state, area) : null)) : null;
         if (!area) {
             let best = Infinity;
             for (const loc of searchLocations) {
-                if (loc.wholeTown) continue;
+                if (loc.wholeTown || !hasCoords(loc)) continue;
                 const d = haversineKm(state, loc);
                 if (d < best) { best = d; area = loc; }
             }
-            if (best > SEARCH_CONFIG.gpsAreaMatchKm) area = null;
+            km = area ? best : null;
         }
+        // How sure we can be, from the place's distance and the reading's accuracy:
+        // never a neighbourhood name the reading can't support
+        const confidence = placeConfidence(km, state.accuracy, SEARCH_CONFIG.gpsAreaMatchKm);
+        if (confidence === 'none') area = null;
+        const place = { confidence, name: area?.name || '', wider: area ? (area.district || area.town || '') : '' };
         return {
             kind: 'gps',
             latitude: state.latitude,
             longitude: state.longitude,
+            accuracy: state.accuracy,
+            // Still used to find providers who serve or are based in the same town
             area,
             town: area?.town || null,
+            place,
             name: 'you',
-            label: area ? `near ${area.name}` : 'your location',
+            label: confidence === 'near' || confidence === 'around' ? `near ${area.name}`
+                : confidence === 'broad' && place.wider ? `in the ${place.wider} area` : 'your location',
         };
     }
     const area = getSearchLocation(state?.areaId) || getSearchLocation(appSettings.defaultArea) || getSearchLocation('kampala') || searchLocations[0];
@@ -125,6 +135,16 @@ export function resolveOrigin(state) {
         name: area.wholeTown ? `central ${area.name}` : area.name,
         label: locationLabel(area),
     };
+}
+
+/**
+ * The origin's place for wording like "providers who travel to …": the place
+ * itself, or only the wider area when the current location can't name it surely
+ */
+export function originPlaceName(origin, fallback = 'your area') {
+    if (!origin?.area) return fallback;
+    if (origin.kind === 'gps' && origin.place?.confidence === 'broad') return origin.place.wider ? `the ${origin.place.wider} area` : fallback;
+    return origin.area.name;
 }
 
 /** Whether the provider lists the origin's area (or its whole town) in their coverage */
@@ -229,7 +249,10 @@ export function visibleGroups(result, showWider = false) {
 export function searchHeading(result) {
     const who = result.serviceIds.length === 1 ? capitalise(result.people) : `Professionals for “${result.query}”`;
     if (result.origin.kind === 'gps') {
-        return result.origin.area ? `${who} near you, around ${result.origin.area.name}` : `${who} near you`;
+        const p = result.origin.place || {};
+        if (p.confidence === 'near' || p.confidence === 'around') return `${who} near you, around ${p.name}`;
+        if (p.confidence === 'broad' && p.wider) return `${who} near you, in the ${p.wider} area`;
+        return `${who} near you`;
     }
     return `${who} near ${result.origin.label}`;
 }

@@ -43,6 +43,37 @@ class PlaceSearchTest extends ApiTestCase
         $this->getJson('/api/v1/areas/nearest?latitude=51.5&longitude=0')->assertStatus(422);
     }
 
+    public function test_the_app_names_a_position_by_post_with_how_far_the_place_is()
+    {
+        // By POST, so the position stays out of addresses and server logs
+        $data = $this->postJson('/api/v1/areas/nearest', ['latitude' => 0.3725, 'longitude' => 32.5960])->assertOk()->json('data');
+        $this->assertSame('kisaasi', $data['slug']);
+        $this->assertIsFloat($data['distance_km'] + 0.0);
+        $this->assertLessThan(1.5, $data['distance_km']);
+        $this->postJson('/api/v1/areas/nearest', ['latitude' => 51.5, 'longitude' => 0])->assertStatus(422);
+        $this->postJson('/api/v1/areas/nearest', [])->assertStatus(422)->assertJsonValidationErrors(['latitude', 'longitude']);
+    }
+
+    public function test_nothing_is_named_when_no_place_is_close_enough()
+    {
+        // The middle of Lake Victoria: the nearest place is over 70 km away
+        $this->postJson('/api/v1/areas/nearest', ['latitude' => -1.0, 'longitude' => 32.9])->assertOk()->assertExactJson(['data' => null]);
+    }
+
+    public function test_a_quick_pick_no_longer_wins_over_a_closer_place()
+    {
+        // At Kigowa, 0.8 km from the Kisaasi quick pick: Kigowa is named, not Kisaasi
+        $this->postJson('/api/v1/areas/nearest', ['latitude' => 0.36324, 'longitude' => 32.60682])->assertOk()
+            ->assertJsonPath('data.name', 'Kigowa')->assertJsonPath('data.distance_km', 0);
+    }
+
+    public function test_a_division_doesnt_override_a_specific_place_close_by()
+    {
+        // Between the Kawempe division point and Jinja (Wakiso), a little nearer Kawempe's point
+        $name = $this->postJson('/api/v1/areas/nearest', ['latitude' => 0.381388, 'longitude' => 32.556736])->assertOk()->json('data.name');
+        $this->assertNotSame('Kawempe', $name);
+    }
+
     public function test_the_catalog_sends_quick_picks_and_places_in_use_not_every_place()
     {
         $owner = User::factory()->create();

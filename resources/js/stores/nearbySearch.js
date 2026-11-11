@@ -59,16 +59,15 @@ export async function startNearbySearch(query) {
     await sleep(TIMING.init);
     if (id !== run) return;
 
-    // Refresh a shared position only if it is old; a picked area needs no location check
+    // Refresh a shared position only if it is old; a picked area needs no location check.
+    // If the refresh fails, search from what's left (the recent reading, or a place) rather than stopping.
     let originState = searchOrigin.value;
     if (originState.kind === 'gps' && Date.now() - originState.timestamp > gpsMaxAgeMs()) {
         nearbySearch.stage = 'locating';
         try {
-            originState = await requestDeviceLocation();
-        } catch (err) {
-            if (id !== run) return;
-            Object.assign(nearbySearch, { status: 'error', stage: null, error: { code: err.code, message: err.message } });
-            return;
+            originState = await requestDeviceLocation({ quiet: true });
+        } catch {
+            originState = searchOrigin.value;
         }
         if (id !== run) return;
     }
@@ -117,9 +116,30 @@ export function retryNearbySearch() {
     if (nearbySearch.query) startNearbySearch(nearbySearch.query);
 }
 
-// Changing the location after a search re-runs it for the new area, no need to start over.
+/**
+ * What the results depend on: a picked place, or the current location's
+ * position (a new fix only when they've really moved) and named place.
+ * Newer readings of the same spot don't change it.
+ */
+function originKey(o) {
+    return o.kind === 'gps' ? `gps:${o.fixId}:${o.areaId || ''}` : `area:${o.areaId}`;
+}
+
+/** Results for where they are now, quietly: no radar replay, no messages */
+function refreshResults() {
+    if (!nearbySearch.query) return;
+    const result = searchNearby(nearbySearch.query, resolveOrigin(searchOrigin.value));
+    nearbySearch.result = result;
+    nearbySearch.found = [...result.groups.nearby, ...result.groups.extended, ...result.groups.serving].map(i => i.provider.id);
+}
+
+// Changing the location after a search updates it for the new place, no need to start over.
 // Sync, so origin changes made by a running search (GPS refresh or fallback) are seen as such.
-watch(searchOrigin, () => {
+watch(() => originKey(searchOrigin.value), (key, before) => {
+    if (key === before) return;
     const settled = nearbySearch.status === 'done' || nearbySearch.status === 'error';
-    if (settled && nearbySearch.query) startNearbySearch(nearbySearch.query);
+    if (!settled || !nearbySearch.query) return;
+    // They moved (or their place was named): update quietly. A place they picked: search again.
+    if (nearbySearch.status === 'done' && searchOrigin.value.kind === 'gps' && key.split(':')[0] === before?.split(':')[0]) refreshResults();
+    else startNearbySearch(nearbySearch.query);
 }, { flush: 'sync' });

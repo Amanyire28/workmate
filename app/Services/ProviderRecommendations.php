@@ -46,18 +46,22 @@ class ProviderRecommendations
     /**
      * @param  Area|null  $origin   the place, if one was given or found
      * @param  string|null  $category  a service category slug the person cares about
+     * @param  array{latitude: float, longitude: float}|null  $point  the person's current
+     *         location (about 1 km precision): distances are measured from it, like the
+     *         nearby search, instead of from the place's centre
      * @return array{reach: string, category_matched: bool, ids: int[]}
      */
-    public function recommend(?Area $origin, ?string $category = null): array
+    public function recommend(?Area $origin, ?string $category = null, ?array $point = null): array
     {
-        $key = 'recommended:'.($origin ? $origin->id : 'none').':'.($category ?: '-').':'.now()->toDateString();
+        $at = $point ? $point['latitude'].','.$point['longitude'] : '-';
+        $key = 'recommended:'.($origin ? $origin->id : 'none').':'.$at.':'.($category ?: '-').':'.now()->toDateString();
 
-        return Cache::remember($key, now()->addMinutes(5), function () use ($origin, $category) {
-            return $this->rank($origin, $category);
+        return Cache::remember($key, now()->addMinutes(5), function () use ($origin, $category, $point) {
+            return $this->rank($origin, $category, $point);
         });
     }
 
-    private function rank(?Area $origin, ?string $category): array
+    private function rank(?Area $origin, ?string $category, ?array $point = null): array
     {
         $providers = $this->eligible();
 
@@ -76,8 +80,8 @@ class ProviderRecommendations
         }
 
         // How far each provider is from the place, as a reach step
-        $steps = $providers->mapWithKeys(function (ProviderProfile $p) use ($origin) {
-            return [$p->id => $origin ? $this->step($p, $origin) : count(self::REACHES) - 1];
+        $steps = $providers->mapWithKeys(function (ProviderProfile $p) use ($origin, $point) {
+            return [$p->id => $origin || $point ? $this->step($p, $origin, $point) : count(self::REACHES) - 1];
         });
 
         // Widen until there are enough
@@ -130,14 +134,18 @@ class ProviderRecommendations
         return $query->get();
     }
 
-    /** 0 = in or serving the place, 1 = within 5 km, 2 = within 15 km, 3 = same town or district, 4 = further */
-    private function step(ProviderProfile $p, Area $origin): int
+    /**
+     * 0 = in or serving the place, 1 = within 5 km, 2 = within 15 km, 3 = same town or district, 4 = further.
+     * Distances are from the person's current location when given, else from the place's centre.
+     */
+    private function step(ProviderProfile $p, ?Area $origin, ?array $point = null): int
     {
-        if ($p->base_area_id === $origin->id || $p->serviceAreas->contains('id', $origin->id)) {
+        if ($origin && ($p->base_area_id === $origin->id || $p->serviceAreas->contains('id', $origin->id))) {
             return 0;
         }
-        if ($p->latitude !== null && $origin->latitude !== null) {
-            $km = Area::distanceKm((float) $origin->latitude, (float) $origin->longitude, $p->latitude, $p->longitude);
+        $from = $point ?: ($origin && $origin->latitude !== null ? ['latitude' => (float) $origin->latitude, 'longitude' => (float) $origin->longitude] : null);
+        if ($p->latitude !== null && $from) {
+            $km = Area::distanceKm($from['latitude'], $from['longitude'], $p->latitude, $p->longitude);
             if ($km <= 5) {
                 return 1;
             }
@@ -146,7 +154,7 @@ class ProviderRecommendations
             }
         }
         $base = $p->baseArea;
-        if ($base && (($origin->town && $base->town === $origin->town) || ($origin->district && $base->district === $origin->district))) {
+        if ($origin && $base && (($origin->town && $base->town === $origin->town) || ($origin->district && $base->district === $origin->district))) {
             return 3;
         }
 

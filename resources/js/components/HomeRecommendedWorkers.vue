@@ -36,16 +36,23 @@ import { ref, computed, watch } from 'vue';
 import ProviderCard from './ProviderCard.vue';
 import { api } from '@/api/client.js';
 import { providers, catalog, appSettings } from '@/stores/catalog.js';
-import { searchOrigin, originChosen, openLocationSheet, gpsPlaceName } from '@/stores/location.js';
-import { resolveOrigin } from '@/utils/nearbySearch.js';
+import { searchOrigin, originChosen, openLocationSheet, gpsPlaceName, currentAreaId } from '@/stores/location.js';
 import { nearbySearch } from '@/stores/nearbySearch.js';
 import { getSearchLocation } from '@/data/searchLocations.js';
+import { capitalise } from '@/utils/nearbySearch.js';
 
 const status = ref('loading');   // loading | ready | error | empty
 const result = ref(null);
 
-// Current location: the place it's in or near, even before the server has named it
-const areaId = computed(() => (searchOrigin.value.kind === 'gps' ? resolveOrigin(searchOrigin.value).area?.id : searchOrigin.value.areaId) || appSettings.defaultArea || '');
+const gpsOn = computed(() => searchOrigin.value.kind === 'gps');
+// Current location: its place only when it can be named surely; a picked place; else the default town
+const areaId = computed(() => (gpsOn.value ? currentAreaId.value : searchOrigin.value.areaId) || (gpsOn.value ? '' : appSettings.defaultArea) || '');
+// Current location: measured from where they are, like the nearby search. Rounded to
+// about 1 km: enough to rank by, and it keeps their exact position out of the request.
+const point = computed(() => (gpsOn.value
+  ? { latitude: searchOrigin.value.latitude.toFixed(2), longitude: searchOrigin.value.longitude.toFixed(2) }
+  : null));
+const pointKey = computed(() => (point.value ? `${point.value.latitude},${point.value.longitude}` : ''));
 // A service they searched for counts as what they're looking for
 const category = computed(() => nearbySearch.result?.serviceIds?.[0] || '');
 
@@ -62,16 +69,18 @@ const heading = computed(() => {
   if (!originChosen.value) {
     return { title: 'Discover workers', note: placeName.value ? `Around ${placeName.value}.` : '' };
   }
-  const gpsOn = searchOrigin.value.kind === 'gps';
-  const near = gpsOn ? 'near you' : `near ${placeName.value}`;
-  // Current location: say which place that is
-  if (close) return { title: `Recommended workers ${near}`, note: gpsOn && gpsPlaceName.value ? `Around ${gpsPlaceName.value}, where you are now.` : '' };
+  const near = gpsOn.value ? 'near you' : `near ${placeName.value}`;
+  // Current location: say which place that is, only as surely as the reading allows
+  if (close) return { title: `Recommended workers ${near}`, note: gpsOn.value && gpsPlaceName.value ? `${capitalise(gpsPlaceName.value)}, where you are now.` : '' };
   const town = result.value?.area?.town;
   return {
     title: 'Recommended workers',
-    note: reach === 'town' && town ? `Nobody close to ${placeName.value} yet, so these are from across ${town}.` : `Nobody close to ${placeName.value} yet, so these are from across WorkMate.`,
+    note: reach === 'town' && town ? `Nobody close to ${whereText.value} yet, so these are from across ${town}.` : `Nobody close to ${whereText.value} yet, so these are from across WorkMate.`,
   };
 });
+
+// "you" for the current location, else the place
+const whereText = computed(() => (gpsOn.value ? 'you' : placeName.value));
 
 const seeAll = computed(() => ({ path: '/browse', query: category.value ? { category: category.value } : {} }));
 
@@ -82,6 +91,7 @@ async function load() {
   try {
     const q = new URLSearchParams();
     if (areaId.value) q.set('area', areaId.value);
+    if (point.value) { q.set('latitude', point.value.latitude); q.set('longitude', point.value.longitude); }
     if (category.value) q.set('category', category.value);
     const data = (await api(`/providers/recommended?${q}`)).data;
     if (id !== request) return;
@@ -93,7 +103,7 @@ async function load() {
 }
 
 // Again when the place or the service changes, once the providers have loaded
-watch([areaId, category, () => catalog.status], () => {
+watch([areaId, pointKey, category, () => catalog.status], () => {
   if (catalog.status === 'ready') load();
 }, { immediate: true });
 </script>

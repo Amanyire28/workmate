@@ -152,7 +152,7 @@ import PrimaryButton from '@/components/PrimaryButton.vue';
 import { providers } from '@/stores/catalog.js';
 import PlacePicker from '@/components/PlacePicker.vue';
 import { displayName, tradeLabel, categoryLabel } from '@/utils/ui.js';
-import { selectedArea } from '@/stores/location.js';
+import { selectedArea, currentAreaId } from '@/stores/location.js';
 import { upload, fieldErrors } from '@/api/client.js';
 import { focusFirstError } from '@/utils/forms.js';
 import { formWithPhotos, newClientToken, releasePhotos } from '@/utils/photos.js';
@@ -166,7 +166,8 @@ const whenOptions = ['As soon as possible', 'This week', 'Next week', 'I’m fle
 const form = reactive({
   service: provider.value?.services.length === 1 ? provider.value.services[0] : '',
   details: '',
-  area:    selectedArea.value,
+  // Where the work is: starts from their picked place or where they are now; theirs to change
+  area:    selectedArea.value || currentAreaId.value,
   when:    '',
   budget:  '',
 });

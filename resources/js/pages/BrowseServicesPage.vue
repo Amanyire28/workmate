@@ -108,7 +108,7 @@ import { categoryIcon, categoryLabel, displayName, tradeLabel } from '@/utils/ui
 import { recommendProviders, preferMainSkill } from '@/utils/recommend.js';
 import { categoriesMatching } from '@/utils/search.js';
 import { tickInfo } from '@/utils/trust.js';
-import { selectedArea } from '@/stores/location.js';
+import { selectedArea, currentAreaId } from '@/stores/location.js';
 import { isNearPlace } from '@/utils/nearbySearch.js';
 import { getSearchLocation, findSearchLocationByName } from '@/data/searchLocations.js';
 
@@ -191,6 +191,6 @@ const results = computed(() => {
   if (f.sort === 'rating') return [...list].sort((a, b) => (b.rating || 0) - (a.rating || 0));
   if (f.sort === 'price')  return [...list].sort((a, b) => (a.priceFrom ?? Infinity) - (b.priceFrom ?? Infinity));
   // Default order: providers in the user's area first, then by rating
-  return recommendProviders(list, f.area || selectedArea.value);
+  return recommendProviders(list, f.area || selectedArea.value || currentAreaId.value);
 });
 </script>

@@ -12,6 +12,9 @@ import { auth } from '@/stores/auth.js';
  */
 export const legal = reactive({ documents: [], loaded: false, error: '' });
 
+// Whether the welcome and terms screen is open, so nothing else asks for attention at the same time
+export const legalGate = reactive({ open: false });
+
 const WELCOME_KEY = 'wm-welcome';
 const PERMISSIONS_KEY = 'wm-permissions-asked';
 

@@ -77,7 +77,7 @@ import NearbyProviderResults from './NearbyProviderResults.vue';
 import EmptyState from './EmptyState.vue';
 import { nearbySearch, STAGES, cancelNearbySearch, retryNearbySearch } from '@/stores/nearbySearch.js';
 import { openLocationSheet } from '@/stores/location.js';
-import { SEARCH_CONFIG, radarPosition, radarFraction, searchHeading, visibleGroups, capitalise } from '@/utils/nearbySearch.js';
+import { SEARCH_CONFIG, radarPosition, radarFraction, searchHeading, visibleGroups, capitalise, originPlaceName } from '@/utils/nearbySearch.js';
 import { displayName, initials } from '@/utils/ui.js';
 
 const el = ref(null);
@@ -107,9 +107,12 @@ const statusText = computed(() => {
 const detailText = computed(() => {
   const r = result.value;
   if (!r) return nearbySearch.stage === 'locating' ? 'Checking the location you shared' : '';
-  const where = r.origin.kind === 'gps' ? (r.origin.area ? `you (around ${r.origin.area.name})` : 'you') : r.origin.name;
+  const p = r.origin.place;
+  const where = r.origin.kind === 'gps'
+    ? (p && (p.confidence === 'near' || p.confidence === 'around') ? `you (around ${p.name})` : 'you')
+    : r.origin.name;
   if (nearbySearch.stage === 'nearby') return `Within ${SEARCH_CONFIG.nearbyKm} km of ${where}`;
-  if (nearbySearch.stage === 'wider') return `Up to ${SEARCH_CONFIG.extendedKm} km, plus providers who travel to ${r.origin.area?.name || 'your area'}`;
+  if (nearbySearch.stage === 'wider') return `Up to ${SEARCH_CONFIG.extendedKm} km, plus providers who travel to ${originPlaceName(r.origin)}`;
   return '';
 });
 

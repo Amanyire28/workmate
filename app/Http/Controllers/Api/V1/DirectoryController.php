@@ -20,6 +20,15 @@ use Illuminate\Support\Facades\DB;
 class DirectoryController extends Controller
 {
     /**
+     * Quick picks that stand for a whole division of Kampala as one point.
+     * A specific place close by is preferred over them when naming a position.
+     */
+    private const BROAD_AREAS = ['kampala-central', 'kawempe', 'nakawa', 'rubaga', 'makindye'];
+    private const BROAD_PENALTY_KM = 0.5;
+    // A quick pick wins only a near-tie: a familiar name, never a wrong one
+    private const QUICK_PICK_EDGE_KM = 0.25;
+
+    /**
      * Everything the website needs on its first page, in one request:
      * categories, areas, providers, recent reviews and open jobs.
      */
@@ -112,10 +121,14 @@ class DirectoryController extends Controller
     }
 
     /**
-     * The listed place nearest to a position, to name where someone is. The
-     * position is used for this lookup only and isn't stored.
+     * The place nearest to a position, to name where someone is, with how far
+     * away it is (distance_km), so the app can say it only as surely as the
+     * reading allows. Nothing further than the "match a shared location to a
+     * place within" setting is named. The position is used for this lookup
+     * only and isn't stored. The app sends it by POST, so it stays out of
+     * addresses and server logs; GET still works for older copies of the app.
      */
-    public function nearestArea(Request $request)
+    public function nearestArea(Request $request, PlatformSettings $settings)
     {
         $data = $request->validate([
             'latitude' => ['required', 'numeric', 'between:-2,5'],
@@ -123,24 +136,40 @@ class DirectoryController extends Controller
         ]);
         $lat = (float) $data['latitude'];
         $lng = (float) $data['longitude'];
+        $maxKm = (float) $settings->get('search.gps_area_match_km');
+        // Degrees covering the distance (a degree is about 111 km here, on the equator)
+        $box = $maxKm / 111 + 0.005;
 
-        // Look close by first, then further out
-        foreach ([0.05, 0.2, 1.0] as $box) {
-            $candidates = Area::active()->where('is_whole_town', false)
-                ->whereBetween('latitude', [$lat - $box, $lat + $box])
-                ->whereBetween('longitude', [$lng - $box, $lng + $box])
-                ->get();
-            if ($candidates->isNotEmpty()) {
-                $nearest = $candidates->sortBy(function (Area $a) use ($lat, $lng) {
-                    // Quick picks win when about as close
-                    return Area::distanceKm($lat, $lng, $a->latitude, $a->longitude) - ($a->is_featured ? 1.5 : 0);
-                })->first();
+        $ranked = Area::active()->where('is_whole_town', false)
+            ->whereNotNull('latitude')->whereNotNull('longitude')
+            ->whereBetween('latitude', [$lat - $box, $lat + $box])
+            ->whereBetween('longitude', [$lng - $box, $lng + $box])
+            ->get()
+            ->map(function (Area $a) use ($lat, $lng) {
+                return ['area' => $a, 'km' => Area::distanceKm($lat, $lng, $a->latitude, $a->longitude)];
+            })
+            ->filter(function ($row) use ($maxKm) {
+                return $row['km'] <= $maxKm;
+            });
 
-                return new AreaResource($nearest);
-            }
+        if ($ranked->isEmpty()) {
+            return response()->json(['data' => null]);
         }
 
-        return response()->json(['data' => null]);
+        $best = $ranked->sortBy(function ($row) {
+            $score = $row['km'];
+            if (in_array($row['area']->slug, self::BROAD_AREAS, true)) {
+                $score += self::BROAD_PENALTY_KM;
+            } elseif ($row['area']->is_featured) {
+                $score -= self::QUICK_PICK_EDGE_KM;
+            }
+
+            return $score;
+        })->first();
+
+        return response()->json(['data' => (new AreaResource($best['area']))->resolve($request) + [
+            'distance_km' => round($best['km'], 2),
+        ]]);
     }
 
     /**
@@ -162,9 +191,16 @@ class DirectoryController extends Controller
         $data = $request->validate([
             'area' => ['nullable', 'string', 'max:80'],
             'category' => ['nullable', 'string', 'max:60'],
+            // The person's current location, rounded by the app to about 1 km
+            'latitude' => ['nullable', 'numeric', 'between:-2,5', 'required_with:longitude'],
+            'longitude' => ['nullable', 'numeric', 'between:29,36', 'required_with:latitude'],
         ]);
         $area = ! empty($data['area']) ? Area::active()->where('slug', $data['area'])->first() : null;
-        $result = $recommendations->recommend($area, $data['category'] ?? null);
+        // Rounded again here, so the cache and ranking never use more than about 1 km of precision
+        $point = isset($data['latitude'])
+            ? ['latitude' => round((float) $data['latitude'], 2), 'longitude' => round((float) $data['longitude'], 2)]
+            : null;
+        $result = $recommendations->recommend($area, $data['category'] ?? null, $point);
 
         return response()->json(['data' => $result + [
             'area' => $area ? ['slug' => $area->slug, 'name' => $area->name, 'town' => $area->town, 'whole_town' => (bool) $area->is_whole_town] : null,

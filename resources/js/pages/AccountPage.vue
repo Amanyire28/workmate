@@ -159,7 +159,7 @@
               <option value="en">English</option>
               <option value="lg">Luganda</option>
             </FormField>
-            <PlacePicker v-model="profile.area" id="profile-area" label="Your area" hint="Saved on this device." />
+            <PlacePicker v-model="profile.area" id="profile-area" label="Your area" hint="Used until you close WorkMate. Next time, WorkMate starts from your current location." />
             <p v-if="profileError" class="wm-notice wm-notice-error" role="alert">
               <i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>{{ profileError }}</span>
             </p>

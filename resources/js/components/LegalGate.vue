@@ -108,7 +108,7 @@ import { appSettings } from '@/stores/catalog.js';
 import { refreshPush } from '@/stores/push.js';
 import {
   legal, loadLegalDocuments, guestPending, agreeOnThisDevice,
-  permissionsAsked, markPermissionsAsked, acceptDocuments,
+  permissionsAsked, markPermissionsAsked, acceptDocuments, legalGate,
 } from '@/stores/legal.js';
 
 /**
@@ -229,6 +229,7 @@ async function leave() {
 }
 
 watch(show, (open) => {
+  legalGate.open = open;
   document.documentElement.style.overflow = open ? 'hidden' : '';
   if (open) focusHeading();
 });

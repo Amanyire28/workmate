@@ -204,7 +204,7 @@ import PlacePicker from '@/components/PlacePicker.vue';
 import { upload, fieldErrors } from '@/api/client.js';
 import { formWithPhotos, newClientToken, releasePhotos } from '@/utils/photos.js';
 import { categoryLabel, formatPrice } from '@/utils/ui.js';
-import { selectedArea } from '@/stores/location.js';
+import { selectedArea, currentAreaId } from '@/stores/location.js';
 import { focusFirstError } from '@/utils/forms.js';
 
 const totalSteps = 4;
@@ -216,7 +216,8 @@ const today = new Date().toISOString().slice(0, 10);
 
 const blank = () => ({
   title: '', category: '', description: '',
-  area: selectedArea.value, date: '', workersNeeded: '1',
+  // Where the job is: starts from their picked place or where they are now; theirs to change
+  area: selectedArea.value || currentAreaId.value, date: '', workersNeeded: '1',
   budget: '', budgetBasis: 'fixed',
 });
 const form = reactive(blank());

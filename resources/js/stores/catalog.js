@@ -184,17 +184,23 @@ export function rememberArea(a) {
 /** Up to 12 places whose name starts with (or contains a word starting with) the text, closest first */
 export async function searchPlaces(text, near = null) {
     const params = new URLSearchParams({ q: text.trim() });
+    // Only to order results by closeness: about 1 km is plenty, and keeps the position out of the address
     if (near?.latitude != null) {
-        params.set('near_latitude', near.latitude.toFixed(3));
-        params.set('near_longitude', near.longitude.toFixed(3));
+        params.set('near_latitude', near.latitude.toFixed(2));
+        params.set('near_longitude', near.longitude.toFixed(2));
     }
     return (await api(`/areas/search?${params}`)).data.map(toArea);
 }
 
-/** The listed place nearest to a position (used only for this lookup) */
+/**
+ * The place nearest to a position, and how far it is: { area, distanceKm },
+ * or null when no place is close enough to name. Sent in the request body
+ * (not the address), so the position doesn't end up in server logs; it's
+ * used for this lookup only.
+ */
 export async function nearestPlace(latitude, longitude) {
-    const params = new URLSearchParams({ latitude: latitude.toFixed(5), longitude: longitude.toFixed(5) });
-    return rememberArea((await api(`/areas/nearest?${params}`)).data);
+    const data = (await api('/areas/nearest', { method: 'POST', body: { latitude: +latitude.toFixed(5), longitude: +longitude.toFixed(5) } })).data;
+    return data ? { area: rememberArea(data), distanceKm: data.distance_km ?? null } : null;
 }
 
 let loading = null;

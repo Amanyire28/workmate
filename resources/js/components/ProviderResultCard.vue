@@ -31,7 +31,7 @@
       </li>
       <li v-if="item.serves && origin.area" class="flex items-center gap-1.5 text-success">
         <i class="bi bi-check2-circle w-4 text-center" aria-hidden="true"></i>
-        <span>Works in {{ origin.kind === 'gps' ? `your area (${origin.area.name})` : origin.area.name }}</span>
+        <span>Serves {{ origin.kind === 'gps' ? `your area (${originPlaceName(origin)})` : origin.area.name }}</span>
       </li>
     </ul>
 
@@ -50,7 +50,7 @@ import UserAvatar from './UserAvatar.vue';
 import SaveProviderButton from './SaveProviderButton.vue';
 import AvailabilityBadge from './AvailabilityBadge.vue';
 import { displayName, tradeLabel } from '@/utils/ui.js';
-import { formatKm } from '@/utils/nearbySearch.js';
+import { formatKm, originPlaceName } from '@/utils/nearbySearch.js';
 
 const props = defineProps({
   /** { provider, distanceKm, serves, tier } from searchNearby() */
@@ -60,10 +60,11 @@ const props = defineProps({
 
 const provider = computed(() => props.item.provider);
 
-// From a shared GPS position: "1.4 km away". From a picked area: an estimate from its centre.
+// Always an estimate: it's measured to the centre of the provider's registered
+// area (rounded for their privacy), never their real or live position
 const distanceText = computed(() => {
-  const km = formatKm(props.item.distanceKm);
-  if (props.origin.kind === 'gps') return `${km} away`;
-  return props.item.distanceKm < 1 ? km : `≈ ${km}`;
+  const km = props.item.distanceKm;
+  if (km < 1) return props.origin.kind === 'gps' ? '≈ under 1 km away' : 'Under 1 km';
+  return props.origin.kind === 'gps' ? `≈ ${formatKm(km)} away` : `≈ ${formatKm(km)}`;
 });
 </script>
