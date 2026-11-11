@@ -22,8 +22,8 @@
 return [
     'current' => [
         'id' => 'workmate-major-booking-update-2026-11',
-        // Off until the approved release is deployed (see above)
-        'enabled' => (bool) env('WHATS_NEW_ENABLED', false),
+        // Switched on for the approved November 2026 release (WHATS_NEW_ENABLED=false in .env turns it off)
+        'enabled' => (bool) env('WHATS_NEW_ENABLED', true),
         // Optional: not before this moment (ISO 8601), even when enabled
         'starts_at' => env('WHATS_NEW_STARTS_AT'),
         // everyone | signed_in | guests

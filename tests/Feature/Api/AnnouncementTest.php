@@ -15,10 +15,10 @@ class AnnouncementTest extends ApiTestCase
         config(['announcements.current' => array_merge(config('announcements.current'), ['enabled' => true], $overrides)]);
     }
 
-    public function test_it_stays_off_until_the_release_switches_it_on()
+    public function test_it_shows_only_while_switched_on()
     {
-        // The shipped setting: off, whatever the date
-        $this->assertFalse(config('announcements.current.enabled'));
+        // Switched off: nothing, whatever the date
+        config(['announcements.current.enabled' => false]);
         $this->getJson('/api/v1/announcements/current')->assertOk()->assertExactJson(['data' => null]);
 
         $this->enable();
