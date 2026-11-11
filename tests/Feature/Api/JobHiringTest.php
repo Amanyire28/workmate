@@ -44,6 +44,9 @@ class JobHiringTest extends ApiTestCase
         $okello = $this->provider('Okello Plumbing');
         $nambi = $this->provider('Nambi Pipes');
         $job = $this->postJob($customer);
+        // A job from before the booking system keeps the original steps (hired → in progress);
+        // new jobs are covered by BookingTest
+        \App\Models\ServiceRequest::whereKey($job)->update(['booking_version' => \App\Models\ServiceRequest::BOOKING_LEGACY]);
         $okelloApplication = $this->apply($okello, $job, 45000);
         $nambiApplication = $this->apply($nambi, $job, 40000);
 

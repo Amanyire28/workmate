@@ -51,6 +51,12 @@ class PublicProviderResource extends JsonResource
             'bio' => $this->bio,
             'skills' => $this->skills ?: [],
             'availability_status' => $this->availability_status,
+            // What customers are told: available | busy | paused (preferences plus real bookings)
+            'work_status' => $this->workStatus(),
+            'accepts_immediate' => (bool) $this->accepts_immediate,
+            'accepts_bookings' => (bool) $this->accepts_bookings,
+            // "Online now" / "Last seen …", unless they chose to hide it. Only a time, to the minute.
+            'presence' => $this->presence(),
             'availability_note' => $this->availability_note,
             'next_available' => $this->next_available,
             'price_from' => $this->price_from,
@@ -61,6 +67,26 @@ class PublicProviderResource extends JsonResource
             'blue_tick' => $this->blue_tick_awarded_at !== null,
             'is_sample' => $this->is_sample,
             'reviews' => ReviewResource::collection($this->whenLoaded('reviews')),
+        ];
+    }
+
+    private function presence(): ?array
+    {
+        $owner = $this->owner;
+        if (! $owner || $owner->show_last_seen === false) {
+            return null;
+        }
+        $seen = $owner->last_seen_at;
+        // Read once per request, however many providers are listed
+        $attributes = request()->attributes;
+        if (! $attributes->has('presence_online_minutes')) {
+            $attributes->set('presence_online_minutes', (int) app(\App\Services\PlatformSettings::class)->get('presence.online_minutes'));
+        }
+        $window = $attributes->get('presence_online_minutes');
+
+        return [
+            'online' => $seen !== null && $seen->gte(now()->subMinutes($window)),
+            'last_seen_at' => $seen ? $seen->copy()->startOfMinute()->toIso8601String() : null,
         ];
     }
 }

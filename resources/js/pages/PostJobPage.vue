@@ -7,7 +7,7 @@
         <i class="bi bi-check-lg"></i>
       </span>
       <h1 class="wm-h2">Job posted</h1>
-      <p class="text-sm text-success">“{{ form.title }}” is ready for workers near {{ areaLabel(form.area) }}.</p>
+      <p class="text-sm text-success">“{{ form.title }}” is ready for workers near {{ areaLabel(form.where.area) }}.</p>
       <p class="text-sm text-muted max-w-[420px]">
         Providers can now see it in Find work. Their applications will appear in My Work.
       </p>
@@ -103,23 +103,9 @@
         <!-- Step 2: Where & when -->
         <fieldset v-else-if="currentStep === 2" class="flex flex-col gap-4">
           <legend class="sr-only">{{ stepTitles[1] }}</legend>
-          <PlacePicker
-            v-model="form.area"
-            id="job-area"
-            label="Where is the work?"
-            required
-            :clearable="false"
-            :error-message="errors.area"
-          />
+          <JobLocationField v-model="form.where" id="job-area" :error-message="errors.area" />
 
-          <FormField
-            v-model="form.date"
-            type="date"
-            label="When do you need it done?"
-            optional
-            :min="today"
-            hint="Leave empty if you’re flexible."
-          />
+          <WhenField v-model="form.when" optional :error-message="errors.when" />
 
           <FormField v-model="form.workersNeeded" type="select" label="How many workers?">
             <option value="1">1 worker</option>
@@ -200,7 +186,9 @@ import ServiceCategoryCard from '@/components/ServiceCategoryCard.vue';
 import PrimaryButton from '@/components/PrimaryButton.vue';
 import PhotoPicker from '@/components/PhotoPicker.vue';
 import { categories, areaLabel, refreshJobs } from '@/stores/catalog.js';
-import PlacePicker from '@/components/PlacePicker.vue';
+import JobLocationField from '@/components/booking/JobLocationField.vue';
+import WhenField from '@/components/booking/WhenField.vue';
+import { formatShort } from '@/utils/booking.js';
 import { upload, fieldErrors } from '@/api/client.js';
 import { formWithPhotos, newClientToken, releasePhotos } from '@/utils/photos.js';
 import { categoryLabel, formatPrice } from '@/utils/ui.js';
@@ -212,16 +200,17 @@ const stepTitles = ['What do you need?', 'Where and when?', 'Budget', 'Check and
 const currentStep = ref(1);
 const submitting = ref(false);
 const submitted = ref(false);
-const today = new Date().toISOString().slice(0, 10);
 
 const blank = () => ({
   title: '', category: '', description: '',
   // Where the job is: starts from their picked place or where they are now; theirs to change
-  area: selectedArea.value || currentAreaId.value, date: '', workersNeeded: '1',
+  where: { area: selectedArea.value || currentAreaId.value, pin: null, landmark: '', directions: '' },
+  when: { timing: '', date: '', time: '', duration: '' },
+  workersNeeded: '1',
   budget: '', budgetBasis: 'fixed',
 });
 const form = reactive(blank());
-const errors = reactive({ title: '', category: '', area: '', budget: '' });
+const errors = reactive({ title: '', category: '', area: '', when: '', budget: '' });
 const photos = ref([]);
 const progress = ref(0);
 const preparing = computed(() => photos.value.some(p => p.preparing));
@@ -232,8 +221,9 @@ const reviewRows = computed(() => [
   { label: 'Job',            value: form.title },
   { label: 'Service',        value: form.category ? categoryLabel(form.category) : '—' },
   { label: 'Description',    value: form.description.trim() || 'None' },
-  { label: 'Location',       value: areaLabel(form.area) },
-  { label: 'Date',           value: form.date || 'Flexible' },
+  { label: 'Location',       value: areaLabel(form.where.area) + (form.where.landmark.trim() ? `, ${form.where.landmark.trim()}` : '') },
+  { label: 'When',           value: form.when.timing === 'asap' ? 'As soon as possible'
+    : form.when.timing === 'scheduled' && form.when.date && form.when.time ? formatShort(`${form.when.date}T${form.when.time}:00+03:00`) : 'Flexible' },
   { label: 'Workers needed', value: form.workersNeeded },
   { label: 'Budget',         value: form.budget ? `${formatPrice(form.budget)} (${form.budgetBasis})` : 'Open to offers' },
   { label: 'Photos',         value: photos.value.length ? `${photos.value.length} ${photos.value.length === 1 ? 'photo' : 'photos'}` : 'None' },
@@ -245,7 +235,8 @@ function validateStep() {
     if (!form.title.trim()) errors.title = 'Enter a job title.';
     if (!form.category)     errors.category = 'Choose a service type.';
   }
-  if (currentStep.value === 2 && !form.area) errors.area = 'Choose where the work is.';
+  if (currentStep.value === 2 && !form.where.area) errors.area = 'Choose where the work is.';
+  if (currentStep.value === 2 && form.when.timing === 'scheduled' && !(form.when.date && form.when.time)) errors.when = 'Choose a date and a time, or “I’m flexible”.';
   if (currentStep.value === 3 && form.budget !== '' && !(Number(form.budget) > 0)) {
     errors.budget = 'Enter an amount above 0, or leave it empty.';
   }
@@ -273,8 +264,15 @@ async function submitJob() {
       category: form.category,
       title: form.title.trim(),
       description: form.description.trim() || null,
-      area: form.area,
-      preferred_time: form.date || null,
+      area: form.where.area,
+      timing: form.when.timing || null,
+      scheduled_start: form.when.timing === 'scheduled' ? `${form.when.date} ${form.when.time}` : null,
+      duration_minutes: form.when.timing === 'scheduled' && form.when.duration ? Number(form.when.duration) : null,
+      latitude: form.where.pin ? form.where.pin.latitude.toFixed(6) : null,
+      longitude: form.where.pin ? form.where.pin.longitude.toFixed(6) : null,
+      location_accuracy: form.where.pin ? Math.round(form.where.pin.accuracy || 0) : null,
+      landmark: form.where.landmark.trim() || null,
+      directions: form.where.directions.trim() || null,
       workers_needed: form.workersNeeded === '6+' ? 6 : Number(form.workersNeeded),
       budget: form.budget === '' ? null : Number(form.budget),
       budget_basis: form.budget === '' ? null : form.budgetBasis,

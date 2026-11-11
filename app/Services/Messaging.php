@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageAttachment;
 use App\Models\ProviderProfile;
+use App\Models\ServiceRequest;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -130,6 +131,40 @@ class Messaging
         $base = trim(preg_replace('/[^A-Za-z0-9 ._()-]+/', '', pathinfo($name, PATHINFO_FILENAME)), ' .');
 
         return Str::limit($base !== '' ? $base : 'Document', 120, '').'.pdf';
+    }
+
+    /**
+     * Puts a request in the chat between its customer and provider, as a
+     * card pointing at the request. Only once per request (a retry finds the
+     * first), and inside the caller's transaction, so a request is never
+     * saved without its card or the other way round.
+     */
+    public function postRequestCard(ServiceRequest $request): Message
+    {
+        return DB::transaction(function () use ($request) {
+            $keys = ['customer_id' => $request->customer_id, 'provider_profile_id' => $request->provider_profile_id];
+            $conversation = Conversation::where($keys)->lockForUpdate()->first();
+            if (! $conversation) {
+                $conversation = new Conversation();
+                $conversation->forceFill($keys)->save();
+            }
+
+            $card = Message::where('conversation_id', $conversation->id)->where('service_request_id', $request->id)->first();
+            if ($card) {
+                return $card;
+            }
+
+            $card = new Message(['body' => '']);
+            $card->forceFill([
+                'conversation_id' => $conversation->id,
+                'sender_id' => $request->customer_id,
+                'kind' => 'request',
+                'service_request_id' => $request->id,
+            ])->save();
+            $conversation->forceFill(['last_message_at' => $card->created_at ?: now()])->save();
+
+            return $card;
+        });
     }
 
     /** Marks the other side's messages as read by this user. */

@@ -23,6 +23,9 @@
       </p>
     </div>
 
+    <!-- Signed in but email not confirmed: a friendly reminder -->
+    <EmailVerifyReminder />
+
     <!-- Admin → Settings → Maintenance mode -->
     <div v-if="appSettings.maintenanceMode" class="wm-container mt-3" :class="{ 'max-lg:hidden': immersive }">
       <p class="wm-notice wm-notice-warning" role="status">
@@ -56,6 +59,7 @@ import AppStatusLayer from '@/components/AppStatusLayer.vue';
 import RateProviderDialog from '@/components/RateProviderDialog.vue';
 import PushReminder from '@/components/PushReminder.vue';
 import LocationIntro from '@/components/LocationIntro.vue';
+import EmailVerifyReminder from '@/components/EmailVerifyReminder.vue';
 import LegalGate from '@/components/LegalGate.vue';
 import { catalog, loadCatalog, appSettings, refreshSettings } from '@/stores/catalog.js';
 import { startPresence } from '@/stores/presence.js';

@@ -62,61 +62,15 @@
         <p v-if="actionError" class="wm-notice wm-notice-error mb-3" role="alert">
           <i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>{{ actionError }}</span>
         </p>
-        <ul v-if="received.length" class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-          <li v-for="req in received" :key="req.id" class="wm-card flex flex-col gap-3">
-            <div class="flex items-start justify-between gap-3">
-              <div class="flex items-center gap-3 min-w-0">
-                <UserAvatar :name="req.customer.name" :src="req.customer.avatar_url || ''" :size="44" />
-                <div class="min-w-0">
-                  <h2 class="text-base font-semibold text-ink leading-snug truncate">{{ req.customer.name }}</h2>
-                  <p class="wm-meta">{{ categoryLabel(req.category) }}</p>
-                </div>
-              </div>
-              <StatusBadge :status="RECEIVED_STATUS[req.status] || req.status" class="shrink-0" />
-            </div>
-            <p class="text-sm text-ink whitespace-pre-line">{{ req.description }}</p>
-            <RequestPhotos :photos="req.photos || []" :label="`Photos from ${req.customer.name}`" />
-            <p class="wm-meta flex flex-wrap gap-x-4 gap-y-1">
-              <span class="inline-flex items-center gap-1"><i class="bi bi-geo-alt" aria-hidden="true"></i>{{ req.area_name }}</span>
-              <span class="inline-flex items-center gap-1"><i class="bi bi-calendar3" aria-hidden="true"></i>{{ req.preferred_time }}</span>
-              <span v-if="req.budget" class="inline-flex items-center gap-1"><i class="bi bi-cash" aria-hidden="true"></i>{{ formatPrice(req.budget) }}</span>
-              <span>Received {{ sentLabel(req.received_at) }}</span>
-            </p>
-            <p v-if="req.status === 'cancelled' && req.provider_note" class="text-sm text-muted">
-              <i class="bi bi-reply" aria-hidden="true"></i> You declined: {{ req.provider_note }}
-            </p>
-
-            <!-- Declining asks why; the customer sees the reason -->
-            <form v-if="declining === req.id" class="flex flex-col gap-2" @submit.prevent="decline(req)">
-              <FormField v-model="declineReason" type="textarea" label="Why can’t you take it?" :id="`decline-${req.id}`" required
-                placeholder="e.g. I’m fully booked this week" :min-height="72" hint="The customer sees this." />
-              <div class="flex gap-2">
-                <button type="button" class="wm-btn wm-btn-secondary !min-h-11 flex-1" @click="declining = null">Back</button>
-                <button type="submit" class="wm-btn wm-btn-primary !min-h-11 flex-1" :disabled="busy === req.id || declineReason.trim().length < 3">Send</button>
-              </div>
-            </form>
-
-            <div v-else class="mt-auto pt-3 border-t border-line flex flex-wrap gap-2">
-              <template v-if="req.status === 'open'">
-                <button type="button" class="wm-btn wm-btn-primary !min-h-11 flex-1" :disabled="busy === req.id" @click="act(req, 'accept')">
-                  <i class="bi bi-check2" aria-hidden="true"></i>Accept
-                </button>
-                <button type="button" class="wm-btn wm-btn-secondary !min-h-11 flex-1" :disabled="busy === req.id" @click="startDecline(req)">Decline</button>
-              </template>
-              <button v-else-if="req.status === 'in_progress'" type="button" class="wm-btn wm-btn-primary !min-h-11 flex-1" :disabled="busy === req.id" @click="act(req, 'complete')">
-                <i class="bi bi-check2-all" aria-hidden="true"></i>Mark as done
-              </button>
-              <button v-if="req.status !== 'cancelled'" type="button" class="wm-btn wm-btn-ghost !min-h-11" :disabled="busy === req.id" @click="messageCustomer(req)">
-                <i class="bi bi-chat-dots" aria-hidden="true"></i>Message
-              </button>
-              <button type="button" class="wm-btn wm-btn-ghost !min-h-11 text-muted" @click="reportFor = { about: 'customer', name: req.customer.name.split(' ')[0], requestId: req.id }">
-                <i class="bi bi-flag" aria-hidden="true"></i>Report
-              </button>
-            </div>
-          </li>
+        <MyWorkPanel v-model:stage="stage" :requests="received" class="mb-4" />
+        <ul v-if="shownReceived.length" class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+          <ReceivedRequestCard v-for="req in shownReceived" :key="req.id" :req="req"
+            @updated="replace" @message="messageCustomer"
+            @report="reportFor = { about: 'customer', name: $event.customer.name.split(' ')[0], requestId: $event.id }" />
         </ul>
+        <p v-else-if="received.length" class="wm-card wm-meta">Nothing here right now. <button type="button" class="wm-link" @click="stage = ''">Show everything</button></p>
         <EmptyState
-          v-else
+          v-if="!received.length"
           icon="bi-inbox"
           title="No requests yet"
           message="When a customer asks you for a service, it shows up here so you can accept it or reply."
@@ -134,11 +88,11 @@
                 <UserAvatar :name="req.providerName" :src="providerPhoto(req.providerId)" :size="44" />
                 <div class="min-w-0">
                   <h2 class="text-base font-semibold text-ink leading-snug truncate">{{ req.providerName }}</h2>
-                  <p class="wm-meta">{{ categoryLabel(req.service) }}</p>
+                  <p class="wm-meta">{{ req.title || categoryLabel(req.service) }}</p>
                 </div>
               </div>
-              <StatusBadge :status="req.status" class="shrink-0" />
             </div>
+            <CustomerRequestStatus :req="req.raw" @updated="onRequestUpdated" />
             <p class="text-sm text-ink line-clamp-2">{{ req.details }}</p>
             <RequestPhotos :photos="req.photos" label="Your photos of the job" />
             <p v-if="req.status === 'request_declined' && req.providerNote" class="text-sm text-muted">
@@ -146,7 +100,6 @@
             </p>
             <p class="wm-meta flex flex-wrap gap-x-4 gap-y-1">
               <span class="inline-flex items-center gap-1"><i class="bi bi-geo-alt" aria-hidden="true"></i>{{ req.area }}</span>
-              <span class="inline-flex items-center gap-1"><i class="bi bi-calendar3" aria-hidden="true"></i>{{ req.when }}</span>
               <span>Sent {{ sentLabel(req.sentAt) }}</span>
             </p>
             <p v-if="req.review" class="text-sm text-ink flex flex-wrap items-center gap-x-2">
@@ -285,6 +238,9 @@ import StatusBadge from '@/components/StatusBadge.vue';
 import RequestPhotos from '@/components/RequestPhotos.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
+import MyWorkPanel from '@/components/work/MyWorkPanel.vue';
+import ReceivedRequestCard from '@/components/work/ReceivedRequestCard.vue';
+import CustomerRequestStatus from '@/components/work/CustomerRequestStatus.vue';
 import { agoLabel, providers } from '@/stores/catalog.js';
 import { api } from '@/api/client.js';
 import { formatPrice, categoryLabel } from '@/utils/ui.js';
@@ -332,6 +288,15 @@ function sentLabel(iso) {
 
 const state = ref('loading');
 const received = ref([]);
+// The provider's stage filter: new | upcoming | working | done, or '' for all
+const stage = ref('');
+const STAGE_STATUS = { new: 'open', upcoming: 'scheduled', working: 'in_progress', done: 'completed' };
+// Upcoming bookings soonest first; everything else newest first
+const shownReceived = computed(() => {
+  const list = stage.value ? received.value.filter(r => r.status === STAGE_STATUS[stage.value]) : received.value;
+  if (stage.value !== 'upcoming') return list;
+  return [...list].sort((a, b) => (a.schedule?.start || '').localeCompare(b.schedule?.start || ''));
+});
 const requests = ref([]);
 const postedJobs = ref([]);
 const applications = ref([]);
@@ -355,6 +320,33 @@ function toPostedJob(j) {
   };
 }
 
+
+/** A request the customer sent, for its card (raw: as the API sent it, for the status panel) */
+function toRequest(r) {
+  return {
+    id: r.id,
+    providerId: r.provider.id,
+    providerName: r.provider.display_name,
+    service: r.category,
+    details: r.description,
+    area: r.area_name,
+    when: r.preferred_time,
+    sentAt: r.posted_at,
+    // A cancelled request with a note was declined by the provider
+    status: r.status === 'cancelled' && !r.provider_note ? 'cancelled' : (REQUEST_STATUS[r.status] || r.status),
+    providerNote: r.provider_note || '',
+    category: r.category,
+    review: r.review || null,
+    photos: r.photos || [],
+    raw: r,
+    title: r.title,
+  };
+}
+
+function onRequestUpdated(r) {
+  requests.value = requests.value.map(x => (x.id === r.id ? { ...toRequest(r), review: x.review } : x));
+}
+
 const REQUEST_STATUS = { open: 'pending', in_progress: 'accepted', cancelled: 'request_declined' };
 // The provider's side of the same request
 const RECEIVED_STATUS = { open: 'new_request', in_progress: 'accepted', cancelled: 'request_declined' };
@@ -370,22 +362,7 @@ async function load() {
     ]);
     received.value = incoming.data;
 
-    requests.value = mine.data.filter(r => r.kind === 'direct').map(r => ({
-      id: r.id,
-      providerId: r.provider.id,
-      providerName: r.provider.display_name,
-      service: r.category,
-      details: r.description,
-      area: r.area_name,
-      when: r.preferred_time,
-      sentAt: r.posted_at,
-      // A cancelled request with a note was declined by the provider
-      status: r.status === 'cancelled' && !r.provider_note ? 'cancelled' : (REQUEST_STATUS[r.status] || r.status),
-      providerNote: r.provider_note || '',
-      category: r.category,
-      review: r.review || null,
-      photos: r.photos || [],
-    }));
+    requests.value = mine.data.filter(r => r.kind === 'direct').map(toRequest);
 
     postedJobs.value = mine.data.filter(r => r.kind === 'posted').map(toPostedJob);
 
@@ -441,42 +418,13 @@ onBeforeUnmount(() => window.removeEventListener('workmate:rated', onRated));
 /* ---------------- Answering received requests ---------------- */
 const busy = ref(null);
 const actionError = ref('');
-const declining = ref(null);
-const declineReason = ref('');
 
 function replace(updated) {
   received.value = received.value.map(r => (r.id === updated.id ? { ...updated, conversation_id: updated.conversation_id ?? r.conversation_id } : r));
 }
 
-async function act(req, action) {
-  busy.value = req.id;
-  actionError.value = '';
-  try {
-    replace((await api(`/me/received-requests/${req.id}/${action}`, { method: 'POST', body: {} })).data);
-  } catch (e) {
-    actionError.value = e.message;
-  } finally {
-    busy.value = null;
-  }
-}
 
-function startDecline(req) {
-  declining.value = req.id;
-  declineReason.value = '';
-}
 
-async function decline(req) {
-  busy.value = req.id;
-  actionError.value = '';
-  try {
-    replace((await api(`/me/received-requests/${req.id}/decline`, { method: 'POST', body: { reason: declineReason.value.trim() } })).data);
-    declining.value = null;
-  } catch (e) {
-    actionError.value = e.message;
-  } finally {
-    busy.value = null;
-  }
-}
 
 async function messageCustomer(req) {
   busy.value = req.id;

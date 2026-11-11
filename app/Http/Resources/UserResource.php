@@ -27,6 +27,7 @@ class UserResource extends JsonResource
             'phone' => $this->phone,
             'avatar_url' => $this->avatarUrl(),
             'locale' => $this->locale,
+            'show_last_seen' => $this->show_last_seen !== false,
             'status' => $this->status,
             // Every account is a customer; provider capability depends on approval
             'capabilities' => [

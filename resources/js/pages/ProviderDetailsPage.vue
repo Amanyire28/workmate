@@ -40,8 +40,9 @@
                 <i :class="['bi', typeIcon]" aria-hidden="true"></i>{{ providerTypeLabels[provider.type] }}
               </span>
             </p>
-            <div class="flex flex-wrap justify-center sm:justify-start gap-1.5 mt-1">
+            <div class="flex flex-wrap items-center justify-center sm:justify-start gap-x-3 gap-y-1.5 mt-1">
               <AvailabilityBadge :provider="provider" show-detail />
+              <PresenceLabel :presence="provider.presence" />
             </div>
           </div>
         </div>
@@ -67,6 +68,9 @@
                 <dt class="wm-meta">Availability</dt>
                 <dd class="mt-1 flex flex-col items-start gap-1.5">
                   <AvailabilityBadge :provider="provider" show-detail />
+                  <!-- What that means for the customer, in one line -->
+                  <span v-if="provider.workStatus === 'busy'" class="text-[13px] text-[#475569]">Currently working on another assignment. You can still book this provider for a later date.</span>
+                  <span v-else-if="workInfo" class="text-[13px] text-[#475569]">{{ workInfo.text }}</span>
                   <span v-if="provider.availability" class="text-sm text-ink">{{ provider.availability }}</span>
                 </dd>
               </div>
@@ -85,8 +89,11 @@
               </router-link>
             </div>
             <div v-else class="mt-4 flex flex-col gap-2">
-              <router-link :to="`/provider/${provider.id}/request`" class="wm-btn wm-btn-primary wm-btn-lg wm-btn-block">
-                Request this service
+              <span v-if="provider.workStatus === 'paused'" class="wm-btn wm-btn-primary wm-btn-lg wm-btn-block opacity-50 pointer-events-none" aria-disabled="true">
+                Bookings paused
+              </span>
+              <router-link v-else :to="`/provider/${provider.id}/request`" class="wm-btn wm-btn-primary wm-btn-lg wm-btn-block">
+                {{ provider.workStatus === 'busy' ? 'Book for Later' : 'Request this service' }}
               </router-link>
               <router-link :to="`/messages/${provider.id}`" class="wm-btn wm-btn-secondary wm-btn-lg wm-btn-block">
                 <i class="bi bi-chat-dots" aria-hidden="true"></i> Message
@@ -103,7 +110,8 @@
             </p>
           </aside>
 
-          <!-- Their recent work: first thing after the price and request buttons -->
+          <!-- What they do and usually charge, then their work -->
+          <ProviderServicesSection :provider="provider" :is-own="isOwn" />
           <ProviderWorkSection :provider="provider" :is-own="isOwn" :provider-name="name" />
 
           <!-- About -->
@@ -244,9 +252,12 @@ import { isOwnProvider } from '@/stores/auth.js';
 import { useRoute } from 'vue-router';
 import ProviderCover from '@/components/ProviderCover.vue';
 import ProviderWorkSection from '@/components/work/ProviderWorkSection.vue';
+import ProviderServicesSection from '@/components/services/ProviderServicesSection.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import AvailabilityBadge from '@/components/AvailabilityBadge.vue';
+import PresenceLabel from '@/components/PresenceLabel.vue';
+import { WORK_STATUS } from '@/utils/booking.js';
 import VerifiedBadge from '@/components/VerifiedBadge.vue';
 import ReportSheet from '@/components/ReportSheet.vue';
 import { providers, loadProviderReviews, agoLabel } from '@/stores/catalog.js';
@@ -262,6 +273,7 @@ import { reviewsFor, feedbackSummary, satisfactionLabels } from '@/utils/trust.j
 const route = useRoute();
 
 const provider = computed(() => providers.find(p => p.id === Number(route.params.id)));
+const workInfo = computed(() => WORK_STATUS[provider.value?.workStatus] || null);
 const name = computed(() => (provider.value ? displayName(provider.value) : ''));
 const reviews = computed(() => (provider.value ? reviewsFor(provider.value.id) : []));
 const summary = computed(() => feedbackSummary(reviews.value));

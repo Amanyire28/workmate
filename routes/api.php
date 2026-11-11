@@ -46,6 +46,8 @@ use App\Http\Controllers\Api\V1\SavedProviderController;
 use App\Http\Controllers\Api\V1\VerificationController;
 use App\Http\Controllers\Api\V1\ProfilePhotoController;
 use App\Http\Controllers\Api\V1\ProviderCoverController;
+use App\Http\Controllers\Api\V1\ProviderScheduleController;
+use App\Http\Controllers\Api\V1\ProviderServiceController;
 use App\Http\Controllers\Api\V1\ProviderWorkController;
 use App\Http\Controllers\Api\V1\ReferralController;
 use App\Http\Controllers\Api\V1\ProviderReportController;
@@ -124,6 +126,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::post('referrals/visit', [ReferralController::class, 'visit'])->middleware('throttle:referral-visit')->name('referrals.visit');
     // Providers' recent work
     Route::get('providers/{provider}/work', [ProviderWorkController::class, 'index'])->whereNumber('provider')->name('providers.work');
+    // Providers' services and usual prices
+    Route::get('providers/{provider}/services', [ProviderServiceController::class, 'index'])->whereNumber('provider')->name('providers.services');
     Route::get('work/media/{file}', [ProviderWorkController::class, 'media'])
         ->where('file', '[0-9a-f-]{36}(-t)?\.jpg')
         ->name('work.media');
@@ -148,6 +152,15 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::post('me/provider/cover', [ProviderCoverController::class, 'store'])->middleware('throttle:account-email')->name('me.provider.cover');
         Route::delete('me/provider/cover', [ProviderCoverController::class, 'destroy'])->name('me.provider.cover.destroy');
         Route::get('me/provider/work', [ProviderWorkController::class, 'mine'])->name('me.provider.work');
+        // The provider's own services and prices
+        Route::get('me/provider/services', [ProviderServiceController::class, 'mine'])->name('me.provider.services');
+        Route::get('me/provider/schedule', [ProviderScheduleController::class, 'show'])->name('me.provider.schedule');
+        Route::middleware('throttle:marketplace-write')->group(function () {
+            Route::post('me/provider/services', [ProviderServiceController::class, 'store'])->name('me.provider.services.store');
+            Route::post('me/provider/services/order', [ProviderServiceController::class, 'reorder'])->name('me.provider.services.order');
+            Route::patch('me/provider/services/{service}', [ProviderServiceController::class, 'update'])->whereNumber('service')->name('me.provider.services.update');
+            Route::delete('me/provider/services/{service}', [ProviderServiceController::class, 'destroy'])->whereNumber('service')->name('me.provider.services.destroy');
+        });
         Route::get('me/referrals', [ReferralController::class, 'mine'])->name('me.referrals');
         Route::post('me/provider/work', [ProviderWorkController::class, 'store'])->middleware('throttle:provider-work')->name('me.provider.work.store');
         Route::middleware('throttle:community-react')->group(function () {
@@ -220,6 +233,17 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('me/received-requests', [ReceivedRequestController::class, 'index'])->name('me.received-requests');
         Route::middleware('throttle:marketplace-write')->group(function () {
             Route::post('me/received-requests/{id}/accept', [ReceivedRequestController::class, 'accept'])->whereNumber('id')->name('me.received-requests.accept');
+            // Bookings: start, suggest another time, cancel
+            Route::post('me/received-requests/{id}/start', [ReceivedRequestController::class, 'start'])->whereNumber('id')->name('me.received-requests.start');
+            Route::post('me/received-requests/{id}/propose', [ReceivedRequestController::class, 'propose'])->whereNumber('id')->name('me.received-requests.propose');
+            Route::post('me/received-requests/{id}/cancel', [ReceivedRequestController::class, 'cancel'])->whereNumber('id')->name('me.received-requests.cancel');
+            // The customer's side: answer a suggested time, cancel
+            Route::post('me/requests/{id}/proposal', [MyActivityController::class, 'answerProposal'])->whereNumber('id')->name('me.requests.proposal');
+            Route::post('me/requests/{id}/cancel', [MyActivityController::class, 'cancel'])->whereNumber('id')->name('me.requests.cancel');
+            // The provider's booking settings and time off
+            Route::patch('me/provider/availability', [ProviderScheduleController::class, 'updateAvailability'])->name('me.provider.availability');
+            Route::post('me/provider/time-off', [ProviderScheduleController::class, 'addTimeOff'])->name('me.provider.time-off.store');
+            Route::delete('me/provider/time-off/{period}', [ProviderScheduleController::class, 'removeTimeOff'])->whereNumber('period')->name('me.provider.time-off.destroy');
             Route::post('me/received-requests/{id}/decline', [ReceivedRequestController::class, 'decline'])->whereNumber('id')->name('me.received-requests.decline');
             Route::post('me/received-requests/{id}/complete', [ReceivedRequestController::class, 'complete'])->whereNumber('id')->name('me.received-requests.complete');
             Route::post('me/received-requests/{id}/message', [ReceivedRequestController::class, 'message'])->whereNumber('id')->name('me.received-requests.message');

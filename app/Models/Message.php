@@ -15,12 +15,19 @@ class Message extends Model
     protected $casts = [
         'conversation_id' => 'integer',
         'sender_id' => 'integer',
+        'service_request_id' => 'integer',
         'read_at' => 'datetime',
     ];
 
     public function conversation()
     {
         return $this->belongsTo(Conversation::class);
+    }
+
+    /** A request card points at the request itself */
+    public function serviceRequest()
+    {
+        return $this->belongsTo(ServiceRequest::class)->withTrashed();
     }
 
     public function attachments()

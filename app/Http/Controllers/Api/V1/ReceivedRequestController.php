@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\ServiceRequest;
 use App\Services\Marketplace;
+use App\Services\RequestDetails;
 use App\Services\Messaging;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,9 +46,37 @@ class ReceivedRequestController extends Controller
         })->values()]);
     }
 
+    /** Accept; for a booking, optionally say how long it will take */
     public function accept(Request $request, int $id): JsonResponse
     {
-        return $this->done($this->marketplace->acceptRequest($request->user(), $this->find($id)));
+        $data = $request->validate(['duration_minutes' => ['nullable', 'integer', 'in:30,60,90,120,180,240,300,360,480,600,720']]);
+
+        return $this->done($this->marketplace->acceptRequest($request->user(), $this->find($id), $data['duration_minutes'] ?? null));
+    }
+
+    /** Arrived and started a confirmed booking */
+    public function start(Request $request, int $id): JsonResponse
+    {
+        return $this->done($this->marketplace->startRequest($request->user(), $this->find($id)));
+    }
+
+    /** Suggest another time (Uganda time, "2026-11-20 10:00"); the customer accepts it or not */
+    public function propose(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'start' => ['required', 'date_format:Y-m-d H:i'],
+            'duration_minutes' => ['nullable', 'integer', 'in:30,60,90,120,180,240,300,360,480,600,720'],
+        ], ['start.required' => 'Choose a date and time.', 'start.date_format' => 'Choose a date and time.']);
+
+        return $this->done($this->marketplace->proposeTime($request->user(), $this->find($id), $data['start'], $data['duration_minutes'] ?? null));
+    }
+
+    /** Can't keep a confirmed booking: the customer sees why */
+    public function cancel(Request $request, int $id): JsonResponse
+    {
+        $data = $request->validate(['reason' => ['required', 'string', 'min:3', 'max:500']], ['reason.required' => 'Tell the customer why.']);
+
+        return $this->done($this->marketplace->cancelBooking($request->user(), $this->find($id), trim($data['reason'])));
     }
 
     public function decline(Request $request, int $id): JsonResponse
@@ -95,6 +124,13 @@ class ReceivedRequestController extends Controller
             'area' => optional($r->area)->slug,
             'area_name' => $r->area_name,
             'preferred_time' => $r->preferred_time,
+            'title' => $r->title,
+            'service_id' => $r->provider_service_id,
+            // Made before bookings existed: the original steps only
+            'is_legacy' => $r->isLegacy(),
+            // When, and where (the exact point and directions only once accepted)
+            'schedule' => RequestDetails::schedule($r),
+            'location' => RequestDetails::forProvider($r)['location'],
             'budget' => $r->budget,
             'budget_basis' => $r->budget_basis,
             'status' => $r->status,

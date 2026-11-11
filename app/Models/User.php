@@ -30,6 +30,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'phone',
         'locale',
         'password',
+        // Whether customers see their "Last seen" (validated in UpdateProfileRequest)
+        'show_last_seen',
     ];
 
     /**
@@ -51,6 +53,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'email_verified_at' => 'datetime',
         'adult_confirmed_at' => 'datetime',
         'last_seen_at' => 'datetime',
+        'show_last_seen' => 'boolean',
         'notification_preferences' => 'array',
     ];
 

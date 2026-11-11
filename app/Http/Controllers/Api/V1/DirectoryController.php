@@ -234,7 +234,7 @@ class DirectoryController extends Controller
     private function listed()
     {
         return ProviderProfile::publiclyListed()
-            ->with(['owner:id,name,avatar_path', 'professions.category', 'baseArea', 'serviceAreas'])
+            ->with(['owner:id,name,avatar_path,last_seen_at,show_last_seen', 'professions.category', 'baseArea', 'serviceAreas'])
             ->withCount(['reviews as published_reviews_count' => function ($query) {
                 $query->published();
             }, 'workItems as work_count' => function ($query) {
@@ -242,6 +242,10 @@ class DirectoryController extends Controller
             }])
             ->withAvg(['reviews as published_reviews_avg_rating' => function ($query) {
                 $query->published();
-            }], 'rating');
+            }], 'rating')
+            // On a confirmed job right now, for "Busy · Accepting bookings" (one query for the whole list)
+            ->withExists(['receivedRequests as busy_now' => function ($query) {
+                ProviderProfile::busyNowQuery($query);
+            }]);
     }
 }

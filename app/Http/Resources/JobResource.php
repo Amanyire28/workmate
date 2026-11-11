@@ -23,11 +23,21 @@ class JobResource extends JsonResource
             'id' => $this->id,
             'kind' => $this->isPostedJob() ? 'posted' : 'direct',
             'title' => $this->title,
+            // The provider's listed service it was for, if any
+            'service_id' => $this->provider_service_id,
+            // Made before bookings existed: the original steps only
+            'is_legacy' => $this->resource->isLegacy(),
             'category' => $this->category->slug,
             'description' => $this->description,
             'area' => $this->area_id ? optional($this->area)->slug : null,
             'area_name' => $this->area_name,
             'preferred_time' => $this->preferred_time,
+            // When: for anyone who can see the request (no personal details)
+            'schedule' => \App\Services\RequestDetails::schedule($this->resource),
+            // Where exactly: the customer's own request only
+            'location' => $this->when($user !== null && $this->customer_id === (int) $user->getKey(), function () {
+                return \App\Services\RequestDetails::location($this->resource, true);
+            }),
             'workers_needed' => $this->workers_needed,
             'budget' => $this->budget,
             'budget_basis' => $this->budget_basis,

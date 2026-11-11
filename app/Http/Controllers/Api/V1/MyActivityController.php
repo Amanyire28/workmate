@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\JobResource;
 use App\Models\Quotation;
 use App\Models\ServiceRequest;
+use App\Services\Marketplace;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -22,6 +23,24 @@ class MyActivityController extends Controller
             ->get();
 
         return JobResource::collection($requests);
+    }
+
+    /** Accept or turn down the time the provider suggested */
+    public function answerProposal(Request $request, Marketplace $marketplace, int $id)
+    {
+        $data = $request->validate(['accept' => ['required', 'boolean']]);
+        $updated = $marketplace->answerProposal($request->user(), $id, (bool) $data['accept']);
+
+        return new JobResource($updated->fresh(['category', 'area', 'provider', 'review', 'photos']));
+    }
+
+    /** Cancel a request still waiting, or a confirmed booking */
+    public function cancel(Request $request, Marketplace $marketplace, int $id)
+    {
+        $data = $request->validate(['reason' => ['nullable', 'string', 'max:300']]);
+        $updated = $marketplace->cancelByCustomer($request->user(), $id, $data['reason'] ?? null);
+
+        return new JobResource($updated->fresh(['category', 'area', 'provider', 'review', 'photos']));
     }
 
     public function applications(Request $request): JsonResponse

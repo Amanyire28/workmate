@@ -5,15 +5,11 @@ import ExplorePage           from '@/pages/ExplorePage.vue';
 import RecommendedWorkersPage from '@/pages/RecommendedWorkersPage.vue';
 import BrowseServicesPage    from '@/pages/BrowseServicesPage.vue';
 import ProviderDetailsPage   from '@/pages/ProviderDetailsPage.vue';
-import RequestServicePage    from '@/pages/RequestServicePage.vue';
-import PostJobPage           from '@/pages/PostJobPage.vue';
 import FindWorkPage          from '@/pages/FindWorkPage.vue';
 import JobDetailsPage        from '@/pages/JobDetailsPage.vue';
 import ApplyJobPage          from '@/pages/ApplyJobPage.vue';
-import MyActivityPage        from '@/pages/MyActivityPage.vue';
 import AccountPage           from '@/pages/AccountPage.vue';
 import MessagesPage          from '@/pages/MessagesPage.vue';
-import ChatPage              from '@/pages/ChatPage.vue';
 import { adminRoutes }       from '@/admin/routes.js';
 import { auth, loadSession, safeRedirect } from '@/stores/auth.js';
 import { loadCatalog } from '@/stores/catalog.js';
@@ -25,12 +21,12 @@ const routes = [
     { path: '/workers',              component: RecommendedWorkersPage, meta: { title: 'Top-rated Providers – WorkMate' } },
     { path: '/browse',               component: BrowseServicesPage,     meta: { title: 'Find a Service Provider – WorkMate' } },
     { path: '/provider/:id',         component: ProviderDetailsPage,    meta: { title: 'Provider – WorkMate' } },
-    { path: '/provider/:id/request', component: RequestServicePage,     meta: { title: 'Request a Service – WorkMate', requiresAuth: true } },
-    { path: '/post-job',             component: PostJobPage,            meta: { title: 'Post a Job – WorkMate', requiresAuth: true } },
+    { path: '/provider/:id/request', component: () => import('@/pages/RequestServicePage.vue'),     meta: { title: 'Request a Service – WorkMate', requiresAuth: true } },
+    { path: '/post-job',             component: () => import('@/pages/PostJobPage.vue'),            meta: { title: 'Post a Job – WorkMate', requiresAuth: true } },
     { path: '/find-work',            component: FindWorkPage,           meta: { title: 'Find Work – WorkMate' } },
     { path: '/job/:id',              component: JobDetailsPage,         meta: { title: 'Job Details – WorkMate' } },
     { path: '/job/:id/apply',        component: ApplyJobPage,           meta: { title: 'Apply for a Job – WorkMate', requiresAuth: true } },
-    { path: '/activity',             component: MyActivityPage,         meta: { title: 'My Work – WorkMate', requiresAuth: true } },
+    { path: '/activity',             component: () => import('@/pages/MyActivityPage.vue'),         meta: { title: 'My Work – WorkMate', requiresAuth: true } },
     { path: '/account',              component: AccountPage,            meta: { title: 'My Account – WorkMate' } },
     { path: '/account/reports',      component: () => import('@/pages/ReportsPage.vue'), meta: { title: 'Reports and complaints – WorkMate', requiresAuth: true } },
     { path: '/account/verification', component: () => import('@/pages/GetVerifiedPage.vue'), meta: { title: 'Get Verified – WorkMate', requiresAuth: true } },
@@ -50,9 +46,9 @@ const routes = [
     { path: '/community/post/:id',   component: () => import('@/pages/CommunityPostPage.vue'), meta: { title: 'Community post – WorkMate' } },
     { path: '/messages',             component: MessagesPage,           meta: { title: 'Messages – WorkMate', requiresAuth: true } },
     // A chat fills the screen on phones: no app bar or tab bar, like a messaging app
-    { path: '/messages/:id',         component: ChatPage,               meta: { title: 'Chat – WorkMate', requiresAuth: true, immersive: true } },
+    { path: '/messages/:id',         component: () => import('@/pages/ChatPage.vue'),               meta: { title: 'Chat – WorkMate', requiresAuth: true, immersive: true } },
     // A chat opened from the provider side (customers reach chats by provider id)
-    { path: '/messages/c/:conversationId', component: ChatPage,         meta: { title: 'Chat – WorkMate', requiresAuth: true, immersive: true } },
+    { path: '/messages/c/:conversationId', component: () => import('@/pages/ChatPage.vue'),         meta: { title: 'Chat – WorkMate', requiresAuth: true, immersive: true } },
     // Signing in: guestOnly pages send signed-in people on to their account
     { path: '/sign-in',              alias: '/login', component: () => import('@/pages/SignInPage.vue'), meta: { title: 'Sign in – WorkMate', guestOnly: true } },
     { path: '/register',             component: () => import('@/pages/RegisterPage.vue'),       meta: { title: 'Create an account – WorkMate', guestOnly: true } },

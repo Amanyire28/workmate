@@ -28,6 +28,7 @@ export const SEARCH_CONFIG = reactive({
     rankAvailability: true,  // tie-breaks within the same distance
     rankVerification: true,
     rankRating: false,
+    rankOnline: true,        // then providers online now
     radarRangeKm: 12,        // distance drawn at the radar's outer edge (display only)
 });
 
@@ -37,6 +38,7 @@ const SETTING_KEYS = {
     'search.same_town_fallback': 'sameTownFallback', 'search.gps_area_match_km': 'gpsAreaMatchKm',
     'search.gps_max_age_minutes': 'gpsMaxAgeMin', 'search.rank_availability': 'rankAvailability',
     'search.rank_verification': 'rankVerification', 'search.rank_rating': 'rankRating',
+    'search.rank_online': 'rankOnline',
 };
 
 /** Applies the server's search settings ({ 'search.nearby_km': 5, … }) */
@@ -210,6 +212,7 @@ export function searchNearby(query, origin, config = SEARCH_CONFIG) {
     const km = (x) => (x.distanceKm == null ? Infinity : Math.round(x.distanceKm * 10) / 10);
     const tieBreak = (a, b) =>
         (config.rankAvailability ? availabilityInfo(a.provider).rank - availabilityInfo(b.provider).rank : 0) ||
+        (config.rankOnline ? (b.provider.presence?.online ? 1 : 0) - (a.provider.presence?.online ? 1 : 0) : 0) ||
         (config.rankVerification ? trustRank(b.provider) - trustRank(a.provider) : 0) ||
         (config.rankRating ? (b.provider.rating || 0) - (a.provider.rating || 0) : 0);
     const byDistance = (a, b) => (km(a) - km(b)) || tieBreak(a, b);

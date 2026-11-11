@@ -26,6 +26,7 @@ class UpdateProfileRequest extends FormRequest
             'name' => ['sometimes', 'required', 'string', 'max:100'],
             'phone' => array_merge(['sometimes'], $this->phoneRules($this->user()->getKey())),
             'locale' => ['sometimes', 'required', 'in:en,lg'],
+            'show_last_seen' => ['sometimes', 'boolean'],
         ];
     }
 

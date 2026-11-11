@@ -61,8 +61,16 @@ class ProviderRecommendations
         });
     }
 
+    /** @var array{boost: float, window: int} presence signals, read once per ranking */
+    private $presence = ['boost' => 0.15, 'window' => 5];
+
     private function rank(?Area $origin, ?string $category, ?array $point = null): array
     {
+        $settings = app(PlatformSettings::class);
+        $this->presence = [
+            'boost' => max(0, min(30, (int) $settings->get('search.online_boost'))) / 100,
+            'window' => (int) $settings->get('presence.online_minutes'),
+        ];
         $providers = $this->eligible();
 
         // The service asked for, when anyone offers it
@@ -184,6 +192,16 @@ class ProviderRecommendations
         // Only an answer they gave recently
         if ($p->availability_updated_at && $p->availability_updated_at->gte($recent)) {
             $score += ['available' => 0.25, 'busy' => 0.0, 'unavailable' => -0.3][$p->availability_status] ?? 0.0;
+        }
+        // Online now, or active today: a small, bounded edge between otherwise similar providers
+        if ($seen && $seen->gte(now()->subMinutes($this->presence['window']))) {
+            $score += $this->presence['boost'];
+        } elseif ($seen && $seen->gte(now()->subDay())) {
+            $score += $this->presence['boost'] / 2;
+        }
+        // Paused: still listed, after those taking requests
+        if ($p->accepts_immediate === false && $p->accepts_bookings === false) {
+            $score -= 0.4;
         }
         if ($category && optional(optional($this->main($p))->category)->slug === $category) {
             $score += 0.3;

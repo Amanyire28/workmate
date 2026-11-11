@@ -87,6 +87,12 @@ export function toProvider(p) {
         blueTick: p.blue_tick,
         availabilityStatus: p.availability_status,
         nextAvailable: p.next_available,
+        // available | busy | paused, and what they take
+        workStatus: p.work_status || null,
+        acceptsImmediate: p.accepts_immediate !== false,
+        acceptsBookings: p.accepts_bookings !== false,
+        // { online, last_seen_at } or null when they hide it
+        presence: p.presence || null,
         phone: null,
         isSample: p.is_sample,
     };

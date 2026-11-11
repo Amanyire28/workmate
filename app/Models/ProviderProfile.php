@@ -52,6 +52,8 @@ class ProviderProfile extends Model
         'document_verified_at' => 'datetime',
         'blue_tick_awarded_at' => 'datetime',
         'availability_updated_at' => 'datetime',
+        'accepts_immediate' => 'boolean',
+        'accepts_bookings' => 'boolean',
     ];
 
     public const AVAILABILITY_STATUSES = ['available', 'busy', 'unavailable'];
@@ -64,6 +66,55 @@ class ProviderProfile extends Model
     public function workItems()
     {
         return $this->hasMany(ProviderWorkItem::class);
+    }
+
+    /** "Services & Prices" */
+    public function services()
+    {
+        return $this->hasMany(ProviderService::class);
+    }
+
+    /** Requests sent to them, and posted jobs they were hired for */
+    public function receivedRequests()
+    {
+        return $this->hasMany(ServiceRequest::class);
+    }
+
+    /** Working on a confirmed job right now (started, or within its booked time) */
+    public static function busyNowQuery($query)
+    {
+        $now = now();
+
+        return $query->where(function ($q) use ($now) {
+            $q->where('status', ServiceRequest::STATUS_IN_PROGRESS)
+                ->orWhere(function ($q) use ($now) {
+                    $q->where('status', ServiceRequest::STATUS_SCHEDULED)
+                        ->where('scheduled_start_at', '<=', $now)->where('scheduled_end_at', '>', $now);
+                });
+        });
+    }
+
+    /**
+     * What customers are told:
+     *   available  "Available now": takes immediate work and isn't on a job
+     *   busy       "Busy · Accepting bookings": on a job now (or not taking
+     *              immediate work) but takes bookings for later
+     *   paused     "Bookings paused": not taking new requests
+     * Uses busy_now when the listing loaded it (withExists), else asks.
+     */
+    public function workStatus(): string
+    {
+        if (! $this->accepts_immediate && ! $this->accepts_bookings) {
+            return 'paused';
+        }
+        $busyNow = array_key_exists('busy_now', $this->attributes)
+            ? (bool) $this->attributes['busy_now']
+            : self::busyNowQuery($this->receivedRequests())->exists();
+        if ($busyNow || ! $this->accepts_immediate) {
+            return $this->accepts_bookings ? 'busy' : 'paused';
+        }
+
+        return 'available';
     }
 
     public function coverUrl(): ?string

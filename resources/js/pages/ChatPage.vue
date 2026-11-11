@@ -60,9 +60,11 @@
             {{ chat.role === 'customer' ? 'Ask about availability, price or past work before you hire.' : 'No messages yet.' }}
           </p>
 
+          <template v-for="m in messages" :key="m.id">
+          <!-- A service request: one card, kept up to date with the request -->
+          <RequestCard v-if="m.kind === 'request' && m.request" :r="m.request" :as-customer="chat.role === 'customer'" />
           <div
-            v-for="m in messages"
-            :key="m.id"
+            v-else
             class="flex max-w-[82%] flex-col"
             :class="m.mine ? 'self-end items-end' : 'self-start items-start'"
           >
@@ -106,6 +108,7 @@
             >{{ m.body }}</p>
             <span class="mt-0.5 px-1 wm-meta !text-[11px]">{{ timeLabel(m.sent_at) }}</span>
           </div>
+          </template>
 
           <!-- Suggested openers -->
           <div v-if="!messages.length && chat.role === 'customer'" class="mt-2 flex flex-wrap justify-center gap-2" role="group" aria-label="Suggested messages">
@@ -196,6 +199,7 @@ import EmptyState from '@/components/EmptyState.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import VerifiedBadge from '@/components/VerifiedBadge.vue';
 import ReportSheet from '@/components/ReportSheet.vue';
+import RequestCard from '@/components/chat/RequestCard.vue';
 import { providers } from '@/stores/catalog.js';
 import { displayName } from '@/utils/ui.js';
 import { availabilityInfo } from '@/utils/trust.js';

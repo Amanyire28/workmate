@@ -35,7 +35,8 @@
             <div class="flex items-center justify-between gap-3">
               <p class="text-sm truncate" :class="t.unread ? 'text-ink font-medium' : 'text-muted'">
                 <span v-if="t.last.mine">You: </span>
-                <template v-if="t.last.body">{{ t.last.body }}</template>
+                <template v-if="t.last.kind === 'request'"><i class="bi bi-clipboard-check" aria-hidden="true"></i> Service request<template v-if="t.last.request"> · {{ t.last.request.title }}</template></template>
+                <template v-else-if="t.last.body">{{ t.last.body }}</template>
                 <!-- Only files: say what was sent, like a messaging app -->
                 <template v-else-if="t.last.attachments?.length">
                   <i :class="['bi', t.last.attachments[0].kind === 'photo' ? 'bi-image' : 'bi-file-earmark-pdf']" aria-hidden="true"></i>

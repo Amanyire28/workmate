@@ -9,6 +9,7 @@ use App\Models\MessageAttachment;
 use App\Models\ProviderProfile;
 use App\Models\User;
 use App\Services\Messaging;
+use App\Services\RequestDetails;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -30,7 +31,7 @@ class ConversationController extends Controller
 
         $conversations = Conversation::forParticipant($user)
             ->whereNotNull('last_message_at')
-            ->with(['provider.owner:id,name,avatar_path', 'customer:id,name,avatar_path', 'latestMessage.attachments'])
+            ->with(['provider.owner:id,name,avatar_path', 'customer:id,name,avatar_path', 'latestMessage.attachments', 'latestMessage.serviceRequest.category'])
             ->withCount(['messages as unread_count' => function ($query) use ($user) {
                 $query->whereNull('read_at')->where('sender_id', '!=', $user->getKey());
             }])
@@ -117,13 +118,39 @@ class ConversationController extends Controller
         $this->messaging->markRead($conversation, $user);
         $conversation->load(['provider.owner:id,name,avatar_path', 'customer:id,name,avatar_path']);
 
-        $messages = $conversation->messages()->with('attachments')->latest('id')->limit(200)->get()->reverse()->values();
+        $messages = $conversation->messages()->with(['attachments', 'serviceRequest.category', 'serviceRequest.provider:id,display_name'])
+            ->latest('id')->limit(200)->get()->reverse()->values();
+        $asCustomer = $conversation->isCustomer($user);
 
         return response()->json(['data' => array_merge($this->summary($conversation, $user), [
-            'messages' => $messages->map(function ($m) use ($user) {
-                return $this->message($m, $user);
+            'messages' => $messages->map(function ($m) use ($user, $asCustomer) {
+                return $this->message($m, $user, $asCustomer);
             }),
         ])]);
+    }
+
+    /**
+     * What a request card shows. The customer sees everything; the provider
+     * sees the exact location only once they've accepted (RequestDetails).
+     */
+    private function card(\App\Models\ServiceRequest $r, bool $asCustomer): array
+    {
+        $details = $asCustomer ? RequestDetails::forCustomer($r) : RequestDetails::forProvider($r);
+
+        return [
+            'id' => $r->id,
+            'reference' => 'WM-R'.str_pad((string) $r->id, 5, '0', STR_PAD_LEFT),
+            'kind' => $r->isPostedJob() ? 'posted' : 'direct',
+            'title' => $r->title,
+            'category_name' => optional($r->category)->name,
+            'description' => $r->description,
+            'budget' => $r->budget,
+            'budget_basis' => $r->budget_basis,
+            'preferred_time' => $r->preferred_time,
+            'status' => $r->trashed() ? 'cancelled' : $r->status,
+            'schedule' => $details['schedule'],
+            'location' => $details['location'],
+        ];
     }
 
     private function summary(Conversation $c, User $user): array
@@ -147,11 +174,14 @@ class ConversationController extends Controller
         ];
     }
 
-    private function message(Message $m, User $user): array
+    private function message(Message $m, User $user, ?bool $asCustomer = null): array
     {
         return [
             'id' => $m->id,
             'mine' => $m->sender_id === (int) $user->getKey(),
+            'kind' => $m->kind ?: 'text',
+            // A request card: the request as it is now (it stays the one record of the job)
+            'request' => $m->service_request_id && $m->serviceRequest ? $this->card($m->serviceRequest, $asCustomer ?? ($m->serviceRequest->customer_id === (int) $user->getKey())) : null,
             'body' => $m->body,
             'attachments' => $m->attachments->map(function (MessageAttachment $a) {
                 return $a->present();

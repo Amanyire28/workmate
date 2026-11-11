@@ -53,6 +53,9 @@ class ReceivedRequestTest extends ApiTestCase
         $customer = User::factory()->create();
         $accepted = $this->sendRequest($provider, $customer);
         $declined = $this->sendRequest($provider, $customer);
+        // Requests from before the booking system keep the original steps (accept → in progress → done);
+        // new requests are covered by BookingTest
+        \App\Models\ServiceRequest::whereKey([$accepted, $declined])->update(['booking_version' => \App\Models\ServiceRequest::BOOKING_LEGACY]);
 
         $this->signIn($provider->owner);
         $this->postJson("/api/v1/me/received-requests/{$accepted}/accept")->assertOk()->assertJsonPath('data.status', 'in_progress');

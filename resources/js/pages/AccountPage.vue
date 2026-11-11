@@ -160,6 +160,14 @@
               <option value="lg">Luganda</option>
             </FormField>
             <PlacePicker v-model="profile.area" id="profile-area" label="Your area" hint="Used until you close WorkMate. Next time, WorkMate starts from your current location." />
+            <!-- Providers: whether customers see "Online now" / "Last seen" on their profile -->
+            <label v-if="user.provider_status && user.provider_status !== 'not_applied'" class="flex items-start gap-3 rounded-xl bg-[#F1F5F9] p-3 cursor-pointer">
+              <input v-model="profile.showLastSeen" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-[var(--color-primary)]" />
+              <span>
+                <span class="block text-[14.5px] font-medium text-ink">Show when I was last online</span>
+                <span class="block text-[13px] text-muted">Customers see “Online now” or “Last seen 2 hours ago” on your profile. Only the time is shown.</span>
+              </span>
+            </label>
             <p v-if="profileError" class="wm-notice wm-notice-error" role="alert">
               <i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>{{ profileError }}</span>
             </p>
@@ -424,10 +432,10 @@ function toggle(id) {
 }
 
 // Profile
-const profile = reactive({ name: '', phone: '', locale: 'en', area: selectedArea.value });
+const profile = reactive({ name: '', phone: '', locale: 'en', area: selectedArea.value, showLastSeen: true });
 watch(user, (u) => {
   if (!u) return;
-  Object.assign(profile, { name: u.name, phone: u.phone || '', locale: u.locale || 'en' });
+  Object.assign(profile, { name: u.name, phone: u.phone || '', locale: u.locale || 'en', showLastSeen: u.show_last_seen !== false });
 }, { immediate: true });
 
 const profileErrors = ref({});
@@ -445,7 +453,7 @@ async function saveProfile() {
   }
   savingProfile.value = true;
   try {
-    await updateProfile({ name: profile.name.trim(), phone: profile.phone.trim() || null, locale: profile.locale });
+    await updateProfile({ name: profile.name.trim(), phone: profile.phone.trim() || null, locale: profile.locale, show_last_seen: profile.showLastSeen });
     if (profile.area) selectedArea.value = profile.area;
     profileSaved.value = true;
   } catch (e) {

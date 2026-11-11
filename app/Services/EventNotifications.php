@@ -53,7 +53,60 @@ class EventNotifications
 
     public function requestAccepted(ServiceRequest $request): void
     {
+        // A booking for a time: say which; otherwise as before
+        if ($request->status === ServiceRequest::STATUS_SCHEDULED && $request->scheduled_start_at) {
+            $this->toCustomer($request, 'Booking confirmed', $this->providerName($request).' confirmed your '.$this->service($request).' booking for '.$this->when($request->scheduled_start_at).'.');
+
+            return;
+        }
         $this->toCustomer($request, 'Request accepted', $this->providerName($request).' accepted your '.$this->service($request).' request.');
+    }
+
+    public function requestStarted(ServiceRequest $request): void
+    {
+        $this->toCustomer($request, 'Work in progress', $this->providerName($request).' has started your '.$this->service($request).' job.');
+    }
+
+    /** The provider suggested another time; the customer accepts it or not */
+    public function timeProposed(ServiceRequest $request): void
+    {
+        $this->toCustomer($request, 'Time change proposed', $this->providerName($request).' suggested '.$this->when($request->proposed_start_at).' for your '.$this->service($request).' request. Accept it or keep looking.');
+    }
+
+    public function proposalAnswered(ServiceRequest $request, bool $accepted): void
+    {
+        $this->toProvider('requests', $request->provider_profile_id, $request->customer_id, [
+            'title' => $accepted ? 'Booking confirmed' : 'Time not accepted',
+            'body' => $accepted
+                ? $this->firstName($request->customer).' accepted your suggested time: '.$this->when($request->scheduled_start_at).'.'
+                : $this->firstName($request->customer).' can’t make the time you suggested.',
+            'url' => '/activity?tab=received',
+            'tag' => 'request-'.$request->id,
+            'important' => true,
+        ]);
+    }
+
+    /** A request or booking was cancelled by the other side */
+    public function requestCancelled(ServiceRequest $request, string $by): void
+    {
+        if ($by === 'customer') {
+            $this->toProvider('requests', $request->provider_profile_id, $request->customer_id, [
+                'title' => 'Request cancelled',
+                'body' => $this->firstName($request->customer).' cancelled their '.$this->service($request).' request.',
+                'url' => '/activity?tab=received',
+                'tag' => 'request-'.$request->id,
+                'important' => true,
+            ]);
+
+            return;
+        }
+        $this->toCustomer($request, 'Booking cancelled', $this->providerName($request).' had to cancel your '.$this->service($request).' booking. See their reply.');
+    }
+
+    /** "Friday 20 Nov, 10:00 AM" in Uganda time */
+    private function when($at): string
+    {
+        return $at ? $at->copy()->timezone('Africa/Kampala')->format('l j M, g:i A') : 'another time';
     }
 
     public function requestDeclined(ServiceRequest $request): void

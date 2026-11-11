@@ -9,8 +9,15 @@ const availability = {
     unavailable: { label: 'Unavailable',   tone: 'neutral', rank: 2 },
 };
 
+// What customers are told now: their preferences plus real bookings (server work_status)
+const workStatus = {
+    available: { label: 'Available now',             tone: 'success', rank: 0 },
+    busy:      { label: 'Busy · Accepting bookings', tone: 'warning', rank: 1 },
+    paused:    { label: 'Bookings paused',           tone: 'neutral', rank: 2 },
+};
+
 export function availabilityInfo(provider) {
-    const info = availability[provider.availabilityStatus] || availability.unavailable;
+    const info = workStatus[provider.workStatus] || availability[provider.availabilityStatus] || availability.unavailable;
     // e.g. "Busy · free Tomorrow", "Unavailable · Back on Monday"
     let detail = null;
     const next = provider.nextAvailable;

@@ -15,9 +15,21 @@ class ServiceRequest extends Model
     use SoftDeletes;
 
     public const STATUS_OPEN = 'open';
+    // Accepted for a confirmed time; the provider starts it when they arrive
+    public const STATUS_SCHEDULED = 'scheduled';
     public const STATUS_IN_PROGRESS = 'in_progress';
     public const STATUS_COMPLETED = 'completed';
     public const STATUS_CANCELLED = 'cancelled';
+
+    /** Only confirmed bookings reserve a provider's time */
+    public const BLOCKING_STATUSES = [self::STATUS_SCHEDULED, self::STATUS_IN_PROGRESS];
+
+    /** Requests made before the booking system (original workflow), and those made with it */
+    public const BOOKING_LEGACY = 1;
+    public const BOOKING_V2 = 2;
+
+    public const TIMING_ASAP = 'asap';
+    public const TIMING_SCHEDULED = 'scheduled';
 
     protected $fillable = [
         'category_id',
@@ -42,7 +54,30 @@ class ServiceRequest extends Model
         'is_posted_job' => 'boolean',
         'responded_at' => 'datetime',
         'review_prompted_at' => 'datetime',
+        'latitude' => 'float',
+        'longitude' => 'float',
+        'location_accuracy_m' => 'integer',
+        'scheduled_start_at' => 'datetime',
+        'scheduled_end_at' => 'datetime',
+        'proposed_start_at' => 'datetime',
+        'duration_minutes' => 'integer',
+        'proposed_duration_minutes' => 'integer',
+        'started_at' => 'datetime',
+        'provider_service_id' => 'integer',
+        'booking_version' => 'integer',
     ];
+
+    /** Made before the booking system: kept as it is, on the original workflow */
+    public function isLegacy(): bool
+    {
+        return (int) ($this->booking_version ?? self::BOOKING_LEGACY) === self::BOOKING_LEGACY;
+    }
+
+    /** Accepted (scheduled, started or done): the provider may see the exact location */
+    public function isAccepted(): bool
+    {
+        return in_array($this->status, [self::STATUS_SCHEDULED, self::STATUS_IN_PROGRESS, self::STATUS_COMPLETED], true);
+    }
 
     public function customer()
     {

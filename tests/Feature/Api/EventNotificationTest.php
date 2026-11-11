@@ -113,6 +113,9 @@ class EventNotificationTest extends ApiTestCase
         // Requests stay on screen until dismissed; chat messages don't
         $this->assertTrue($first['payload']['important']);
 
+        // Requests from before the booking system keep the original steps and messages;
+        // new ones say "Booking confirmed" (BookingTest)
+        \App\Models\ServiceRequest::whereKey([$accepted, $declined])->update(['booking_version' => \App\Models\ServiceRequest::BOOKING_LEGACY]);
         $this->signIn($provider->owner);
         $this->postJson("/api/v1/me/received-requests/{$accepted}/accept")->assertOk();
         $this->postJson("/api/v1/me/received-requests/{$declined}/decline", ['reason' => 'Fully booked this week'])->assertOk();

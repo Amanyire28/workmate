@@ -41,6 +41,12 @@ return [
             'view_permission' => 'legal.manage',
             'change_permission' => 'legal.manage',
         ],
+        // Booking times (Admin → Settings)
+        'booking' => [
+            'label' => 'Bookings',
+            'view_permission' => 'admin.manage',
+            'change_permission' => 'admin.manage',
+        ],
         // Invite Friends (Admin → Invitations)
         'referrals' => [
             'label' => 'Invitations',
@@ -112,6 +118,18 @@ return [
             'description' => 'Within the same distance, providers with checked documents or the blue tick come first.',
             'type' => 'boolean', 'default' => true, 'public' => true,
         ],
+        'search.online_boost' => [
+            'group' => 'search',
+            'label' => 'Boost for providers online now (0–30)',
+            'description' => 'Added to a recommended provider’s score while they’re online (half of it if active in the last day). Small, so it only decides between otherwise similar providers; offline providers are never hidden.',
+            'type' => 'integer', 'min' => 0, 'max' => 30, 'default' => 15,
+        ],
+        'search.rank_online' => [
+            'group' => 'search',
+            'label' => 'Prefer providers online now',
+            'description' => 'Within the same distance in nearby search, after availability.',
+            'type' => 'boolean', 'default' => true, 'public' => true,
+        ],
         'search.rank_rating' => [
             'group' => 'search',
             'label' => 'Prefer higher-rated providers',
@@ -130,6 +148,12 @@ return [
             'label' => 'Recently active window (minutes)',
             'description' => 'Seen within this time, but not online, counts as recently active.',
             'type' => 'integer', 'min' => 2, 'max' => 1440, 'default' => 30,
+        ],
+        'booking.default_duration_minutes' => [
+            'group' => 'booking',
+            'label' => 'Expected length when not given (minutes)',
+            'description' => 'How long a booking reserves the provider when the customer doesn’t say, and how long an “as soon as possible” job is held for.',
+            'type' => 'integer', 'min' => 30, 'max' => 720, 'default' => 120, 'public' => true,
         ],
         'presence.heartbeat_seconds' => [
             'group' => 'presence',

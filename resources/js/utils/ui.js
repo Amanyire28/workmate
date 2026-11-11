@@ -73,6 +73,18 @@ export function formatPrice(amount) {
     return `UGX ${Number(amount).toLocaleString('en-UG')}`;
 }
 
+const PRICE_UNITS = { hour: 'per hour', day: 'per day', visit: 'per visit', item: 'per item', job: 'per job' };
+
+/**
+ * A listed service's usual price: "From UGX 30,000", "UGX 50,000 per visit",
+ * "Request a quote". A guide, not an amount owed.
+ */
+export function servicePriceLabel(service) {
+    if (!service || service.pricing_type === 'quote' || service.price == null) return 'Request a quote';
+    const unit = PRICE_UNITS[service.price_unit] ? ` ${PRICE_UNITS[service.price_unit]}` : '';
+    return `${service.pricing_type === 'from' ? 'From ' : ''}${formatPrice(service.price)}${unit}`;
+}
+
 // Map status keys to pill tones
 const statusTones = {
     open:        'info',

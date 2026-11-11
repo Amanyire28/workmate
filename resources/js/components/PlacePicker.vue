@@ -49,6 +49,14 @@
       role="listbox"
       class="absolute z-30 left-0 right-0 mt-1 max-h-72 overflow-y-auto rounded-[14px] border border-line bg-white py-1 shadow-lg"
     >
+      <!-- Always first: where they are now (the shared location store; the browser asks only if it hasn't before) -->
+      <li v-if="currentLocation && !query" :id="`${listId}--2`" role="option" aria-selected="false"
+        class="flex items-center gap-2.5 px-3 min-h-11 cursor-pointer text-[15px] font-medium text-primary hover:bg-primary-tint"
+        @mousedown.prevent="useCurrent">
+        <span v-if="locating" class="wm-spinner !h-4 !w-4" aria-hidden="true"></span>
+        <span v-else aria-hidden="true">📍</span>
+        {{ locating ? 'Finding where you are…' : 'Use my current location' }}
+      </li>
       <li v-if="anyLabel && !query" :id="`${listId}--1`" role="option" :aria-selected="!modelValue"
         class="flex items-center gap-2.5 px-3 min-h-11 cursor-pointer text-[15px] text-ink hover:bg-[#F1F5F9]"
         @mousedown.prevent="pick(null)">
@@ -79,13 +87,16 @@
     </ul>
 
     <p v-if="errorMessage" :id="`${inputId}-error`" class="wm-field-error" role="alert">{{ errorMessage }}</p>
+    <p v-else-if="locateError" class="wm-field-error" role="alert">{{ locateError }}</p>
     <p v-else-if="hint" :id="`${inputId}-hint`" class="wm-field-hint">{{ hint }}</p>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, useId } from 'vue';
-import { searchLocations, searchPlaces, areaById, areaLabel } from '@/stores/catalog.js';
+import { searchLocations, searchPlaces, areaById, areaLabel, nearestPlace } from '@/stores/catalog.js';
+import { requestDeviceLocation } from '@/stores/location.js';
+import { SEARCH_CONFIG } from '@/utils/nearbySearch.js';
 
 /**
  * Type-to-search over every place in Uganda. v-model is the place's id
@@ -109,8 +120,11 @@ const props = defineProps({
   resetOnPick:  { type: Boolean, default: false },
   exclude:      { type: Array, default: () => [] },
   id:           { type: String, default: '' },
+  // Offer "Use my current location" first (only ever on a tap: it never changes the place by itself)
+  currentLocation: { type: Boolean, default: true },
 });
-const emit = defineEmits(['update:modelValue', 'select']);
+// located: the device reading behind a "current location" choice, for forms that keep the exact point
+const emit = defineEmits(['update:modelValue', 'select', 'located']);
 
 const uid = useId();
 const inputId = computed(() => props.id || `place-${uid}`);
@@ -206,5 +220,31 @@ function pick(o) {
 function clear() {
   pick(null);
   input.value?.focus();
+}
+
+/* ---------------- Use my current location ---------------- */
+
+const locating = ref(false);
+const locateError = ref('');
+
+async function useCurrent() {
+  if (locating.value) return;
+  locating.value = true;
+  locateError.value = '';
+  try {
+    const reading = await requestDeviceLocation();
+    const found = await nearestPlace(reading.latitude, reading.longitude);
+    // Only a place close enough to be honest about
+    if (!found || (found.distanceKm != null && found.distanceKm > SEARCH_CONFIG.gpsAreaMatchKm)) {
+      locateError.value = 'We couldn’t match where you are to a place. Type your area instead.';
+      return;
+    }
+    pick(found.area);
+    emit('located', reading);
+  } catch (e) {
+    locateError.value = e?.message || 'We couldn’t find where you are. Type your area instead.';
+  } finally {
+    locating.value = false;
+  }
 }
 </script>
