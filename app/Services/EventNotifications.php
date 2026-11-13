@@ -189,6 +189,18 @@ class EventNotifications
 
     /* ---------------- Provider application ---------------- */
 
+    /** The applicant sent their application: what happens next */
+    public function applicationSubmitted(int $ownerId): void
+    {
+        $this->send(UserNotifications::ACCOUNT, [$ownerId], [
+            'title' => 'Your provider application has been submitted',
+            'body' => 'WorkMate will review it and let you know. You can’t be booked until it’s approved.',
+            'url' => '/start-earning',
+            'tag' => 'provider-application',   // the decision later replaces it if still unread
+            'push' => false,                     // they've just sent it in the app
+        ]);
+    }
+
     public function applicationDecided(ProviderApplication $application): void
     {
         $profile = $application->profile;

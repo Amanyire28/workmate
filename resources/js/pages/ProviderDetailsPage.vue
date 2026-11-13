@@ -110,6 +110,9 @@
             </p>
           </aside>
 
+          <!-- The owner: a suggestion for their profile, while it applies -->
+          <SuggestionCard v-if="isOwn" page="provider" />
+
           <!-- What they do and usually charge, then their work -->
           <ProviderServicesSection :provider="provider" :is-own="isOwn" />
           <ProviderWorkSection :provider="provider" :is-own="isOwn" :provider-name="name" />
@@ -253,6 +256,7 @@ import { useRoute } from 'vue-router';
 import ProviderCover from '@/components/ProviderCover.vue';
 import ProviderWorkSection from '@/components/work/ProviderWorkSection.vue';
 import ProviderServicesSection from '@/components/services/ProviderServicesSection.vue';
+import SuggestionCard from '@/components/engagement/SuggestionCard.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import AvailabilityBadge from '@/components/AvailabilityBadge.vue';

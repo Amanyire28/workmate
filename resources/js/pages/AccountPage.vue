@@ -38,7 +38,8 @@
 
     <!-- Signed in -->
     <template v-else>
-      <section class="wm-card mt-5 flex items-center gap-4" aria-label="Profile summary">
+      <SuggestionCard page="account" class="mt-5" />
+      <section id="profile-photo" class="wm-card mt-5 flex items-center gap-4 scroll-mt-[calc(var(--wm-header-h)+16px)]" aria-label="Profile summary">
         <ProfilePhotoEditor :user="user" :size="72" />
         <div class="min-w-0">
           <p class="text-xl font-semibold text-ink truncate">{{ user.name }}</p>
@@ -360,6 +361,7 @@ import FormField from '@/components/FormField.vue';
 import PrimaryButton from '@/components/PrimaryButton.vue';
 import ProviderApplicationPanel from '@/components/ProviderApplicationPanel.vue';
 import PushNotificationSetting from '@/components/PushNotificationSetting.vue';
+import SuggestionCard from '@/components/engagement/SuggestionCard.vue';
 import { saved } from '@/stores/saved.js';
 import PlacePicker from '@/components/PlacePicker.vue';
 import { appSettings } from '@/stores/catalog.js';
@@ -425,8 +427,15 @@ const START_CARDS = {
 };
 const START = computed(() => START_CARDS[user.value?.provider_status] || START_CARDS.not_applied);
 
-// /account?panel=provider opens the service profile directly (linked from Home)
-const openPanel = ref(route.query.panel === 'provider' ? 'provider' : '');
+// /account?panel=provider opens the service profile directly (linked from Home);
+// ?panel=profile opens the profile details (linked from suggestions)
+const PANELS = ['provider', 'profile'];
+const openPanel = ref(PANELS.includes(route.query.panel) ? route.query.panel : '');
+watch(() => route.query.panel, (panel) => {
+  if (!PANELS.includes(panel)) return;
+  openPanel.value = panel;
+  nextTick(() => { const el = document.getElementById(`panel-${panel}`); if (el) el.scrollIntoView({ block: 'center', behavior: 'smooth' }); });
+}, { immediate: true });
 function toggle(id) {
   openPanel.value = openPanel.value === id ? '' : id;
 }

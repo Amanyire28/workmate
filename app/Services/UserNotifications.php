@@ -43,7 +43,8 @@ class UserNotifications
 
     /**
      * @param  iterable<int>  $userIds
-     * @param  array{title: string, body: string, url: string, tag: ?string, important?: bool}  $message
+     * @param  array{title: string, body: string, url: string, tag: ?string, important?: bool, push?: bool}  $message
+     *         push false: the bell only (for things the person just did in the app)
      */
     public function send(string $kind, iterable $userIds, array $message): void
     {
@@ -59,10 +60,14 @@ class UserNotifications
             return;
         }
 
+        $push = ($message['push'] ?? true) !== false;
+        unset($message['push']);
         foreach ($wanted as $id) {
             $this->record($id, $kind, $message);
         }
-        $this->push->toUsers($wanted, $message);
+        if ($push) {
+            $this->push->toUsers($wanted, $message);
+        }
     }
 
     /** @return array<string, array{label: string, hint: string, on: bool}> */
@@ -111,6 +116,12 @@ class UserNotifications
                 $q->whereKey($id);
             })
             ->update(['read_at' => now()]);
+    }
+
+    /** Whether this person wants this kind of notification (account notices always) */
+    public function wants(int $userId, string $kind): bool
+    {
+        return $kind === self::ACCOUNT || $this->wanting($kind, [$userId])->isNotEmpty();
     }
 
     /** The accounts among $ids that haven't turned this kind off */

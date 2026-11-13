@@ -1,6 +1,7 @@
 <template>
   <div class="wm-container wm-page">
     <h1 class="wm-h1">My work</h1>
+    <SuggestionCard page="work" class="mt-4" />
 
     <!-- Tabs -->
     <div class="mt-5 flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -63,6 +64,7 @@
           <i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>{{ actionError }}</span>
         </p>
         <MyWorkPanel v-model:stage="stage" :requests="received" class="mb-4" />
+        <RecommendedForYou />
         <ul v-if="shownReceived.length" class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
           <ReceivedRequestCard v-for="req in shownReceived" :key="req.id" :req="req"
             @updated="replace" @message="messageCustomer"
@@ -239,6 +241,8 @@ import RequestPhotos from '@/components/RequestPhotos.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import MyWorkPanel from '@/components/work/MyWorkPanel.vue';
+import SuggestionCard from '@/components/engagement/SuggestionCard.vue';
+import RecommendedForYou from '@/components/engagement/RecommendedForYou.vue';
 import ReceivedRequestCard from '@/components/work/ReceivedRequestCard.vue';
 import CustomerRequestStatus from '@/components/work/CustomerRequestStatus.vue';
 import { agoLabel, providers } from '@/stores/catalog.js';

@@ -152,6 +152,7 @@ class ProviderApplications
                 $before === ProviderProfile::STATUS_DRAFT ? 'provider.submitted' : 'provider.resubmitted',
                 $application, ['status' => $before], ['status' => $profile->status], $note, $user
             );
+            $this->notify->applicationSubmitted($user->getKey());
 
             return $application;
         });

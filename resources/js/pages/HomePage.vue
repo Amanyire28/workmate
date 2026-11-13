@@ -47,6 +47,11 @@
       </div>
     </section>
 
+    <!-- ============ A suggestion for this person, while it applies ============ -->
+    <div v-if="auth.user" class="wm-container pt-5 empty:hidden">
+      <SuggestionCard page="home" />
+    </div>
+
     <!-- ============ Nearby search: radar while searching, then results ============
          Renders nothing until the customer searches. -->
     <NearbySearchPanel ref="searchPanel" />
@@ -102,6 +107,7 @@ import AppFooter from '@/components/AppFooter.vue';
 import HomeRecentPosts from '@/components/HomeRecentPosts.vue';
 import HomeRecentJobs from '@/components/HomeRecentJobs.vue';
 import HomeRecommendedWorkers from '@/components/HomeRecommendedWorkers.vue';
+import SuggestionCard from '@/components/engagement/SuggestionCard.vue';
 import { providers } from '@/stores/catalog.js';
 import { startNearbySearch } from '@/stores/nearbySearch.js';
 import { auth } from '@/stores/auth.js';

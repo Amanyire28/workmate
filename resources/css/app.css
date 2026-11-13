@@ -1013,3 +1013,10 @@
 @media (max-width: 1023.98px) {
     html.wm-chat-open, html.wm-chat-open body { overflow: hidden; overscroll-behavior: none; }
 }
+
+/* Suggestion cards in the pages (components/engagement/SuggestionCard.vue) */
+@layer components {
+    .wm-suggestion { border-color: rgba(23, 105, 210, 0.16); }
+    .wm-suggestion-bar { height: 6px; border-radius: 9999px; background: rgba(23, 105, 210, 0.12); overflow: hidden; }
+    .wm-suggestion-bar > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #1769D2, #3B9BFF); }
+}

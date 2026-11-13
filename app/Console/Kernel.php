@@ -15,7 +15,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        // Booking reminders (config/engagement.php): each is sent once, so overlapping or repeated runs are harmless
+        $schedule->command('workmate:reminders')->everyFifteenMinutes()->withoutOverlapping(30);
     }
 
     /**

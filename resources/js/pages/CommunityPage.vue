@@ -56,6 +56,8 @@
           </router-link>
         </nav>
 
+        <SuggestionCard v-if="!saved && auth.user" page="community" class="mt-4" />
+
         <!-- Start a post (phones use the + button) -->
         <div v-if="!saved" class="wm-card mt-4 hidden lg:flex items-center gap-3 !py-3">
           <UserAvatar v-if="auth.user" :name="auth.user.name" :src="auth.user.avatar_url || ''" :size="40" />
@@ -196,6 +198,8 @@ import PostCard from '@/components/community/PostCard.vue';
 import PostComposer from '@/components/community/PostComposer.vue';
 import CommentsSheet from '@/components/community/CommentsSheet.vue';
 import PersonRow from '@/components/community/PersonRow.vue';
+import SuggestionCard from '@/components/engagement/SuggestionCard.vue';
+import { refreshSuggestions } from '@/stores/engagement.js';
 import { api } from '@/api/client.js';
 import { auth, isProvider } from '@/stores/auth.js';
 import { categories, jobs, loadCatalog } from '@/stores/catalog.js';
@@ -348,7 +352,15 @@ function compose() {
   composerOpen.value = true;
 }
 
+// /community?compose=1 (from a suggestion) opens the composer, once the sign-in check is done
+watch(() => [route.query.compose, auth.status], ([c, status]) => {
+  if (c !== '1' || status !== 'ready') return;
+  router.replace({ query: { ...route.query, compose: undefined } });
+  compose();
+}, { immediate: true });
+
 function published(post) {
+  refreshSuggestions();
   state.posts.unshift(post);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }

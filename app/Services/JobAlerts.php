@@ -66,18 +66,32 @@ class JobAlerts
             ->with('baseArea')
             ->get()
             ->map(function (ProviderProfile $p) use ($area, $radius, $job, $serving) {
-                $distance = $this->distanceKm($p, $area);
-                $serves = isset($serving[$p->id]);
-                $sameBase = $job->area_id && $p->base_area_id === $job->area_id;
+                $distance = $this->reach($p, $job, $area, $radius, isset($serving[$p->id]));
 
-                return ($distance !== null && $distance <= $radius) || $serves || $sameBase
-                    ? ['id' => $p->id, 'distance' => $distance ?? 0.0] : null;
+                return $distance === null ? null : ['id' => $p->id, 'distance' => $distance];
             })
             ->filter()
             ->sortBy('distance')
             ->take(self::MAX_PROVIDERS);
 
         return $this->withinDailyLimit($this->membersOf($matches->pluck('id')), $job->customer_id);
+    }
+
+    /**
+     * Whether a job suits a provider's location: within the wider search
+     * radius of their base, in a place they serve, or in their own base place.
+     * The distance (km, 0 when unknown) when it does, else null. The same rule
+     * picks who hears about a job and which jobs are recommended to them.
+     */
+    public function reach(ProviderProfile $p, ServiceRequest $job, ?Area $area = null, ?float $radius = null, ?bool $serves = null): ?float
+    {
+        $area = $area ?: ($job->area_id ? Area::find($job->area_id) : null);
+        $radius = $radius ?? (float) $this->settings->get('search.extended_km');
+        $serves = $serves ?? ($job->area_id && DB::table('provider_service_areas')->where('provider_profile_id', $p->id)->where('area_id', $job->area_id)->exists());
+        $distance = $this->distanceKm($p, $area);
+        $sameBase = $job->area_id && $p->base_area_id === $job->area_id;
+
+        return ($distance !== null && $distance <= $radius) || $serves || $sameBase ? ($distance ?? 0.0) : null;
     }
 
     /** Everyone in each matching business, except the customer who posted */

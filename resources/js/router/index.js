@@ -65,6 +65,20 @@ const router = createRouter({
     routes,
     scrollBehavior(to, from, savedPosition) {
         if (savedPosition) return savedPosition;
+        // A part of a page (#services, #profile-photo): scroll to it once it has loaded
+        if (to.hash && /^#[A-Za-z][\w-]*$/.test(to.hash)) {
+            const samePage = to.path === from.path;
+            return new Promise((resolve) => {
+                const until = Date.now() + 5000;
+                const look = () => {
+                    const el = document.getElementById(to.hash.slice(1));
+                    if (el) { el.scrollIntoView({ block: 'start', behavior: samePage ? 'smooth' : 'auto' }); resolve(false); }
+                    else if (Date.now() < until) setTimeout(look, 100);
+                    else resolve(samePage ? false : { top: 0 });
+                };
+                look();
+            });
+        }
         // Filter changes on the same page (query only) shouldn't jump to the top
         if (to.path === from.path) return false;
         return { top: 0 };

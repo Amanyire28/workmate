@@ -47,6 +47,7 @@ use App\Http\Controllers\Api\V1\VerificationController;
 use App\Http\Controllers\Api\V1\ProfilePhotoController;
 use App\Http\Controllers\Api\V1\ProviderCoverController;
 use App\Http\Controllers\Api\V1\AnnouncementController;
+use App\Http\Controllers\Api\V1\EngagementController;
 use App\Http\Controllers\Api\V1\ProviderScheduleController;
 use App\Http\Controllers\Api\V1\ProviderServiceController;
 use App\Http\Controllers\Api\V1\ProviderWorkController;
@@ -158,6 +159,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // The provider's own services and prices
         Route::get('me/provider/services', [ProviderServiceController::class, 'mine'])->name('me.provider.services');
         Route::get('me/provider/schedule', [ProviderScheduleController::class, 'show'])->name('me.provider.schedule');
+        // Profile completeness, the suggestion cards in the pages, and in-app recommendations
+        Route::get('me/profile-completeness', [EngagementController::class, 'completeness'])->name('me.profile-completeness');
+        Route::get('me/suggestions', [EngagementController::class, 'suggestions'])->name('me.suggestions');
+        Route::get('me/recommendations', [EngagementController::class, 'recommendations'])->name('me.recommendations');
         // Seen a release announcement (once per person; on every device)
         Route::post('me/announcements/{announcement}/acknowledge', [AnnouncementController::class, 'acknowledge'])
             ->where('announcement', '[a-z0-9-]{1,80}')->middleware('throttle:marketplace-write')->name('me.announcements.acknowledge');
