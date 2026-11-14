@@ -14,10 +14,11 @@ class ProviderWorkPhoto extends Model
         'width' => 'integer',
         'height' => 'integer',
         'position' => 'integer',
+        'watermarked_at' => 'datetime',
     ];
 
     // Storage paths stay on the server
-    protected $hidden = ['path', 'thumb_path'];
+    protected $hidden = ['path', 'thumb_path', 'original_path', 'watermark_error'];
 
     public function item()
     {

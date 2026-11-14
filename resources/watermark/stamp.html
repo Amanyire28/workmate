@@ -1,0 +1,54 @@
+<!doctype html>
+<!--
+  The source of the WorkMate photo watermark (resources/watermark/workmate-watermark.png).
+
+  The official logo exactly as AppLogo.vue draws it (light variant: the
+  gradient "W" mark and a white wordmark) with the website address under the
+  name, a soft shadow so it reads on bright photos, on a transparent
+  background. App\Services\ImageWatermark scales the PNG onto each photo and
+  sets its opacity; nothing here is drawn per photo.
+
+  To change it (for example the address): edit this file, then from the
+  project folder run
+      node resources/watermark/render.mjs "<path to Chrome or Edge>"
+  which writes workmate-watermark.png next to it.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700&display=block" rel="stylesheet">
+<style>
+  html, body { margin: 0; background: transparent; }
+  /* Two lines, right-aligned for the bottom-right corner: the logo, then the address across the full width */
+  #stamp {
+    display: inline-flex; flex-direction: column; align-items: flex-end; gap: 5px;
+    padding: 6px 8px;
+    font-family: 'Inter', sans-serif; color: #fff;
+    filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 4px rgba(0, 0, 0, 0.4));
+  }
+  .logo { display: inline-flex; align-items: center; gap: 7px; }
+  .logo svg { width: 38px; height: 30px; flex-shrink: 0; }
+  .name { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; }
+  .site { font-size: 16.5px; font-weight: 600; letter-spacing: 0.005em; line-height: 1; }
+</style>
+</head>
+<body>
+  <div id="stamp">
+    <div class="logo">
+      <!-- The "W" brand mark from AppLogo.vue -->
+      <svg viewBox="0 0 30 24" aria-hidden="true">
+        <defs>
+          <linearGradient id="wm-mark" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#2B7BE6" />
+            <stop offset="1" stop-color="#1257B3" />
+          </linearGradient>
+        </defs>
+        <path d="M2 3 L8.5 21 L15 8 L21.5 21 L28 3" fill="none" stroke="url(#wm-mark)" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round" />
+        <circle cx="15" cy="3.2" r="2.4" fill="#38BDF8" />
+      </svg>
+      <span class="name">WorkMate</span>
+    </div>
+    <div class="site">wm.resnetsystems.com</div>
+  </div>
+</body>
+</html>

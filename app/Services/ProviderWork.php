@@ -61,7 +61,7 @@ class ProviderWork
         $stored = [];
         try {
             foreach ($photos as $photo) {
-                $stored[] = $this->photos->store($photo, 'work');
+                $stored[] = $this->photos->store($photo, 'work', 'work');
             }
 
             $item = DB::transaction(function () use ($owner, $profile, $data, $stored) {
@@ -83,7 +83,7 @@ class ProviderWork
                 return $item;
             });
         } catch (\Throwable $e) {
-            $this->photos->discard(array_merge(array_column($stored, 'path'), array_column($stored, 'thumb_path')));
+            $this->photos->discardStored($stored);
             throw $e;
         }
 

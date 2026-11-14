@@ -55,7 +55,7 @@ class Community
         $stored = [];
         try {
             foreach ($photos as $photo) {
-                $stored[] = $this->photos->store($photo, 'community');
+                $stored[] = $this->photos->store($photo, 'community', 'community');
             }
 
             return DB::transaction(function () use ($author, $data, $body, $stored) {
@@ -87,7 +87,7 @@ class Community
                 return $post;
             });
         } catch (\Throwable $e) {
-            $this->photos->discard(array_merge(array_column($stored, 'path'), array_column($stored, 'thumb_path')));
+            $this->photos->discardStored($stored);
             throw $e;
         }
     }
