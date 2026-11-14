@@ -17,6 +17,9 @@ class CommunityComment extends Model
 
     protected $guarded = ['*'];
 
+    /** @var bool whether the person viewing the list liked it (not stored) */
+    public $likedByViewer = false;
+
     protected $attributes = [
         'status' => self::STATUS_PUBLISHED,
     ];

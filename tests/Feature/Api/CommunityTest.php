@@ -7,6 +7,7 @@ use App\Models\CommunityComment;
 use App\Models\CommunityPost;
 use App\Models\Report;
 use App\Models\User;
+use App\Models\UserNotification;
 use App\Services\PlatformSettings;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -211,6 +212,50 @@ class CommunityTest extends ApiTestCase
         $this->deleteJson('/api/v1/community/comments/'.$reply['id'])->assertForbidden();
         $this->signIn($first);
         $this->deleteJson('/api/v1/community/comments/'.$reply['id'])->assertOk();
+    }
+
+    public function test_comments_and_replies_are_liked_once_per_person_and_quietly()
+    {
+        $this->member();
+        $this->publish(['category' => 'question', 'body' => 'Best way to clean grout?'])->assertCreated();
+        $id = $this->postId();
+        $commenter = $this->member(['name' => 'Moses Kato']);
+        $top = $this->postJson("/api/v1/community/posts/{$id}/comments", ['body' => 'Baking soda and a brush.'])->json('data.id');
+        $reply = $this->postJson("/api/v1/community/posts/{$id}/comments", ['body' => 'Thanks!', 'parent' => $top])->json('data.id');
+        $this->getJson("/api/v1/community/posts/{$id}/comments")->assertJsonPath('data.0.likes_count', 0)->assertJsonPath('data.0.liked', false);
+        $notices = UserNotification::count();
+
+        $fan = $this->member(['name' => 'Fan One']);
+        $this->postJson("/api/v1/community/comments/{$top}/like")->assertOk()->assertJson(['data' => ['liked' => true, 'likes_count' => 1]]);
+        $this->postJson("/api/v1/community/comments/{$top}/like")->assertJsonPath('data.likes_count', 1);   // twice counts once
+        $this->postJson("/api/v1/community/comments/{$reply}/like")->assertJsonPath('data.likes_count', 1);
+        $this->member(['name' => 'Fan Two']);
+        $this->postJson("/api/v1/community/comments/{$top}/like")->assertJsonPath('data.likes_count', 2);
+        $this->deleteJson("/api/v1/community/comments/{$top}/like")->assertJsonPath('data.likes_count', 1);
+        $this->deleteJson("/api/v1/community/comments/{$top}/like")->assertJsonPath('data.likes_count', 1);
+
+        // Each viewer sees their own like
+        $this->signIn($fan);
+        $this->getJson("/api/v1/community/posts/{$id}/comments")
+            ->assertJsonPath('data.0.likes_count', 1)->assertJsonPath('data.0.liked', true)
+            ->assertJsonPath('data.0.replies.0.likes_count', 1)->assertJsonPath('data.0.replies.0.liked', true);
+        $this->signIn($commenter);
+        $this->getJson("/api/v1/community/posts/{$id}/comments")->assertJsonPath('data.0.liked', false);
+        $this->app['auth']->forgetGuards();
+        $this->getJson("/api/v1/community/posts/{$id}/comments")->assertJsonPath('data.0.likes_count', 1)->assertJsonPath('data.0.liked', false);
+        $this->postJson("/api/v1/community/comments/{$top}/like")->assertStatus(401);
+
+        // Comment likes don't notify anyone
+        $this->assertSame($notices, UserNotification::count());
+
+        // A confirmed email is needed; deleted comments can't be liked
+        $this->member(['name' => 'New Member', 'email_verified_at' => null]);
+        $this->postJson("/api/v1/community/comments/{$top}/like")->assertStatus(403);
+        $this->signIn($commenter);
+        $this->deleteJson("/api/v1/community/comments/{$reply}")->assertOk();
+        $this->signIn($fan);
+        $this->postJson("/api/v1/community/comments/{$reply}/like")->assertStatus(404);
+        $this->postJson('/api/v1/community/comments/999999/like')->assertStatus(404);
     }
 
     public function test_authors_edit_and_delete_only_their_own_posts()

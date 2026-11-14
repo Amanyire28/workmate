@@ -34,8 +34,15 @@
         <li v-for="c in comments" :key="c.id">
           <CommentItem :comment="c" @reply="startReply(c)" @delete="remove(c)" @report="$emit('report', c)" />
 
-          <ul v-if="c.replies.length || replyTo === c.id" class="mt-3 ml-11 flex flex-col gap-3 border-l-2 border-line/80 pl-3">
-            <li v-for="r in c.replies" :key="r.id">
+          <!-- Replies stay folded away until someone opens them -->
+          <button v-if="c.replies.length" type="button" class="ml-11 mt-1 inline-flex min-h-9 items-center gap-2 text-[13px] font-semibold text-primary hover:underline"
+            :aria-expanded="isOpen(c)" @click="toggleReplies(c)">
+            <span class="h-px w-6 bg-line" aria-hidden="true"></span>
+            {{ isOpen(c) ? 'Hide replies' : (c.replies.length === 1 ? 'View 1 reply' : `View ${c.replies.length} replies`) }}
+          </button>
+
+          <ul v-if="isOpen(c) || replyTo === c.id" class="mt-2 ml-11 flex flex-col gap-3 border-l-2 border-line/80 pl-3">
+            <li v-for="r in (isOpen(c) ? c.replies : [])" :key="r.id">
               <CommentItem :comment="r" small @reply="startReply(c, r)" @delete="remove(r, c)" @report="$emit('report', r)" />
             </li>
             <li v-if="replyTo === c.id">
@@ -58,14 +65,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, h } from 'vue';
+import { ref, reactive, onMounted, nextTick, h } from 'vue';
 import { RouterLink } from 'vue-router';
 import UserAvatar from '@/components/UserAvatar.vue';
 import VerifiedBadge from '@/components/VerifiedBadge.vue';
 import { api, fieldErrors } from '@/api/client.js';
 import { auth } from '@/stores/auth.js';
 import { agoLabel } from '@/stores/catalog.js';
-import { LIMITS, needsSignIn, showCommunityError, personLink } from '@/stores/community.js';
+import { LIMITS, needsSignIn, showCommunityError, personLink, toggleCommentLike, shortCount, countLabel } from '@/stores/community.js';
 
 const props = defineProps({
   post: { type: Object, required: true },
@@ -86,6 +93,14 @@ const replyTo = ref(null);
 const sending = ref('');
 const error = ref('');
 const newField = ref(null);
+
+// Which comments have their replies showing
+const opened = reactive(new Set());
+const isOpen = (c) => opened.has(c.id);
+function toggleReplies(c) {
+  if (opened.has(c.id)) opened.delete(c.id);
+  else opened.add(c.id);
+}
 
 async function load(fresh = false) {
   if (fresh) { comments.value = []; cursor.value = null; loading.value = true; }
@@ -113,6 +128,7 @@ function grow(el) {
 async function startReply(top, reply = null) {
   if (needsSignIn()) return;
   replyTo.value = top.id;
+  opened.add(top.id);   // replying shows the conversation it joins
   replyDraft.value = reply ? `@${reply.author.name.split(' ')[0]} ` : '';
   await nextTick();
   const field = document.getElementById(`reply-${top.id}`);
@@ -181,6 +197,16 @@ const CommentItem = {
         ? h(RouterLink, { to: link, class: 'font-semibold text-ink hover:underline' }, () => a.name)
         : h('span', { class: 'font-semibold text-ink' }, a.name);
       const action = (label, fn, cls = '') => h('button', { type: 'button', class: `min-h-9 font-semibold hover:text-ink ${cls}`, onClick: fn }, label);
+      const like = h('button', {
+        type: 'button',
+        class: ['inline-flex min-h-9 items-center gap-1 font-semibold hover:text-ink', c.liked ? 'text-primary' : ''],
+        'aria-pressed': c.liked ? 'true' : 'false',
+        'aria-label': `Like. ${countLabel(c.likes_count, 'like')}`,
+        onClick: () => toggleCommentLike(c),
+      }, [
+        h('i', { class: ['bi text-[14px]', c.liked ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up'], 'aria-hidden': 'true' }),
+        c.likes_count ? h('span', { class: 'tabular-nums' }, shortCount(c.likes_count)) : null,
+      ]);
 
       return h('div', { class: 'flex gap-2.5' }, [
         h(UserAvatar, { name: a.name, src: a.avatar_url || '', size: p.small ? 30 : 36 }),
@@ -195,6 +221,7 @@ const CommentItem = {
           ]),
           h('div', { class: 'mt-0.5 flex flex-wrap items-center gap-x-4 px-1 text-[12.5px] text-muted' }, [
             h('time', { datetime: c.created_at }, agoLabel(c.created_at)),
+            like,
             action('Reply', () => emit('reply')),
             c.can_delete ? action('Delete', () => emit('delete'), 'hover:text-error') : null,
             !c.mine ? action('Report', () => { if (!needsSignIn()) emit('report'); }) : null,

@@ -65,6 +65,35 @@ export async function toggleLike(post) {
     }
 }
 
+/** A comment's like (the comment object from the comments list) */
+export async function toggleCommentLike(comment) {
+    if (needsSignIn()) return;
+    const on = !comment.liked;
+    comment.liked = on;
+    comment.likes_count = Math.max(0, (comment.likes_count || 0) + (on ? 1 : -1));
+    try {
+        const r = await api(`/community/comments/${comment.id}/like`, { method: on ? 'POST' : 'DELETE' });
+        comment.likes_count = r.data.likes_count;
+    } catch (e) {
+        comment.liked = !on;
+        comment.likes_count = Math.max(0, comment.likes_count + (on ? -1 : 1));
+        complain(e);
+    }
+}
+
+/** Counts next to icons: 7, 950, 1.2k, 15k */
+export function shortCount(n) {
+    if (n < 1000) return String(n);
+    const k = n / 1000;
+    return `${k < 10 ? Math.floor(k * 10) / 10 : Math.floor(k)}k`;
+}
+
+/** For screen readers: "No likes yet", "1 like", "3 likes" */
+export function countLabel(n, word) {
+    if (!n) return `No ${word}s yet`;
+    return `${n} ${n === 1 ? word : `${word}s`}`;
+}
+
 export async function toggleSave(post) {
     if (needsSignIn()) return;
     const on = !post.saved;

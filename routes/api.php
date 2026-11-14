@@ -314,6 +314,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::post('community/posts/{post}/save', [CommunityController::class, 'save'])->whereUuid('post')->name('community.save');
             Route::delete('community/posts/{post}/save', [CommunityController::class, 'save'])->whereUuid('post')->name('community.unsave');
             Route::delete('community/comments/{comment}', [CommunityController::class, 'destroyComment'])->whereNumber('comment')->name('community.comment.destroy');
+            Route::post('community/comments/{comment}/like', [CommunityController::class, 'likeComment'])->whereNumber('comment')->name('community.comment.like');
+            Route::delete('community/comments/{comment}/like', [CommunityController::class, 'likeComment'])->whereNumber('comment')->name('community.comment.unlike');
             Route::post('community/people/{user}/follow', [CommunityPeopleController::class, 'follow'])->whereNumber('user')->name('community.follow');
             Route::delete('community/people/{user}/follow', [CommunityPeopleController::class, 'follow'])->whereNumber('user')->name('community.unfollow');
         });

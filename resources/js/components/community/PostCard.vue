@@ -73,27 +73,16 @@
       <router-link :to="profileLink" class="wm-btn wm-btn-secondary !min-h-9 !px-3.5 !text-[13px] shrink-0">View profile</router-link>
     </div>
 
-    <!-- Counts -->
-    <p v-if="post.likes_count || post.comments_count" class="flex items-center justify-between px-4 pt-3 text-[13px] text-muted lg:px-5">
-      <span>
-        <template v-if="post.likes_count"><i class="bi bi-hand-thumbs-up-fill text-primary" aria-hidden="true"></i> {{ post.likes_count }} {{ post.likes_count === 1 ? 'like' : 'likes' }}</template>
-      </span>
-      <template v-if="post.comments_count">
-        <button v-if="sheetComments" type="button" class="min-h-8 hover:underline" @click="onComment">{{ post.comments_count }} {{ post.comments_count === 1 ? 'comment' : 'comments' }}</button>
-        <router-link v-else :to="`/community/post/${post.id}#comments`" class="hover:underline">{{ post.comments_count }} {{ post.comments_count === 1 ? 'comment' : 'comments' }}</router-link>
-      </template>
-    </p>
-
-    <!-- Actions -->
-    <div v-if="!post.removed" class="mt-2 grid grid-cols-4 border-t border-line/70 px-1.5 py-1">
-      <button type="button" class="wm-post-action" :class="{ 'text-primary': post.liked }" :aria-pressed="post.liked" @click="toggleLike(post)">
-        <i :class="['bi', post.liked ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up']" aria-hidden="true"></i><span>Like</span>
+    <!-- Actions: the like and comment icons carry their counts -->
+    <div v-if="!post.removed" class="mt-3 grid grid-cols-4 border-t border-line/70 px-1.5 py-1">
+      <button type="button" class="wm-post-action" :class="{ 'text-primary': post.liked }" :aria-pressed="post.liked" :aria-label="`Like. ${countLabel(post.likes_count, 'like')}`" @click="toggleLike(post)">
+        <i :class="['bi', post.liked ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up']" aria-hidden="true"></i><span v-if="post.likes_count" class="tabular-nums">{{ shortCount(post.likes_count) }}</span>
       </button>
-      <button v-if="sheetComments" type="button" class="wm-post-action" @click="onComment">
-        <i class="bi bi-chat" aria-hidden="true"></i><span>Comment</span>
+      <button v-if="sheetComments" type="button" class="wm-post-action" :aria-label="`Comments. ${countLabel(post.comments_count, 'comment')}`" @click="onComment">
+        <i class="bi bi-chat" aria-hidden="true"></i><span v-if="post.comments_count" class="tabular-nums">{{ shortCount(post.comments_count) }}</span>
       </button>
-      <router-link v-else :to="`/community/post/${post.id}#comments`" class="wm-post-action" @click="onComment">
-        <i class="bi bi-chat" aria-hidden="true"></i><span>Comment</span>
+      <router-link v-else :to="`/community/post/${post.id}#comments`" class="wm-post-action" :aria-label="`Comments. ${countLabel(post.comments_count, 'comment')}`" @click="onComment">
+        <i class="bi bi-chat" aria-hidden="true"></i><span v-if="post.comments_count" class="tabular-nums">{{ shortCount(post.comments_count) }}</span>
       </router-link>
       <button type="button" class="wm-post-action" @click="sharePost(post)">
         <i class="bi bi-share" aria-hidden="true"></i><span>Share</span>
@@ -114,7 +103,7 @@ import UserAvatar from '@/components/UserAvatar.vue';
 import VerifiedBadge from '@/components/VerifiedBadge.vue';
 import PhotoViewer from './PhotoViewer.vue';
 import { agoLabel } from '@/stores/catalog.js';
-import { categoryOf, toggleLike, toggleSave, toggleFollow, sharePost, postUrl, needsSignIn, personLink } from '@/stores/community.js';
+import { categoryOf, toggleLike, toggleSave, toggleFollow, sharePost, postUrl, needsSignIn, personLink, shortCount, countLabel } from '@/stores/community.js';
 import { showFlash } from '@/stores/flash.js';
 
 const props = defineProps({

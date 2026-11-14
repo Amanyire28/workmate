@@ -146,6 +146,16 @@ class CommunityController extends Controller
             });
         });
 
+        // Which of these the viewer has liked (one query for the page)
+        $viewer = $request->user('sanctum');
+        $all = $items->concat($items->pluck('replies')->flatten());
+        $liked = $viewer && $all->isNotEmpty()
+            ? DB::table('community_comment_likes')->where('user_id', $viewer->getKey())->whereIn('community_comment_id', $all->pluck('id')->all())->pluck('community_comment_id')->flip()
+            : collect();
+        $all->each(function (CommunityComment $c) use ($liked) {
+            $c->likedByViewer = $liked->has($c->id);
+        });
+
         return response()->json([
             'data' => CommunityCommentResource::collection($items),
             'meta' => ['next_cursor' => optional($page->nextCursor())->encode(), 'total' => $post->comments_count],
@@ -249,6 +259,14 @@ class CommunityController extends Controller
         $comment->load(['author.providerProfile.owner', 'author.providerProfile.professions'])->setRelation('post', $post)->setRelation('replies', collect());
 
         return response()->json(['data' => new CommunityCommentResource($comment), 'meta' => ['comments_count' => $post->fresh()->comments_count]], 201);
+    }
+
+    public function likeComment(Request $request, int $comment): JsonResponse
+    {
+        $found = CommunityComment::with('post')->findOrFail($comment);
+        $count = $this->community->likeComment($request->user(), $found, $request->isMethod('post'));
+
+        return response()->json(['data' => ['liked' => $request->isMethod('post'), 'likes_count' => $count]]);
     }
 
     public function destroyComment(Request $request, int $comment): JsonResponse

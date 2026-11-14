@@ -166,6 +166,36 @@ class Community
         });
     }
 
+    /**
+     * Likes a comment (or takes the like back). Comment likes don't notify
+     * anyone: they're shown on the comment.
+     *
+     * @return int the comment's like count afterwards
+     */
+    public function likeComment(User $user, CommunityComment $comment, bool $on): int
+    {
+        $this->guardCanTakePart($user, false);
+        if (! $comment->isVisible() || ! $comment->post) {
+            throw new BusinessRuleException('comment_not_found', 'That comment isn’t there any more.', 404);
+        }
+        $this->guardVisible($comment->post);
+
+        return DB::transaction(function () use ($user, $comment, $on) {
+            $where = ['community_comment_id' => $comment->id, 'user_id' => $user->getKey()];
+            // Only a real change moves the count, so repeated taps can't inflate it
+            $changed = $on
+                ? DB::table('community_comment_likes')->insertOrIgnore($where + ['created_at' => now()])
+                : DB::table('community_comment_likes')->where($where)->delete();
+            if ($changed) {
+                CommunityComment::withTrashed()->whereKey($comment->id)->update([
+                    'likes_count' => DB::raw($on ? 'likes_count + 1' : 'GREATEST(likes_count, 1) - 1'),
+                ]);
+            }
+
+            return (int) CommunityComment::withTrashed()->whereKey($comment->id)->value('likes_count');
+        });
+    }
+
     public function save(User $user, CommunityPost $post, bool $on): void
     {
         $this->guardCanTakePart($user, false);
