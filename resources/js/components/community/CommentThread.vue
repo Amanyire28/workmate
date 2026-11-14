@@ -106,7 +106,8 @@ onMounted(() => load(true));
 
 function grow(el) {
   el.style.height = 'auto';
-  el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
+  // In the sheet a long comment scrolls inside its box, so the comments stay in view
+  el.style.height = `${Math.min(el.scrollHeight, props.sheet ? 120 : 200)}px`;
 }
 
 async function startReply(top, reply = null) {
@@ -114,7 +115,15 @@ async function startReply(top, reply = null) {
   replyTo.value = top.id;
   replyDraft.value = reply ? `@${reply.author.name.split(' ')[0]} ` : '';
   await nextTick();
-  document.getElementById(`reply-${top.id}`)?.focus();
+  const field = document.getElementById(`reply-${top.id}`);
+  if (!field) return;
+  if (props.sheet) {
+    // Only the comments list scrolls to it; the sheet and the page stay as they are
+    field.focus({ preventScroll: true });
+    field.scrollIntoView({ block: 'nearest' });
+  } else {
+    field.focus();
+  }
 }
 
 async function send(parent) {

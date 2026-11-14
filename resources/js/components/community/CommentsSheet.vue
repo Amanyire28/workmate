@@ -1,14 +1,14 @@
 <template>
   <Teleport to="body">
     <Transition name="wm-comments">
-      <div v-if="post" class="fixed inset-0 z-[90] flex flex-col justify-end" @keydown.esc="$emit('close')">
+      <!-- Fills the visible screen: with the keyboard open, the sheet sits just above it -->
+      <div v-if="post" class="fixed inset-x-0 top-0 z-[90] flex h-dvh flex-col justify-end" :style="viewportStyle" @keydown.esc="$emit('close')">
         <div class="wm-comments-backdrop absolute inset-0 bg-ink/40" aria-hidden="true" @click="$emit('close')"></div>
 
-        <!-- Opens at half the screen; dragging up, scrolling or writing takes it to 80% -->
+        <!-- Half the screen, the same whether reading, writing or replying; dragging the handle (or tapping it) switches to 80% -->
         <div ref="panel" class="wm-comments-panel relative mx-auto flex w-full max-w-[680px] flex-col overflow-hidden rounded-t-[22px] bg-white shadow-[0_-10px_40px_rgba(15,23,42,0.18)]"
-          :style="{ height: `${height}dvh`, transform: dragY ? `translateY(${dragY}px)` : '', transition: dragging ? 'none' : '' }"
-          role="dialog" aria-modal="true" :aria-labelledby="titleId" tabindex="-1"
-          @scroll.capture="onListScroll" @focusin="onFocusIn">
+          :style="{ height: panelHeight, transform: dragY ? `translateY(${dragY}px)` : '', transition: dragging ? 'none' : '' }"
+          role="dialog" aria-modal="true" :aria-labelledby="titleId" tabindex="-1">
 
           <!-- The handle: drag it, or tap to switch size -->
           <div class="shrink-0 cursor-grab touch-none select-none border-b border-line/70 px-4 pt-2 pb-2.5"
@@ -34,7 +34,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, useId, onBeforeUnmount } from 'vue';
+import { ref, reactive, computed, watch, nextTick, useId, onBeforeUnmount } from 'vue';
 import CommentThread from './CommentThread.vue';
 
 const HALF = 50;
@@ -56,9 +56,42 @@ let moved = false;
 
 const expanded = computed(() => height.value === FULL);
 
+/* The visible part of the screen. On phones the keyboard takes the bottom of
+   it: the sheet keeps its size and moves up above the keyboard, and only
+   gets shorter when there isn't room (a strip of the page always shows). */
+const viewport = reactive({ top: 0, height: 0 });
+let fullHeight = 0;     // the visible height without the keyboard
+let width = 0;
+function syncViewport() {
+  const v = window.visualViewport;
+  if (window.innerWidth !== width) { width = window.innerWidth; fullHeight = 0; }   // turned round
+  viewport.height = v ? v.height : window.innerHeight;
+  viewport.top = v ? v.offsetTop : 0;
+  fullHeight = Math.max(fullHeight, viewport.height);
+}
+const viewportStyle = computed(() => (viewport.height ? { top: `${viewport.top}px`, height: `${viewport.height}px` } : {}));
+const panelHeight = computed(() => {
+  if (!viewport.height) return `${height.value}dvh`;
+  const wanted = (fullHeight * height.value) / 100;
+  const room = viewport.height - Math.max(48, viewport.height * 0.12);
+  return `${Math.round(Math.min(wanted, room))}px`;
+});
+
+function listen(on) {
+  const method = on ? 'addEventListener' : 'removeEventListener';
+  window.visualViewport?.[method]('resize', syncViewport);
+  window.visualViewport?.[method]('scroll', syncViewport);
+  window[method]('resize', syncViewport);
+  // The page behind stays still (phones scroll it to show a focused box otherwise)
+  document.documentElement.classList.toggle('wm-sheet-open', on);
+}
+
 watch(() => props.post, async (post) => {
   document.documentElement.style.overflow = post ? 'hidden' : '';
+  listen(!!post);
   if (!post) return;
+  fullHeight = 0;
+  syncViewport();
   height.value = HALF;
   dragY.value = 0;
   await nextTick();
@@ -103,24 +136,7 @@ function dragEnd() {
   setTimeout(() => { moved = false; }, 0);
 }
 
-/* Reading or writing: give the comments the room. Only a person scrolling
-   further down counts, not the list settling after the sheet changes size. */
-let lastTop = 0;
-let resizedAt = 0;
-watch(height, () => { resizedAt = Date.now(); });
-function onListScroll(e) {
-  if (e.target === panel.value) return;
-  const top = e.target.scrollTop;
-  const down = top > lastTop;
-  lastTop = top;
-  if (!expanded.value && down && top > 24 && Date.now() - resizedAt > 450) height.value = FULL;
-}
-
-function onFocusIn(e) {
-  if (e.target.tagName === 'TEXTAREA') height.value = FULL;
-}
-
-onBeforeUnmount(() => { document.documentElement.style.overflow = ''; });
+onBeforeUnmount(() => { document.documentElement.style.overflow = ''; listen(false); });
 </script>
 
 <style scoped>

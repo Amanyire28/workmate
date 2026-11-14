@@ -1011,7 +1011,8 @@
 /* An open chat on a phone fills the visible screen; the page behind it stays still,
    so the keyboard moves only the writing box (see ChatPage.vue) */
 @media (max-width: 1023.98px) {
-    html.wm-chat-open, html.wm-chat-open body { overflow: hidden; overscroll-behavior: none; }
+    html.wm-chat-open, html.wm-chat-open body,
+    html.wm-sheet-open, html.wm-sheet-open body { overflow: hidden; overscroll-behavior: none; }
 }
 
 /* Suggestion cards in the pages (components/engagement/SuggestionCard.vue) */
