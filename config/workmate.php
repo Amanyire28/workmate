@@ -47,7 +47,7 @@ return [
             'view_permission' => 'admin.manage',
             'change_permission' => 'admin.manage',
         ],
-        // Community videos (Cloudflare R2): who may post, and the limits
+        // Community videos (Cloudflare R2): the size and length limits
         'community' => [
             'label' => 'Community videos',
             'view_permission' => 'admin.manage',
@@ -232,24 +232,6 @@ return [
             'label' => 'Coins needed before cashing out',
             'description' => 'The fewest coins a member can exchange for cash at once. Used when cashing out is switched on.',
             'type' => 'integer', 'min' => 0, 'max' => 10000000, 'default' => 2000,
-        ],
-        'community.video_posts' => [
-            'group' => 'community',
-            'label' => 'Everyone can share videos',
-            'description' => 'Any member who can post in the community can add a video. Leave off until the pilot has been tested.',
-            'type' => 'boolean', 'default' => false, 'public' => true,
-        ],
-        'community.video_pilot' => [
-            'group' => 'community',
-            'label' => 'Video pilot',
-            'description' => 'Admins and the tester emails below can add videos, even while videos are off for everyone.',
-            'type' => 'boolean', 'default' => false,
-        ],
-        'community.video_testers' => [
-            'group' => 'community',
-            'label' => 'Video testers',
-            'description' => 'Email addresses of members in the video pilot, separated by commas.',
-            'type' => 'string', 'max' => 1000, 'default' => null,
         ],
         'community.video_max_mb' => [
             'group' => 'community',

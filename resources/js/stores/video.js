@@ -14,8 +14,8 @@ import { auth } from '@/stores/auth.js';
  */
 export const VIDEO_MOCK = import.meta.env.DEV && import.meta.env.VITE_COMMUNITY_VIDEO_MOCK === 'true';
 
-/** This member can add videos: the server says so (the pilot for admins and testers, or everyone) */
-export const videoPostsEnabled = computed(() => VIDEO_MOCK || !!auth.user?.can_post_video);
+/** Videos are offered wherever photos are: to signed-in members (the server checks the posting rules) */
+export const videoPostsEnabled = computed(() => VIDEO_MOCK || !!auth.user);
 
 /** The same limits the server checks (community.video_max_mb / video_max_seconds) */
 export const videoLimits = computed(() => ({

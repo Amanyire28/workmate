@@ -640,7 +640,7 @@ const SETTINGS_DEFAULTS = {
     platform: () => ({
         platformName: 'WorkMate', supportPhone: '', supportEmail: '',
         defaultArea: 'kampala', currency: 'UGX', languages: 'English', maintenanceMode: false, providerSignups: true,
-        videoPilot: false, videoTesters: '', videoPosts: false, videoMaxMb: 25, videoMaxSeconds: 60,
+        videoMaxMb: 25, videoMaxSeconds: 60,
         ...PRESENCE_DEFAULTS,
     }),
     rules: () => ({
@@ -666,7 +666,6 @@ export const SERVER_SETTINGS = {
         providerSignups: 'platform.provider_signups', maintenanceMode: 'platform.maintenance_mode',
         presenceOnlineMin: 'presence.online_minutes', presenceRecentMin: 'presence.recent_minutes',
         presenceHeartbeatSec: 'presence.heartbeat_seconds',
-        videoPilot: 'community.video_pilot', videoTesters: 'community.video_testers', videoPosts: 'community.video_posts',
         videoMaxMb: 'community.video_max_mb', videoMaxSeconds: 'community.video_max_seconds',
     },
 };

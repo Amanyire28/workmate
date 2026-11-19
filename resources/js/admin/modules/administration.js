@@ -86,10 +86,7 @@ export default {
                 { key: 'presenceRecentMin', label: 'Recently active if active within', type: 'number', unit: 'minutes', min: 2, max: 240 },
                 { key: 'presenceHeartbeatSec', label: 'App check-in interval', type: 'number', unit: 'seconds', min: 15, max: 600, help: 'How often an open app reports it is in use. Shown as Presence on Customers and Service Providers.' },
             ] },
-            { title: 'Community videos', description: 'Videos are stored in Cloudflare R2, not on the WorkMate server. Try them with the pilot before switching them on for everyone.', fields: [
-                { key: 'videoPilot', label: 'Video pilot', type: 'toggle', help: 'Admins and the testers below can share videos.' },
-                { key: 'videoTesters', label: 'Video testers', type: 'text', help: 'Email addresses, separated by commas.' },
-                { key: 'videoPosts', label: 'Everyone can share videos', type: 'toggle', help: 'Leave off until uploading, playing, deleting and removing videos have been tested.' },
+            { title: 'Community videos', description: 'Anyone who can post in the community can add one video to a post. Videos are stored in Cloudflare R2, not on the WorkMate server.', fields: [
                 { key: 'videoMaxMb', label: 'Largest video', type: 'number', unit: 'MB', min: 1, max: 100 },
                 { key: 'videoMaxSeconds', label: 'Longest video', type: 'number', unit: 'seconds', min: 10, max: 180 },
             ] },

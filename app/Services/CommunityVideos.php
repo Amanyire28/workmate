@@ -9,7 +9,6 @@ use App\Models\CommunityVideoUpload;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -20,9 +19,9 @@ use RuntimeException;
  * this server except the small poster image. A post is made only once the
  * upload has arrived and its MP4 header passes the checks (Mp4Inspector).
  *
- * Who may post: everyone when community.video_posts is on; otherwise, during
- * the pilot (community.video_pilot), admins and the tester emails listed in
- * community.video_testers. Everyone can watch published videos.
+ * Who may post a video: anyone who may post in the community (signed in,
+ * active account, confirmed email, no maintenance), exactly as for photos.
+ * Everyone can watch published videos.
  */
 class CommunityVideos
 {
@@ -50,28 +49,7 @@ class CommunityVideos
         $this->settings = $settings;
     }
 
-    /* ---------------- Who may post ---------------- */
-
-    public function canPost(?User $user): bool
-    {
-        if (! $user || ! $this->r2->configured()) {
-            return false;
-        }
-        if ($this->settings->get('community.video_posts')) {
-            return true;
-        }
-        if (! $this->settings->get('community.video_pilot')) {
-            return false;
-        }
-        if (Gate::forUser($user)->allows('admin-access')) {
-            return true;
-        }
-        $testers = array_filter(array_map(function ($e) {
-            return strtolower(trim($e));
-        }, explode(',', (string) $this->settings->get('community.video_testers'))));
-
-        return in_array(strtolower((string) $user->email), $testers, true);
-    }
+    /* ---------------- Limits ---------------- */
 
     public function maxBytes(): int
     {
@@ -364,11 +342,13 @@ class CommunityVideos
         $this->deleteNow($upload);
     }
 
+    /** The community's own posting rules, and storage that's set up */
     private function guardCanPost(User $user): void
     {
         $this->community->assertCanPost($user);
-        if (! $this->canPost($user)) {
-            throw new BusinessRuleException('video_posts_unavailable', 'Sharing videos isn’t available on your account yet.', 403);
+        if (! $this->r2->configured()) {
+            Log::error('Community video upload refused: R2 keys are missing from the server configuration (R2_* in .env, then php artisan config:cache).');
+            throw new BusinessRuleException('video_storage_unavailable', 'Video uploads aren’t available right now. Please try again later, or share photos instead.', 503);
         }
     }
 }

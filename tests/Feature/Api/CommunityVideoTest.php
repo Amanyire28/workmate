@@ -88,11 +88,6 @@ class CommunityVideoTest extends ApiTestCase
         return $this->signIn(User::factory()->create(['name' => 'Aisha Nakato'] + ($email ? ['email' => $email] : [])));
     }
 
-    private function everyone(): void
-    {
-        $this->settings(['community.video_posts' => true]);
-    }
-
     private static function box(string $type, string $payload): string
     {
         return pack('N', 8 + strlen($payload)).$type.$payload;
@@ -156,54 +151,74 @@ class CommunityVideoTest extends ApiTestCase
         return $this->complete($ticket['upload_id'], $poster)->assertCreated()->json('data');
     }
 
-    /* ---------------- Who may post ---------------- */
+    /* ---------------- Who may post: the community's own rules ---------------- */
 
-    public function test_videos_are_off_until_switched_on_and_the_member_is_told()
+    public function test_customers_providers_and_admins_who_can_post_can_upload_a_video()
     {
         $this->member();
-        $this->getJson('/api/v1/me')->assertOk()->assertJsonPath('data.can_post_video', false);
-        $this->ask(self::mp4())->assertStatus(403)->assertJsonPath('code', 'video_posts_unavailable');
+        $this->assertArrayNotHasKey('can_post_video', $this->getJson('/api/v1/me')->assertOk()->json('data'));
+        $this->ask(self::mp4())->assertCreated();
+
+        $provider = $this->signIn(User::factory()->create(['name' => 'Okello Peter']));
+        $this->putJson('/api/v1/me/provider', [
+            'type' => 'individual', 'display_name' => 'Okello Plumbing', 'professions' => [['profession' => 'plumber']],
+        ])->assertOk();
+        $provider->providerProfile->forceFill(['status' => 'approved', 'document_verified_at' => now()])->save();
+        $this->ask(self::mp4())->assertCreated();
+
+        $this->signIn($this->userWithRoles(['super_admin']));
+        $this->ask(self::mp4())->assertCreated();
+
+        $this->assertSame(3, CommunityVideoUpload::count());
+    }
+
+    public function test_signed_out_unconfirmed_and_suspended_members_cannot_upload()
+    {
+        $this->postJson('/api/v1/community/video-uploads', [])->assertUnauthorized();
+
+        $this->signIn(User::factory()->unverified()->create());
+        $this->ask(self::mp4())->assertStatus(403)->assertJsonPath('code', 'email_not_verified');
+
+        $this->signIn(User::factory()->create(['status' => User::STATUS_SUSPENDED]));
+        $this->ask(self::mp4())->assertStatus(403)->assertJsonPath('code', 'account_inactive');
+
         $this->assertSame(0, CommunityVideoUpload::count());
     }
 
-    public function test_the_pilot_lets_admins_and_listed_testers_post_and_no_one_else()
+    public function test_maintenance_pauses_videos_like_other_posts()
     {
-        $this->settings(['community.video_pilot' => true, 'community.video_testers' => 'tester@example.test, other@example.test']);
-
-        $this->member('someone@example.test');
-        $this->getJson('/api/v1/me')->assertJsonPath('data.can_post_video', false);
-        $this->ask(self::mp4())->assertStatus(403);
-
-        $this->member('Tester@Example.test');
-        $this->getJson('/api/v1/me')->assertJsonPath('data.can_post_video', true);
-        $this->ask(self::mp4())->assertCreated();
-
-        $this->signIn($this->userWithRoles(['content']));
-        $this->getJson('/api/v1/me')->assertJsonPath('data.can_post_video', true);
+        $this->settings(['platform.maintenance_mode' => true]);
+        $this->member();
+        $this->ask(self::mp4())->assertStatus(503)->assertJsonPath('code', 'maintenance');
     }
 
-    public function test_nothing_is_offered_while_storage_keys_are_missing()
+    public function test_without_storage_keys_uploads_are_refused_clearly()
     {
-        $this->everyone();
         config(['videos.r2.secret_access_key' => null]);
         $this->member();
-        $this->getJson('/api/v1/me')->assertJsonPath('data.can_post_video', false);
-        $this->ask(self::mp4())->assertStatus(403);
+        $this->ask(self::mp4())->assertStatus(503)->assertJsonPath('code', 'video_storage_unavailable');
+        $this->assertSame(0, CommunityVideoUpload::count());
     }
 
-    public function test_signed_out_and_unconfirmed_members_cannot_upload()
+    public function test_the_storage_check_command_reports_without_showing_keys()
     {
-        $this->everyone();
-        $this->postJson('/api/v1/community/video-uploads', [])->assertUnauthorized();
-        $this->signIn(User::factory()->unverified()->create());
-        $this->ask(self::mp4())->assertStatus(403)->assertJsonPath('code', 'email_not_verified');
+        $this->artisan('workmate:video-check')
+            ->expectsOutput('R2 accepted the keys and the bucket exists. Video uploads can work (browser uploads also need the bucket\'s CORS rule).')
+            ->doesntExpectOutput('very-secret-test-value')
+            ->assertExitCode(0);
+
+        $this->r2Down = true;
+        $this->artisan('workmate:video-check')->assertExitCode(1);
+        $this->r2Down = false;
+
+        config(['videos.r2.access_key_id' => null]);
+        $this->artisan('workmate:video-check')->assertExitCode(1);
     }
 
     /* ---------------- The whole journey ---------------- */
 
     public function test_a_video_goes_straight_to_storage_is_checked_and_published()
     {
-        $this->everyone();
         $author = $this->member();
         $bytes = self::mp4();
 
@@ -261,7 +276,6 @@ class CommunityVideoTest extends ApiTestCase
 
     public function test_finishing_twice_gives_the_same_post_and_asking_twice_the_same_upload()
     {
-        $this->everyone();
         $this->member();
         $bytes = self::mp4();
         $token = (string) Str::uuid();
@@ -278,7 +292,6 @@ class CommunityVideoTest extends ApiTestCase
 
     public function test_moov_at_the_end_and_no_sound_and_no_poster_are_fine()
     {
-        $this->everyone();
         $this->member();
         $post = $this->share(self::mp4(['moovAtEnd' => true, 'audio' => null, 'mdat' => 70000]), [], false);
         $this->assertNull($post['media'][0]['poster_url']);
@@ -287,7 +300,6 @@ class CommunityVideoTest extends ApiTestCase
 
     public function test_a_phone_video_turned_on_its_side_keeps_the_size_the_phone_saw()
     {
-        $this->everyone();
         $this->member();
         // The file says 1280x720 with a rotation; the phone showed 720x1280
         $post = $this->share(self::mp4(['width' => 1280, 'height' => 720]));
@@ -298,7 +310,6 @@ class CommunityVideoTest extends ApiTestCase
 
     public function test_what_the_phone_claims_is_checked_before_an_address_is_given()
     {
-        $this->everyone();
         $this->member();
         $this->ask(self::mp4(), ['mime_type' => 'video/webm'])->assertStatus(422)->assertJsonValidationErrors('mime_type');
         $this->ask(self::mp4(), ['size' => 26 * 1024 * 1024])->assertStatus(422)->assertJsonValidationErrors('size');
@@ -310,7 +321,6 @@ class CommunityVideoTest extends ApiTestCase
 
     public function test_finishing_before_the_video_arrived_can_be_retried()
     {
-        $this->everyone();
         $this->member();
         $bytes = self::mp4();
         $ticket = $this->ask($bytes)->json('data');
@@ -323,7 +333,6 @@ class CommunityVideoTest extends ApiTestCase
 
     public function test_a_different_file_than_announced_is_refused_and_removed()
     {
-        $this->everyone();
         $this->member();
         $ticket = $this->ask(self::mp4())->json('data');
         $key = $this->putToStorage($ticket['upload']['url'], self::mp4(['mdat' => 9000]));
@@ -336,7 +345,6 @@ class CommunityVideoTest extends ApiTestCase
     /** @dataProvider badVideos */
     public function test_videos_phones_cannot_play_are_refused_and_removed(array $mp4, string $code)
     {
-        $this->everyone();
         $this->member();
         $bytes = self::mp4($mp4);
         $ticket = $this->ask($bytes)->assertCreated()->json('data');
@@ -362,7 +370,6 @@ class CommunityVideoTest extends ApiTestCase
 
     public function test_a_file_that_is_not_an_mp4_at_all_is_refused()
     {
-        $this->everyone();
         $this->member();
         $bytes = str_repeat('not a video ', 400);
         $ticket = $this->ask($bytes)->json('data');
@@ -372,7 +379,6 @@ class CommunityVideoTest extends ApiTestCase
 
     public function test_storage_trouble_says_so_and_the_upload_can_be_finished_later()
     {
-        $this->everyone();
         $this->member();
         $bytes = self::mp4();
         $ticket = $this->ask($bytes)->json('data');
@@ -386,7 +392,6 @@ class CommunityVideoTest extends ApiTestCase
 
     public function test_an_upload_left_too_long_has_expired()
     {
-        $this->everyone();
         $this->member();
         $bytes = self::mp4();
         $ticket = $this->ask($bytes)->json('data');
@@ -397,7 +402,6 @@ class CommunityVideoTest extends ApiTestCase
 
     public function test_only_a_few_uploads_at_once()
     {
-        $this->everyone();
         $this->member();
         for ($i = 0; $i < 3; $i++) {
             $this->ask(self::mp4())->assertCreated();
@@ -409,7 +413,6 @@ class CommunityVideoTest extends ApiTestCase
 
     public function test_no_one_can_finish_or_stop_someone_elses_upload()
     {
-        $this->everyone();
         $this->member();
         $bytes = self::mp4();
         $ticket = $this->ask($bytes)->json('data');
@@ -424,7 +427,6 @@ class CommunityVideoTest extends ApiTestCase
 
     public function test_stopping_an_upload_removes_its_file()
     {
-        $this->everyone();
         $this->member();
         $bytes = self::mp4();
         $ticket = $this->ask($bytes)->json('data');
@@ -439,7 +441,6 @@ class CommunityVideoTest extends ApiTestCase
 
     public function test_removed_posts_get_no_playback_address_until_restored()
     {
-        $this->everyone();
         $this->member();
         $post = $this->share();
         $media = $post['media'][0]['id'];
@@ -472,7 +473,6 @@ class CommunityVideoTest extends ApiTestCase
 
     public function test_a_deleted_posts_video_stops_playing_and_is_removed_from_storage_later()
     {
-        $this->everyone();
         $this->member();
         $post = $this->share();
         $media = CommunityPostMedia::first();
@@ -496,7 +496,6 @@ class CommunityVideoTest extends ApiTestCase
 
     public function test_abandoned_uploads_expire_and_their_files_are_removed()
     {
-        $this->everyone();
         $this->member();
         $bytes = self::mp4();
         $ticket = $this->ask($bytes)->json('data');
@@ -517,7 +516,6 @@ class CommunityVideoTest extends ApiTestCase
 
     public function test_the_photo_watermark_catch_up_skips_videos()
     {
-        $this->everyone();
         $this->member();
         $this->share(self::mp4(), []);
         // A video with no poster

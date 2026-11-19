@@ -28,8 +28,7 @@ export const appSettings = reactive({
     // Admin → Legal Documents
     askLegal: true,
     minimumAge: 18,
-    // Community videos: off until the server turns them on
-    videoPosts: false,
+    // Community videos: the limits the server checks
     videoMaxMb: 25,
     videoMaxSeconds: 60,
 });
@@ -177,7 +176,6 @@ function applySettings(s) {
         heartbeatSeconds: pick('presence.heartbeat_seconds', 60),
         askLegal: !!pick('legal.ask_acceptance', true),
         minimumAge: pick('legal.minimum_age', 18),
-        videoPosts: !!pick('community.video_posts', false),
         videoMaxMb: Number(pick('community.video_max_mb', 25)) || 25,
         videoMaxSeconds: Number(pick('community.video_max_seconds', 60)) || 60,
     });

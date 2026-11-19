@@ -7,19 +7,20 @@ processed on the WorkMate server. Laravel signs short-lived addresses (AWS Signa
 
 ## Who may post
 
-The settings are in Admin → Settings → Platform → Community videos (`config/workmate.php`):
+Anyone who may post in the community may add a video, exactly as with photos. They must be
+signed in, have an active (not suspended) account and a confirmed email, and maintenance mode
+must be off. There is no separate video permission or switch.
 
-| Key | Default | Meaning |
-|---|---|---|
-| `community.video_posts` | off | Every member who can post may add videos |
-| `community.video_pilot` | off | Admins (`admin-access`) and listed testers may add videos |
-| `community.video_testers` | empty | Tester emails, separated by commas |
-| `community.video_max_mb` | 25 | Largest file (public) |
-| `community.video_max_seconds` | 60 | Longest video (public) |
+Only the limits are settings (Admin → Settings → Platform → Community videos, public):
 
-`GET /api/v1/me` returns `can_post_video` for the signed-in member. It is false whenever the
-R2 keys are missing. The usual community rules still apply: a confirmed email, no maintenance mode, and
-an active account. Everyone can watch published videos.
+| Key | Default |
+|---|---|
+| `community.video_max_mb` | 25 |
+| `community.video_max_seconds` | 60 |
+
+If the server can't see the R2 keys, uploads are refused with `503 video_storage_unavailable`
+and an error is logged. Run `php artisan workmate:video-check` on the server: it shows which
+keys Laravel sees (never their values) and whether R2 accepts them.
 
 ## 1. Ask for an upload address
 
@@ -45,8 +46,9 @@ an active account. Everyone can watch published videos.
   `Content-Length`**, so a different or larger file is refused by R2. It is valid for 30 minutes.
 - The same `client_token` returns the same upload (safe to retry). A member can have at most 3
   uploads in progress.
-- Errors: `422` (validation: only `video/mp4`, size, duration), `403 video_posts_unavailable`,
-  `403 email_not_verified`, `429 too_many_uploads`, `409 upload_used`, `429` (rate limit).
+- Errors: `422` (validation: only `video/mp4`, size, duration), `401` signed out,
+  `403 email_not_verified`, `403 account_inactive`, `503 maintenance`,
+  `503 video_storage_unavailable`, `429 too_many_uploads`, `409 upload_used`, `429` (rate limit).
 
 ## 2. Upload (browser to R2)
 
