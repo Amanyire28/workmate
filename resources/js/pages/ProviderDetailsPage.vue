@@ -211,10 +211,10 @@
             <ul v-if="communityPosts.length" class="mt-4 flex flex-col divide-y divide-line">
               <li v-for="p in communityPosts" :key="p.id">
                 <router-link :to="`/community/post/${p.id}`" class="flex gap-3 py-3 first:pt-0 group">
-                  <img v-if="p.media.length" :src="p.media[0].thumb_url" alt="" loading="lazy" class="h-16 w-16 shrink-0 rounded-xl object-cover bg-[#E2E8F0]" />
+                  <img v-if="p.media[0]?.thumb_url" :src="p.media[0].thumb_url" alt="" loading="lazy" class="h-16 w-16 shrink-0 rounded-xl object-cover bg-[#E2E8F0]" />
                   <span class="min-w-0 flex-1">
                     <span class="block text-[12.5px] font-medium text-primary">{{ categoryOf(p.category).label }}</span>
-                    <span class="block text-[14.5px] text-ink line-clamp-2 group-hover:underline">{{ p.body || 'Photos' }}</span>
+                    <span class="block text-[14.5px] text-ink line-clamp-2 group-hover:underline">{{ p.body || (p.media[0]?.type === 'video' ? 'Video' : 'Photos') }}</span>
                     <span class="block text-[12.5px] text-muted">{{ agoLabel(p.created_at) }}<template v-if="p.likes_count"> · {{ p.likes_count }} {{ p.likes_count === 1 ? 'like' : 'likes' }}</template><template v-if="p.comments_count"> · {{ p.comments_count }} {{ p.comments_count === 1 ? 'comment' : 'comments' }}</template></span>
                   </span>
                 </router-link>

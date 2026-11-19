@@ -6,6 +6,7 @@ use App\Models\CommunityPost;
 use App\Models\CommunityPostMedia;
 use App\Models\ProviderProfile;
 use App\Models\User;
+use App\Services\CommunityVideos;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
@@ -37,6 +38,10 @@ class CommunityPostResource extends JsonResource
             'topic' => $this->topic ? ['slug' => $this->topic->slug, 'name' => $this->topic->name] : null,
             'area' => $this->area ? $this->area->name : null,
             'media' => $this->media->map(function (CommunityPostMedia $m) {
+                if ($m->isVideo()) {
+                    return $this->video($m);
+                }
+
                 return ['id' => $m->uuid, 'url' => $m->url(), 'thumb_url' => $m->url(true), 'width' => $m->width, 'height' => $m->height];
             })->values(),
             'likes_count' => $this->likes_count,
@@ -46,6 +51,29 @@ class CommunityPostResource extends JsonResource
             'mine' => $mine,
             // Only the author sees that, and why, WorkMate removed it
             'removed' => $mine && $removed ? ['reason' => $this->removed_reason, 'at' => optional($this->removed_at)->toIso8601String()] : null,
+        ];
+    }
+
+    /**
+     * A video: a short-lived playback address only while the post may be
+     * watched (never for removed or deleted posts, or deleted videos).
+     */
+    private function video(CommunityPostMedia $m): array
+    {
+        $url = app(CommunityVideos::class)->playbackUrl($m, $this->resource);
+        $poster = $m->hasImage() ? $m->url() : null;
+
+        return [
+            'id' => $m->uuid,
+            'type' => CommunityPostMedia::TYPE_VIDEO,
+            'url' => $url,
+            'poster_url' => $poster,
+            'thumb_url' => $m->hasImage() ? $m->url(true) : null,
+            'width' => $m->width,
+            'height' => $m->height,
+            'duration' => $m->duration,
+            'size' => $m->size,
+            'status' => $url ? 'ready' : 'unavailable',
         ];
     }
 

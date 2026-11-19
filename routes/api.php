@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V1\Admin\AdminActionController;
+use App\Http\Controllers\Api\V1\CommunityVideoController;
 use App\Http\Controllers\Api\V1\Admin\AdminDataController;
 use App\Http\Controllers\Api\V1\Admin\AdminPulseController;
 use App\Http\Controllers\Api\V1\Admin\CatalogueController;
@@ -126,6 +127,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('community/media/{file}', [CommunityController::class, 'media'])
         ->where('file', '[0-9a-f-]{36}(-t)?\.jpg')
         ->name('community.media');
+    // A fresh short-lived address to play a published video (the bucket is private)
+    Route::get('community/media/{media}/playback', [CommunityVideoController::class, 'playback'])->whereUuid('media')->name('community.media.playback');
     // Invite Friends: an invitation link was opened
     Route::post('referrals/visit', [ReferralController::class, 'visit'])->middleware('throttle:referral-visit')->name('referrals.visit');
     // Providers' recent work
@@ -302,6 +305,12 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('community/me', [CommunityPeopleController::class, 'me'])->name('community.me');
         Route::middleware('throttle:community-post')->group(function () {
             Route::post('community/posts', [CommunityController::class, 'store'])->name('community.store');
+            // Video posts: the phone uploads straight to storage, then says it's finished
+            Route::post('community/video-uploads', [CommunityVideoController::class, 'store'])->name('community.videos.store');
+        });
+        Route::middleware('throttle:community-react')->group(function () {
+            Route::post('community/video-uploads/{upload}/complete', [CommunityVideoController::class, 'complete'])->whereUuid('upload')->name('community.videos.complete');
+            Route::delete('community/video-uploads/{upload}', [CommunityVideoController::class, 'destroy'])->whereUuid('upload')->name('community.videos.destroy');
         });
         Route::middleware('throttle:community-comment')->group(function () {
             Route::post('community/posts/{post}/comments', [CommunityController::class, 'comment'])->whereUuid('post')->name('community.comment');

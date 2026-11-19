@@ -89,6 +89,10 @@ class WatermarkPhotos extends Command
     private function query(string $model)
     {
         $query = $model::query();
+        if ($model === CommunityPostMedia::class) {
+            // Video posters are watermarked when added; a video may have none
+            $query->photos();
+        }
         if ($this->option('redo')) {
             return $query->whereNotNull('watermarked_at');
         }

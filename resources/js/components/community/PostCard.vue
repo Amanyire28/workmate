@@ -50,16 +50,21 @@
       </button>
     </div>
 
+    <!-- A video (one per post) -->
+    <div v-if="video" class="mt-3">
+      <VideoPlayer :media="video" :label="`Video by ${post.author.name}`" />
+    </div>
+
     <!-- Photos -->
-    <div v-if="post.media.length" class="mt-3" :class="post.media.length > 1 ? 'grid grid-cols-2 gap-0.5' : ''">
+    <div v-else-if="photos.length" class="mt-3" :class="photos.length > 1 ? 'grid grid-cols-2 gap-0.5' : ''">
       <button
         v-for="(m, i) in shownMedia"
         :key="m.id"
         type="button"
         class="relative block w-full overflow-hidden bg-[#E2E8F0] focus-visible:outline-offset-[-3px]"
         :class="tileClass(i)"
-        :style="post.media.length === 1 ? { aspectRatio: singleRatio } : null"
-        :aria-label="`Open photo ${i + 1} of ${post.media.length}`"
+        :style="photos.length === 1 ? { aspectRatio: singleRatio } : null"
+        :aria-label="`Open photo ${i + 1} of ${photos.length}`"
         @click="viewer = i"
       >
         <img :src="m.thumb_url" :width="m.width" :height="m.height" alt="" loading="lazy" decoding="async" class="h-full w-full object-cover" />
@@ -67,10 +72,21 @@
       </button>
     </div>
 
-    <!-- A provider's own work: their profile is a tap away -->
-    <div v-if="post.author.provider_id && !post.mine && post.category === 'my_work'" class="mx-4 mt-3 flex items-center justify-between gap-3 rounded-2xl bg-primary-tint/70 px-3.5 py-2.5 lg:mx-5">
+    <p v-if="VIDEO_MOCK && post.mock" class="wm-notice wm-notice-warning mx-4 mt-3 !text-[13px] lg:mx-5">
+      <i class="bi bi-cone-striped" aria-hidden="true"></i><span>Development preview: this post isn’t saved, and liking or commenting on it won’t work.</span>
+    </p>
+
+    <!-- A provider's own work: their profile, or a request, is a tap away -->
+    <div v-if="showProviderActions" class="mx-4 mt-3 flex items-center justify-between gap-3 rounded-2xl bg-primary-tint/70 px-3.5 py-2.5 lg:mx-5">
       <p class="min-w-0 text-[13px] text-ink truncate">Like this work?<span class="hidden sm:inline text-muted"> See their profile and reviews.</span></p>
-      <router-link :to="profileLink" class="wm-btn wm-btn-secondary !min-h-9 !px-3.5 !text-[13px] shrink-0">View profile</router-link>
+      <div class="flex shrink-0 gap-2">
+        <router-link :to="profileLink" class="wm-btn wm-btn-secondary !min-h-10 !px-3.5 !text-[13px]">
+          <span class="sm:hidden">Profile</span><span class="hidden sm:inline">View provider</span>
+        </router-link>
+        <router-link :to="`/provider/${post.author.provider_id}/request`" class="wm-btn wm-btn-primary !min-h-10 !px-3.5 !text-[13px]">
+          <span class="sm:hidden">Request</span><span class="hidden sm:inline">Request service</span>
+        </router-link>
+      </div>
     </div>
 
     <!-- Actions: the like and comment icons carry their counts -->
@@ -93,7 +109,7 @@
     </div>
     <div v-else class="h-4"></div>
 
-    <PhotoViewer v-if="viewer !== null" :media="post.media" :start="viewer" :label="`Photos by ${post.author.name}`" @close="viewer = null" />
+    <PhotoViewer v-if="viewer !== null" :media="photos" :start="viewer" :label="`Photos by ${post.author.name}`" @close="viewer = null" />
   </article>
 </template>
 
@@ -102,6 +118,8 @@ import { ref, computed, useId } from 'vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import VerifiedBadge from '@/components/VerifiedBadge.vue';
 import PhotoViewer from './PhotoViewer.vue';
+import VideoPlayer from './VideoPlayer.vue';
+import { VIDEO_MOCK } from '@/stores/video.js';
 import { agoLabel } from '@/stores/catalog.js';
 import { categoryOf, toggleLike, toggleSave, toggleFollow, sharePost, postUrl, needsSignIn, personLink, shortCount, countLabel } from '@/stores/community.js';
 import { showFlash } from '@/stores/flash.js';
@@ -127,16 +145,24 @@ const long = computed(() => {
 const expanded = ref(false);
 const clamped = computed(() => long.value && !props.full && !expanded.value);
 
+/* A post has one video or up to six photos (media without a type are photos) */
+const video = computed(() => props.post.media.find(m => m.type === 'video') || null);
+const photos = computed(() => props.post.media.filter(m => m.type !== 'video'));
+
+/* A listed provider's work (or video): see them, or ask for the service */
+const showProviderActions = computed(() => !!props.post.author.provider_id && !props.post.mine && !props.post.removed
+  && (props.post.category === 'my_work' || !!video.value));
+
 /* Photo layout: one keeps its shape (within limits), more go in a grid of up to four */
-const shownMedia = computed(() => props.post.media.slice(0, 4));
-const hiddenCount = computed(() => Math.max(0, props.post.media.length - 4));
+const shownMedia = computed(() => photos.value.slice(0, 4));
+const hiddenCount = computed(() => Math.max(0, photos.value.length - 4));
 const singleRatio = computed(() => {
-  const m = props.post.media[0];
+  const m = photos.value[0];
   const ratio = m.width / m.height;
   return String(Math.min(16 / 9, Math.max(4 / 5, ratio)));
 });
 function tileClass(i) {
-  const n = props.post.media.length;
+  const n = photos.value.length;
   if (n === 1) return 'max-h-[560px]';
   if (n === 3 && i === 0) return 'row-span-2 h-full';
   return 'aspect-square';

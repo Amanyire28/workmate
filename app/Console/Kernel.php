@@ -17,6 +17,8 @@ class Kernel extends ConsoleKernel
     {
         // Booking reminders (config/engagement.php): each is sent once, so overlapping or repeated runs are harmless
         $schedule->command('workmate:reminders')->everyFifteenMinutes()->withoutOverlapping(30);
+        // Unfinished video uploads and deleted posts' videos (Cloudflare R2)
+        $schedule->command('workmate:video-cleanup')->hourly()->withoutOverlapping(60);
     }
 
     /**

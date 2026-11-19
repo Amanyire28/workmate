@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\ProviderMember;
+use App\Services\CommunityVideos;
 use App\Services\LegalDocuments;
 
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -43,6 +44,8 @@ class UserResource extends JsonResource
             'permissions' => $this->permissionKeys(),
             // Legal documents still to accept (new, or changed materially)
             'legal_pending' => app(LegalDocuments::class)->pendingFor($this->resource),
+            // Community videos are switched on for this member (pilot or everyone)
+            'can_post_video' => app(CommunityVideos::class)->canPost($this->resource),
             'created_at' => optional($this->created_at)->toIso8601String(),
         ];
     }

@@ -701,6 +701,59 @@
     @media (max-width: 359px) {
         .wm-post-action span { display: none; }
     }
+
+    /* ---- Community videos ---- */
+    .wm-video { max-height: min(72vh, 600px); }
+    .wm-video-full { max-height: none; height: 100%; }
+    .wm-video-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        flex-shrink: 0;
+        border-radius: 9999px;
+        font-size: 1.15rem;
+        color: #fff;
+    }
+    .wm-video-btn:hover { background: rgba(255, 255, 255, 0.14); }
+    .wm-video-seek {
+        -webkit-appearance: none;
+        appearance: none;
+        height: 4px;
+        border-radius: 9999px;
+        background: linear-gradient(to right, #fff var(--wm-seek, 0%), rgba(255, 255, 255, 0.35) var(--wm-seek, 0%));
+        cursor: pointer;
+    }
+    .wm-video-seek::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        width: 14px;
+        height: 14px;
+        border-radius: 9999px;
+        background: #fff;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    }
+    .wm-video-seek::-moz-range-thumb {
+        width: 14px;
+        height: 14px;
+        border: 0;
+        border-radius: 9999px;
+        background: #fff;
+    }
+    .wm-upload-bar {
+        height: 6px;
+        overflow: hidden;
+        border-radius: 9999px;
+        background: var(--color-primary-tint);
+    }
+    .wm-upload-bar > span {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--color-primary);
+        transition: width 0.2s linear;
+    }
+    @media (prefers-reduced-motion: reduce) { .wm-upload-bar > span { transition: none; } }
     .wm-menu-item {
         display: flex;
         align-items: center;

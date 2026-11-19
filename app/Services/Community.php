@@ -59,37 +59,57 @@ class Community
             }
 
             return DB::transaction(function () use ($author, $data, $body, $stored) {
-                $profile = $author->providerProfile;
-                $topic = ! empty($data['topic']) ? Category::active()->where('slug', $data['topic'])->value('id') : null;
-
-                $post = new CommunityPost();
-                $post->forceFill([
-                    'uuid' => (string) Str::uuid(),
-                    'user_id' => $author->getKey(),
-                    'provider_profile_id' => $profile ? $profile->id : null,
-                    'category' => $data['category'],
-                    'body' => $body,
-                    // Defaults to the provider's main profession and base area
-                    'topic_category_id' => $topic ?: ($profile ? $profile->mainCategoryId() : null),
-                    'area_id' => $profile ? $profile->base_area_id : null,
-                ])->save();
-
-                foreach ($stored as $i => $file) {
-                    $media = new CommunityPostMedia();
-                    $media->forceFill($file + ['community_post_id' => $post->id, 'position' => $i])->save();
-                }
-
-                $this->audit->record('community.post_published', $post, [], [
-                    'category' => $post->category, 'photos' => count($stored),
-                ], null, $author);
-                $this->tellFollowers($post, $author);
-
-                return $post;
+                return $this->createPost($author, $data, $body, $stored, ['photos' => count($stored)]);
             });
         } catch (\Throwable $e) {
             $this->photos->discardStored($stored);
             throw $e;
         }
+    }
+
+    /**
+     * A video post, once CommunityVideos has checked the upload. Call inside
+     * a transaction; $video is the media row (type video, key, size, poster paths).
+     */
+    public function publishVideo(User $author, array $data, array $video): CommunityPost
+    {
+        $this->guardCanTakePart($author);
+
+        return $this->createPost($author, $data, $this->clean($data['body'] ?? null), [$video], ['videos' => 1]);
+    }
+
+    /** Members who may post at all (confirmed email, no maintenance) */
+    public function assertCanPost(User $user): void
+    {
+        $this->guardCanTakePart($user);
+    }
+
+    private function createPost(User $author, array $data, ?string $body, array $media, array $auditExtra): CommunityPost
+    {
+        $profile = $author->providerProfile;
+        $topic = ! empty($data['topic']) ? Category::active()->where('slug', $data['topic'])->value('id') : null;
+
+        $post = new CommunityPost();
+        $post->forceFill([
+            'uuid' => (string) Str::uuid(),
+            'user_id' => $author->getKey(),
+            'provider_profile_id' => $profile ? $profile->id : null,
+            'category' => $data['category'],
+            'body' => $body,
+            // Defaults to the provider's main profession and base area
+            'topic_category_id' => $topic ?: ($profile ? $profile->mainCategoryId() : null),
+            'area_id' => $profile ? $profile->base_area_id : null,
+        ])->save();
+
+        foreach ($media as $i => $file) {
+            $row = new CommunityPostMedia();
+            $row->forceFill($file + ['community_post_id' => $post->id, 'position' => $i])->save();
+        }
+
+        $this->audit->record('community.post_published', $post, [], ['category' => $post->category] + $auditExtra, null, $author);
+        $this->tellFollowers($post, $author);
+
+        return $post;
     }
 
     /** The author changes the words, category or topic. Photos stay as they are. */

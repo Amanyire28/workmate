@@ -177,8 +177,9 @@ class CommunityController extends Controller
         $moderator = $post && $viewer && ($viewer->can('trust.view') || $viewer->can('content.view'));
         abort_unless($public || $author || $moderator, 404);
 
-        $path = empty($m[2]) ? $media->path : $media->thumb_path;
-        abort_unless(Storage::disk('local')->exists($path), 404);
+        $path = (string) (empty($m[2]) ? $media->path : $media->thumb_path);
+        // A video without a poster has no image
+        abort_unless($path !== '' && Storage::disk('local')->exists($path), 404);
 
         $response = response()->file(Storage::disk('local')->path($path), [
             'Content-Type' => 'image/jpeg',

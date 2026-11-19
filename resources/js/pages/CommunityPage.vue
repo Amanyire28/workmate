@@ -58,6 +58,9 @@
 
         <SuggestionCard v-if="!saved && auth.user" page="community" class="mt-4" />
 
+        <!-- Videos on mobile data: on by default -->
+        <DataSaverToggle v-if="videoPostsEnabled || hasVideos" class="mt-4" />
+
         <!-- Start a post (phones use the + button) -->
         <div v-if="!saved" class="wm-card mt-4 hidden lg:flex items-center gap-3 !py-3">
           <UserAvatar v-if="auth.user" :name="auth.user.name" :src="auth.user.avatar_url || ''" :size="40" />
@@ -199,6 +202,8 @@ import PostComposer from '@/components/community/PostComposer.vue';
 import CommentsSheet from '@/components/community/CommentsSheet.vue';
 import PersonRow from '@/components/community/PersonRow.vue';
 import SuggestionCard from '@/components/engagement/SuggestionCard.vue';
+import DataSaverToggle from '@/components/community/DataSaverToggle.vue';
+import { videoPostsEnabled, VIDEO_MOCK } from '@/stores/video.js';
 import { refreshSuggestions } from '@/stores/engagement.js';
 import { api } from '@/api/client.js';
 import { auth, isProvider } from '@/stores/auth.js';
@@ -295,6 +300,9 @@ async function load(fresh = false) {
   }
 }
 
+// Anyone seeing videos gets the Data Saver switch, even before they can post one
+const hasVideos = computed(() => state.posts.some(p => p.media?.some(m => m.type === 'video')));
+
 const empty = computed(() => {
   if (saved.value) return { icon: 'bi-bookmark', title: 'No saved posts yet', message: 'Tap Save on a post to keep it here for later.', action: 'browse' };
   if (filtered.value) return { icon: 'bi-funnel', title: 'Nothing here yet', message: 'No posts match these filters. Try another kind of post, profession or place.', action: 'clear' };
@@ -327,6 +335,11 @@ onMounted(async () => {
   }
   await nextTick();
   watchSentinel();
+  // Local development only: sample video posts to try the feed (?videoSamples=1)
+  if (VIDEO_MOCK && route.query.videoSamples === '1') {
+    const { samplePosts } = await import('@/stores/videoUploadMock.js');
+    state.posts.unshift(...await samplePosts(state.posts));
+  }
 });
 onBeforeUnmount(() => {
   observer?.disconnect();
@@ -372,6 +385,11 @@ function updated(post) {
 
 async function remove(post) {
   if (!window.confirm('Delete this post? It can’t be undone.')) return;
+  // A development preview was never saved
+  if (post.mock) {
+    state.posts = state.posts.filter(p => p.id !== post.id);
+    return;
+  }
   try {
     await deletePost(post);
     state.posts = state.posts.filter(p => p.id !== post.id);

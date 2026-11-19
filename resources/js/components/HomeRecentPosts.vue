@@ -40,12 +40,12 @@
               <span class="inline-flex items-center gap-1 text-[11.5px] font-medium text-primary">
                 <i :class="['bi', categoryOf(p.category).icon]" aria-hidden="true"></i>{{ categoryOf(p.category).label }}
               </span>
-              <p class="mt-0.5 text-[14px] text-ink leading-snug line-clamp-3 break-words">{{ p.body || 'Shared photos' }}</p>
+              <p class="mt-0.5 text-[14px] text-ink leading-snug line-clamp-3 break-words">{{ p.body || (p.media[0]?.type === 'video' ? 'Shared a video' : 'Shared photos') }}</p>
             </div>
             <img
-              v-if="p.media.length"
+              v-if="p.media[0]?.thumb_url"
               :src="p.media[0].thumb_url"
-              :alt="p.media.length > 1 ? `${p.media.length} photos` : 'Photo'"
+              :alt="p.media[0].type === 'video' ? 'Video' : p.media.length > 1 ? `${p.media.length} photos` : 'Photo'"
               width="72" height="72"
               class="w-[72px] h-[72px] shrink-0 rounded-[10px] object-cover bg-[#F1F5F9]"
               loading="lazy"
