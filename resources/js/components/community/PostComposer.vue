@@ -40,6 +40,7 @@
       <div v-if="!editing">
         <VideoPicker
           v-if="videoPostsEnabled"
+          ref="videoPicker"
           v-model="video"
           :input-id="`${formId}-video`"
           :disabled="busy"
@@ -139,6 +140,7 @@ const busy = ref(false);
 const progress = ref(0);
 const bodyField = ref(null);
 const uploadBox = ref(null);
+const videoPicker = ref(null);
 const photoInput = ref(null);
 let keys = 0;
 
@@ -236,6 +238,11 @@ function cancel() {
     return;
   }
   if (busy.value) return;
+  // Preparing a video: closing stops it (only a finished video is ever kept)
+  if (checkingVideo.value) {
+    if (!window.confirm('Stop preparing this video?')) return;
+    videoPicker.value?.stop();
+  }
   const unsaved = editing.value ? body.value !== (props.post.body || '') : (body.value.trim() || photos.value.length || video.value);
   if (unsaved && !window.confirm(editing.value ? 'Discard your changes?' : 'Discard this post?')) return;
   if (!editing.value) reset();

@@ -3,21 +3,36 @@
  * before anything is uploaded. The server checks again (size, length and
  * type); nothing here is trusted.
  *
- * Nothing is compressed in the browser yet (see videoCompressor below).
+ * An MP4 with H.264 picture and AAC sound within the limits is used as it
+ * is. Anything else (HEVC, MOV, WebM, too big) is converted on the phone
+ * first, where its browser can (utils/videoConvert.js, loaded only then).
  */
 
-// The pilot takes MP4 (H.264): what every phone browser can play
-export const VIDEO_TYPES = ['video/mp4'];
-const VIDEO_EXTENSIONS = /\.(mp4|m4v)$/i;
-export const VIDEO_ACCEPT = 'video/mp4,.mp4,.m4v';
+// What's uploaded is always MP4 (H.264): what every phone browser can play.
+// What can be chosen is any phone video; the rest is converted first.
+const VIDEO_EXTENSIONS = /\.(mp4|m4v|mov|webm|mkv|3gp)$/i;
+export const VIDEO_ACCEPT = 'video/*,.mp4,.m4v,.mov,.webm,.mkv,.3gp';
 
 // A little slack: phones round a 60-second recording up
 const DURATION_SLACK = 0.5;
 
 /** Some Android file pickers give no type; the name is the next best thing */
 export function isVideoFile(file) {
-    if (file.type) return VIDEO_TYPES.includes(file.type);
+    if (file.type) return file.type.startsWith('video/');
     return VIDEO_EXTENSIONS.test(file.name || '');
+}
+
+/**
+ * Notes for diagnosing a video problem on a member's phone (browser console,
+ * marked "[WorkMate video]"). Only facts about the file and the browser:
+ * never upload or playback addresses, which carry signatures.
+ */
+export function videoLog(event, details = {}, problem = false) {
+    try {
+        (problem ? console.warn : console.info)('[WorkMate video]', event, details);
+    } catch {
+        // No console: nothing to do
+    }
 }
 
 /** 640 KB, 3.4 MB */
@@ -118,36 +133,43 @@ export async function makePoster(src, { at = 0.5, maxSide = 720 } = {}) {
 /**
  * Checks a chosen file against the limits before anything is uploaded.
  *
- * @returns {Promise<{ok: true, duration: number, width: number, height: number} | {ok: false, error: string}>}
+ * - ok: usable as it is (the fast path: nothing extra is downloaded)
+ * - convert: needs converting first (another format, or too big)
+ * - otherwise an error to show
+ *
+ * @returns {Promise<{ok: true, duration: number, width: number, height: number} | {ok: false, convert?: true, error?: string}>}
  */
 export async function checkVideo(file, src, { maxMb, maxSeconds }) {
     if (!isVideoFile(file)) {
-        return { ok: false, error: /\.mov$/i.test(file.name || '') || file.type === 'video/quicktime'
-            ? 'This is a MOV video. Choose an MP4 video, or on an iPhone set Camera → Formats → Most Compatible and record again.'
-            : 'That file isn’t a video we can use. Choose an MP4 video.' };
+        return { ok: false, error: 'That file isn’t a video. Choose a video.' };
     }
-    if (file.size > maxMb * 1024 * 1024) {
-        return { ok: false, error: `This video is ${formatBytes(file.size)}. Videos can be up to ${maxMb} MB. Try a shorter clip.` };
-    }
+    // The same header check the server makes, before any data is spent uploading
+    const code = await mp4Code(file);
+    if (code === 'damaged') return { ok: false, error: MP4_MESSAGES.damaged };
+    // Another format (HEVC, MOV, WebM…) or bigger than the limit: convert it on the phone
+    if (code || file.size > maxMb * 1024 * 1024) return { ok: false, convert: true };
+
     let meta;
     try {
         meta = await readVideoMetadata(src);
     } catch {
-        return { ok: false, error: 'We couldn’t open this video on your phone. Try another video, or one saved as MP4.' };
+        // The phone's player can't open it; the converter may still be able to
+        return { ok: false, convert: true };
     }
     if (!meta.width || !meta.height) {
         return { ok: false, error: 'This file has no picture. Choose a video.' };
     }
     if (!Number.isFinite(meta.duration)) {
-        return { ok: false, error: 'We couldn’t tell how long this video is. Try another video, or one saved as MP4.' };
+        return { ok: false, convert: true };
     }
     if (meta.duration > maxSeconds + DURATION_SLACK) {
-        return { ok: false, error: `This video is ${formatDuration(meta.duration)} long. Videos can be up to ${maxSeconds} seconds. Trim it on your phone and try again.` };
+        return { ok: false, error: tooLongMessage(meta.duration, maxSeconds) };
     }
-    // The same header check the server makes, before any data is spent uploading
-    const problem = await mp4Problem(file);
-    if (problem) return { ok: false, error: problem };
     return { ok: true, ...meta };
+}
+
+export function tooLongMessage(seconds, maxSeconds) {
+    return `This video is ${formatDuration(seconds)} long. Videos can be up to ${maxSeconds} seconds. Trim it on your phone and try again.`;
 }
 
 /* ---------------- The MP4 header (as the server checks it) ---------------- */
@@ -168,9 +190,14 @@ const MP4_MESSAGES = {
  * Unreadable cases are left for the server to decide.
  */
 export async function mp4Problem(file) {
+    const code = await mp4Code(file);
+    return code ? MP4_MESSAGES[code] : null;
+}
+
+/** The reason the server would refuse it ('hevc', 'mov', …), or null; WebM and others give 'not_mp4' */
+async function mp4Code(file) {
     try {
-        const code = await mp4Check(file);
-        return code ? MP4_MESSAGES[code] : null;
+        return await mp4Check(file);
     } catch {
         return null;
     }
@@ -207,9 +234,9 @@ async function mp4Check(file) {
     for (let i = 0; i < 64 && at < file.size; i++) {
         const head = await bytesOf(file, at, Math.min(16, file.size - at));
         if (head.byteLength < 8) return 'damaged';
+        if (i === 0 && fourcc(head, 4) !== 'ftyp') return 'not_mp4';
         const box = boxAt(head, 0, file.size - at);
         if (box.size < box.header || box.size > file.size - at) return 'damaged';
-        if (i === 0 && box.type !== 'ftyp') return 'not_mp4';
         if (box.type === 'ftyp') brand = fourcc(await bytesOf(file, at + box.header, 4), 0);
         else if (box.type === 'moof') return 'fragmented';
         else if (box.type === 'moov') {
@@ -251,17 +278,3 @@ async function mp4Check(file) {
     if (audio.some(a => a !== 'mp4a')) return 'audio';
     return null;
 }
-
-/**
- * Making videos smaller before upload. Not available yet: doing it in the
- * browser needs a large download (FFmpeg compiled to WebAssembly, about
- * 25–30 MB) and a lot of memory and battery on low-cost phones. Kept as one
- * place to plug it in later; until then videos are uploaded as they are.
- */
-export const videoCompressor = {
-    available: false,
-    /** @returns {Promise<File>} the file to upload */
-    async compress(file) {
-        return file;
-    },
-};

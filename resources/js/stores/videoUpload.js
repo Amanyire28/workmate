@@ -1,7 +1,7 @@
 import { api, upload, ApiError } from '@/api/client.js';
 import { newClientToken } from '@/utils/photos.js';
-import { videoCompressor } from '@/utils/video.js';
 import { VIDEO_MOCK } from '@/stores/video.js';
+import { videoLog } from '@/utils/video.js';
 
 /**
  * Publishing a video post. The video goes straight from the phone to storage
@@ -28,10 +28,18 @@ function putFile(target, file, { onProgress, signal }) {
         xhr.withCredentials = false;
         for (const [k, v] of Object.entries(target.headers || {})) xhr.setRequestHeader(k, v);
         xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress?.(e.loaded / e.total); };
-        xhr.onload = () => (xhr.status >= 200 && xhr.status < 300
-            ? resolve()
-            : reject(new ApiError(xhr.status, { code: 'video_upload_failed', message: 'The video didn’t finish uploading. Please try again.' })));
-        xhr.onerror = () => reject(new ApiError(0, { code: 'network_error', message: 'The upload stopped. Check your internet connection and try again.' }));
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) { resolve(); return; }
+            // Storage's own error code (e.g. SignatureDoesNotMatch, AccessDenied); never the address
+            const code = /<Code>([^<]+)<\/Code>/.exec(xhr.responseText || '');
+            videoLog('upload refused by storage', { status: xhr.status, storageCode: code ? code[1] : null, bytes: file.size }, true);
+            reject(new ApiError(xhr.status, { code: 'video_upload_failed', message: 'The video didn’t finish uploading. Please try again.' }));
+        };
+        // Usually the network, or storage not allowing uploads from this site (CORS)
+        xhr.onerror = () => {
+            videoLog('upload could not reach storage', { hint: 'network, or the bucket’s CORS rule', bytes: file.size }, true);
+            reject(new ApiError(0, { code: 'network_error', message: 'The upload stopped. Check your internet connection and try again.' }));
+        };
         xhr.onabort = () => reject(new DOMException('Upload cancelled', 'AbortError'));
         if (signal) {
             if (signal.aborted) { reject(new DOMException('Upload cancelled', 'AbortError')); return; }
@@ -74,30 +82,41 @@ async function adapter() {
 export async function publishVideoPost({ category, body, topic, video }, { onStage, onProgress, signal } = {}) {
     const server = await adapter();
     onStage?.('preparing');
-    const file = await videoCompressor.compress(video.file);
+    // Already an MP4 the server accepts (converted on the phone when it needed to be)
+    const file = video.file;
 
-    const ticket = await server.authorize({
-        category,
-        body: body || null,
-        topic: topic || null,
-        file_name: file.name || 'video',
-        mime_type: file.type || 'video/mp4',
-        size: file.size,
-        duration: Math.round(video.duration * 10) / 10,
-        width: video.width,
-        height: video.height,
-        // The same post isn't made twice if the phone sends this twice
-        client_token: newClientToken(),
-    }, { signal });
+    let ticket;
+    try {
+        ticket = await server.authorize({
+            category,
+            body: body || null,
+            topic: topic || null,
+            file_name: file.name || 'video',
+            // Always an MP4 by now (checked from its header, or converted); the server checks again
+            mime_type: 'video/mp4',
+            size: file.size,
+            duration: Math.round(video.duration * 10) / 10,
+            width: video.width,
+            height: video.height,
+            // The same post isn't made twice if the phone sends this twice
+            client_token: newClientToken(),
+        }, { signal });
+    } catch (e) {
+        if (e?.name !== 'AbortError') videoLog('upload address refused', { status: e?.status ?? null, code: e?.code || null, message: e?.message || null }, true);
+        throw e;
+    }
 
     try {
         onStage?.('uploading');
         await server.upload(ticket, file, { onProgress, signal });
         if (signal?.aborted) throw new DOMException('Upload cancelled', 'AbortError');
         onStage?.('finishing');
-        return await server.complete(ticket, video.poster, { signal });
+        const post = await server.complete(ticket, video.poster, { signal });
+        videoLog('published', { bytes: file.size, status: post.media?.[0]?.status || null });
+        return post;
     } catch (e) {
         if (e?.name === 'AbortError') server.cancel(ticket);
+        else videoLog('publish failed', { status: e?.status ?? null, code: e?.code || null, message: e?.message || null }, true);
         throw e;
     }
 }

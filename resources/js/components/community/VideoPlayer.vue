@@ -101,7 +101,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
-import { formatDuration } from '@/utils/video.js';
+import { formatDuration, videoLog } from '@/utils/video.js';
 import { api } from '@/api/client.js';
 import { videoPrefs, autoplayAllowed, claimPlayback, releasePlayback } from '@/stores/video.js';
 
@@ -225,6 +225,8 @@ function onEnded() {
 }
 async function onError() {
   const code = video.value?.error?.code;
+  // The browser's reason (1 stopped, 2 network, 3 decoding, 4 not supported or not found); never the address
+  videoLog('playback error', { media: props.media.id, mediaErrorCode: code ?? null, message: video.value?.error?.message || null, retriedWithFreshAddress: refreshedOnce }, true);
   playing.value = false;
   waiting.value = false;
   releasePlayback(handle);

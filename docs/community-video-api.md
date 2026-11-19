@@ -117,3 +117,22 @@ video, so they can be restored.
   would pass, then not play. No transcoding, compression or frame decoding happens anywhere.
 - The duration and codec come from the file's own header, not from what the browser says.
 - The phone runs the same header check before uploading, so refused files don't use up data.
+
+## Converting on the phone (before upload)
+
+`resources/js/utils/videoConvert.js` (with the `mediabunny` package, pinned to 1.65.1, MPL-2.0) runs only
+in the member's browser and is downloaded only when a video needs it (about 122 KB gzipped).
+
+- **Fast path:** an MP4 with H.264 video and AAC sound (or none), within the size limit, is uploaded as it is.
+  The header check is ours, and nothing extra is loaded.
+- **Converted:** anything else the browser can decode, using WebCodecs (the phone's own video hardware):
+  - H.264 video, at most 720p (short side) and 30 fps, at a bitrate sized for the limit (at most 2.5 Mbit/s).
+    The picture is turned upright, so rotation metadata isn't needed.
+  - AAC sound is copied. Other sound is re-encoded to AAC where the browser can encode AAC; otherwise
+    the member is asked whether to share the video without sound.
+  - An H.264 MOV within the limits is only re-packed as MP4 (well under a second).
+  - The output gets a second pass at a lower bitrate if it's still over the limit, and is then checked like any other file.
+- **Refused with a reason:** longer than the limit, no picture, or a codec this browser can't decode
+  (for example HEVC on a browser without an HEVC decoder). The message explains how to record in H.264.
+
+The server's checks are unchanged. Converted files are validated by `Mp4Inspector` like any other upload.
