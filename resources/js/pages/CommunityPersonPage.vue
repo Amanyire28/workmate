@@ -61,7 +61,7 @@
           <router-link v-if="person.me" to="/community?compose=1" class="wm-btn wm-btn-primary !min-h-12">Share your work</router-link>
         </EmptyState>
         <template v-else>
-          <ul class="mt-3 flex flex-col gap-4">
+          <ul class="mt-3 flex flex-col gap-2">
             <li v-for="p in posts.items" :key="p.id">
               <PostCard :post="p" @edit="editing = $event" @delete="remove" @report="reporting = { about: 'post', postId: $event.id }" />
             </li>

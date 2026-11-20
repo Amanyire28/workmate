@@ -704,19 +704,39 @@
 
     /* ---- Community videos ---- */
     .wm-video { max-height: min(72vh, 600px); }
-    /* A video post in the feed: no card; the video runs edge to edge on phones */
-    .wm-video-post {
-        display: flex;
-        flex-direction: column;
-        padding-bottom: 12px;
-        border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+    /* A post in the community feed: compact and continuous (no rounded glass card, no
+       shadow, no blur, which costs a lot on budget phones). Edge to edge on phones,
+       a lightly bordered block on wider screens. */
+    .wm-feed-post {
+        background: #fff;
+        border-block: 1px solid rgba(148, 163, 184, 0.28);
     }
     @media (max-width: 639px) {
-        .wm-video-post { margin-inline: -16px; }
+        .wm-feed-post { margin-inline: -16px; }
     }
-    /* Never taller than most of the screen, so the actions stay in reach */
-    .wm-video-immersive { max-height: min(78vh, 760px); }
-    @supports (height: 1svh) { .wm-video-immersive { max-height: min(78svh, 760px); } }
+    @media (min-width: 640px) {
+        .wm-feed-post { border: 1px solid rgba(148, 163, 184, 0.32); border-radius: 12px; overflow: hidden; }
+    }
+    /* The space beside a tall or wide picture: a blurred copy of it, never a crop */
+    .wm-media-backdrop {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        filter: blur(22px) saturate(1.1);
+        transform: scale(1.15);
+        opacity: 0.6;
+        pointer-events: none;
+    }
+    .wm-see-more {
+        min-height: 32px;
+        padding: 2px 0;
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--color-muted);
+    }
+    .wm-see-more:hover { color: var(--color-primary); text-decoration: underline; }
     .wm-video-full { max-height: none; height: 100%; }
     .wm-video-btn {
         display: inline-flex;

@@ -74,11 +74,11 @@
         </div>
 
         <!-- Posts -->
-        <div v-if="state.loading && !state.posts.length" class="mt-4 flex flex-col gap-4" aria-busy="true" aria-label="Loading posts">
-          <div v-for="n in 3" :key="n" class="wm-card">
-            <div class="flex items-center gap-3"><div class="wm-skeleton h-11 w-11 !rounded-full"></div><div class="flex-1"><div class="wm-skeleton h-4 w-40"></div><div class="wm-skeleton mt-2 h-3 w-24"></div></div></div>
-            <div class="wm-skeleton mt-4 h-4 w-full"></div><div class="wm-skeleton mt-2 h-4 w-4/5"></div>
-            <div v-if="n === 1" class="wm-skeleton mt-4 h-48 w-full !rounded-xl"></div>
+        <div v-if="state.loading && !state.posts.length" class="mt-4 flex flex-col gap-2" aria-busy="true" aria-label="Loading posts">
+          <div v-for="n in 3" :key="n" class="wm-feed-post px-4 py-3">
+            <div class="flex items-center gap-2.5"><div class="wm-skeleton h-10 w-10 !rounded-full"></div><div class="flex-1"><div class="wm-skeleton h-4 w-40"></div><div class="wm-skeleton mt-2 h-3 w-24"></div></div></div>
+            <div class="wm-skeleton mt-3 h-4 w-full"></div><div class="wm-skeleton mt-2 h-4 w-4/5"></div>
+            <div v-if="n === 1" class="wm-skeleton -mx-4 mt-3 h-56 !rounded-none"></div>
           </div>
         </div>
 
@@ -103,7 +103,7 @@
         </EmptyState>
 
         <template v-else>
-          <ul class="mt-4 flex flex-col gap-4">
+          <ul class="mt-4 flex flex-col gap-2">
             <li v-for="post in state.posts" :key="post.id">
               <PostCard :post="post" sheet-comments @comment="commenting = $event" @edit="editing = $event" @delete="remove" @report="reporting = { about: 'post', postId: $event.id }" />
             </li>
@@ -269,21 +269,26 @@ const state = reactive({ posts: [], cursor: null, page: 1, done: false, loading:
 const feedKey = computed(() => JSON.stringify({ saved: saved.value, tab: tab.value, ...filters.value, user: auth.user?.id || null }));
 
 let generation = 0;
+// A newer load (e.g. a changed filter) cancels the one still on its way
+let loading = null;
 async function load(fresh = false) {
   if (state.loading && !fresh) return;
   const mine = ++generation;
+  loading?.abort();
+  loading = new AbortController();
+  const signal = loading.signal;
   if (fresh) Object.assign(state, { posts: [], cursor: null, page: 1, done: false, error: '' });
   state.loading = true;
   state.error = '';
   try {
     let r;
     if (saved.value) {
-      r = await api(`/community/saved?page=${state.page}`);
+      r = await api(`/community/saved?page=${state.page}`, { signal });
     } else {
       const q = new URLSearchParams({ tab: tab.value });
       for (const [k, v] of Object.entries(filters.value)) if (v) q.set(k, v);
       if (state.cursor) q.set('cursor', state.cursor);
-      r = await api(`/community/posts?${q}`);
+      r = await api(`/community/posts?${q}`, { signal });
     }
     if (mine !== generation) return;
     // The same post can't appear twice, even if new ones arrived in between
@@ -294,7 +299,7 @@ async function load(fresh = false) {
     state.done = saved.value ? !r.meta.next_page : !r.meta.next_cursor;
     state.personalised = !!r.meta.personalised;
   } catch (e) {
-    if (mine === generation) state.error = e.message;
+    if (mine === generation && e?.name !== 'AbortError') state.error = e.message;
   } finally {
     if (mine === generation) state.loading = false;
   }

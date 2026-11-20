@@ -50,8 +50,20 @@ function complain(e) {
     showFlash(e?.code === 'email_not_verified' ? 'Confirm your email address to take part. Use the link we sent you.' : (e?.message || 'That didn’t work. Please try again.'), 'error', 5000);
 }
 
-export async function toggleLike(post) {
-    if (needsSignIn()) return;
+// What's waiting for the server, so a second tap can't send a contradicting request
+const pending = new Set();
+function once(key, fn) {
+    if (pending.has(key)) return Promise.resolve();
+    pending.add(key);
+    return Promise.resolve().then(fn).finally(() => pending.delete(key));
+}
+
+export function toggleLike(post) {
+    if (needsSignIn()) return Promise.resolve();
+    return once(`like:${post.id}`, () => likePost(post));
+}
+
+async function likePost(post) {
     const on = !post.liked;
     post.liked = on;
     post.likes_count += on ? 1 : -1;
@@ -66,8 +78,12 @@ export async function toggleLike(post) {
 }
 
 /** A comment's like (the comment object from the comments list) */
-export async function toggleCommentLike(comment) {
-    if (needsSignIn()) return;
+export function toggleCommentLike(comment) {
+    if (needsSignIn()) return Promise.resolve();
+    return once(`comment-like:${comment.id}`, () => likeComment(comment));
+}
+
+async function likeComment(comment) {
     const on = !comment.liked;
     comment.liked = on;
     comment.likes_count = Math.max(0, (comment.likes_count || 0) + (on ? 1 : -1));
@@ -94,8 +110,12 @@ export function countLabel(n, word) {
     return `${n} ${n === 1 ? word : `${word}s`}`;
 }
 
-export async function toggleSave(post) {
-    if (needsSignIn()) return;
+export function toggleSave(post) {
+    if (needsSignIn()) return Promise.resolve();
+    return once(`save:${post.id}`, () => savePost(post));
+}
+
+async function savePost(post) {
     const on = !post.saved;
     post.saved = on;
     try {

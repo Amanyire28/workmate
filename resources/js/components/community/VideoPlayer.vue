@@ -2,11 +2,13 @@
   <div
     ref="root"
     class="wm-video relative w-full overflow-hidden bg-[#0B1220] text-white select-none"
-    :class="{ 'wm-video-full': fullscreen, 'wm-video-immersive': immersive }"
+    :class="{ 'wm-video-full': fullscreen }"
     :style="fullscreen ? null : { aspectRatio: boxRatio }"
     role="group"
     :aria-label="label"
   >
+    <!-- The space beside a tall or wide video: a blurred copy of its poster -->
+    <img v-if="poster" :src="media.thumb_url || poster" alt="" aria-hidden="true" class="wm-media-backdrop" loading="lazy" decoding="async" />
     <!-- Nothing is downloaded until the video is played (or, with Data Saver off, scrolled into view) -->
     <video
       v-if="armed"

@@ -1,17 +1,16 @@
 <template>
-  <!-- Text and photo posts are cards. A video post is a full-width entry instead (no card):
-       the author above the video, then the actions, the words and the provider's buttons
-       below it (the "order" classes arrange that; they do nothing in a card). -->
-  <article :class="video ? 'wm-video-post' : 'wm-card !p-0 overflow-hidden'" :aria-labelledby="`${uid}-author`">
+  <!-- One compact layout for every post (text, photos, video): header, words, media,
+       actions. Full width on phones, a lightly bordered block on wider screens. -->
+  <article class="wm-feed-post" :aria-labelledby="`${uid}-author`">
     <!-- Removed by WorkMate: only the author sees this -->
-    <p v-if="post.removed" class="wm-notice wm-notice-warning !rounded-none !m-0 order-0">
+    <p v-if="post.removed" class="wm-notice wm-notice-warning !rounded-none !m-0">
       <i class="bi bi-eye-slash" aria-hidden="true"></i>
       <span><strong class="font-semibold">WorkMate removed this post.</strong> Only you can see it. Reason: {{ post.removed.reason }}</span>
     </p>
 
-    <header class="order-1 flex items-start gap-3 px-4 pt-4 lg:px-5" :class="{ 'sm:px-1 lg:px-1': video }">
+    <header class="flex items-start gap-2.5 px-4 pt-3">
       <component :is="profileLink ? 'router-link' : 'span'" :to="profileLink || undefined" class="shrink-0" :tabindex="profileLink ? -1 : undefined" aria-hidden="true">
-        <UserAvatar :name="post.author.name" :src="post.author.avatar_url || ''" :size="44" />
+        <UserAvatar :name="post.author.name" :src="post.author.avatar_url || ''" :size="40" />
       </component>
       <div class="min-w-0 flex-1">
         <p :id="`${uid}-author`" class="flex items-center gap-1.5 text-[15px] font-semibold text-ink leading-tight">
@@ -19,18 +18,15 @@
           <span v-else class="truncate">{{ post.author.name }}</span>
           <VerifiedBadge :provider="{ documentVerified: post.author.document_verified, blueTick: post.author.blue_tick }" />
         </p>
-        <p class="mt-0.5 text-[13px] text-muted truncate">
-          <span class="sm:hidden"><i :class="['bi', category.icon]" aria-hidden="true"></i> {{ category.label }} · </span>
+        <p class="mt-0.5 text-[12.5px] text-muted truncate">
           <template v-if="post.author.title">{{ post.author.title }} · </template>
           <template v-if="post.area">{{ post.area }} · </template>
           <router-link :to="`/community/post/${post.id}`" class="hover:underline"><time :datetime="post.created_at">{{ agoLabel(post.created_at) }}</time></router-link>
           <template v-if="post.edited_at"> · edited</template>
         </p>
+        <p class="mt-0.5 text-[12px] text-muted"><i :class="['bi', category.icon]" aria-hidden="true"></i> {{ category.label }}</p>
       </div>
-      <span class="hidden sm:inline-flex wm-pill wm-pill-plain wm-pill-neutral !h-7 shrink-0 mt-0.5">
-        <i :class="['bi', category.icon]" aria-hidden="true"></i>{{ category.label }}
-      </span>
-      <div class="relative -mr-2 -mt-1.5">
+      <div class="relative -mr-2 -mt-1">
         <button type="button" class="wm-icon-btn" :aria-expanded="menuOpen" :aria-controls="`${uid}-menu`" aria-label="More options" @click="menuOpen = !menuOpen">
           <i class="bi bi-three-dots" aria-hidden="true"></i>
         </button>
@@ -45,21 +41,26 @@
       </div>
     </header>
 
-    <!-- Words: long posts open with "Read more" -->
-    <div v-if="post.body" class="order-4 px-4 pt-3 lg:px-5" :class="{ '!pt-1 sm:px-1 lg:px-1': video }">
-      <p :id="`${uid}-body`" class="text-[15px] leading-relaxed text-ink whitespace-pre-line break-words" :class="{ 'line-clamp-6': clamped }">{{ post.body }}</p>
-      <button v-if="long && !full" type="button" class="wm-link mt-1 text-sm" :aria-expanded="!clamped" :aria-controls="`${uid}-body`" @click="expanded = !expanded">
-        {{ clamped ? 'Read more' : 'Show less' }}
+    <!-- Words: a few lines first (3 with a photo or video, 6 on their own), "See more" in place -->
+    <div v-if="post.body" class="px-4 pt-2">
+      <p
+        :id="`${uid}-body`"
+        ref="bodyEl"
+        class="text-[15px] leading-[1.45] text-ink whitespace-pre-line break-words"
+        :class="clamped ? (hasMedia ? 'line-clamp-3' : 'line-clamp-6') : ''"
+      >{{ post.body }}</p>
+      <button v-if="!full && (overflowing || expanded)" type="button" class="wm-see-more" :aria-expanded="expanded" :aria-controls="`${uid}-body`" @click="expanded = !expanded">
+        {{ expanded ? 'See less' : 'See more' }}
       </button>
     </div>
 
     <!-- A video (one per post) -->
-    <div v-if="video" class="order-2 mt-3">
-      <VideoPlayer :media="video" :label="`Video by ${post.author.name}`" immersive />
+    <div v-if="video" class="mt-2.5">
+      <VideoPlayer :media="video" :label="`Video by ${post.author.name}`" />
     </div>
 
-    <!-- Photos -->
-    <div v-else-if="photos.length" class="mt-3" :class="photos.length > 1 ? 'grid grid-cols-2 gap-0.5' : ''">
+    <!-- One photo keeps its whole shape (blurred copy behind); more go in a grid of up to four -->
+    <div v-else-if="photos.length" class="mt-2.5" :class="photos.length > 1 ? 'grid grid-cols-2 gap-0.5' : ''">
       <button
         v-for="(m, i) in shownMedia"
         :key="m.id"
@@ -70,30 +71,28 @@
         :aria-label="`Open photo ${i + 1} of ${photos.length}`"
         @click="viewer = i"
       >
-        <img :src="m.thumb_url" :width="m.width" :height="m.height" alt="" loading="lazy" decoding="async" class="h-full w-full object-cover" />
+        <img v-if="photos.length === 1" :src="m.thumb_url" alt="" aria-hidden="true" class="wm-media-backdrop" loading="lazy" decoding="async" />
+        <img :src="m.thumb_url" :width="m.width" :height="m.height" alt="" loading="lazy" decoding="async" class="relative h-full w-full" :class="photos.length === 1 ? 'object-contain' : 'object-cover'" />
         <span v-if="i === shownMedia.length - 1 && hiddenCount" class="absolute inset-0 flex items-center justify-center bg-ink/50 text-2xl font-semibold text-white">+{{ hiddenCount }}</span>
       </button>
     </div>
 
-    <p v-if="VIDEO_MOCK && post.mock" class="order-6 wm-notice wm-notice-warning mx-4 mt-3 !text-[13px] lg:mx-5">
+    <p v-if="VIDEO_MOCK && post.mock" class="wm-notice wm-notice-warning mx-4 mt-2.5 !text-[13px]">
       <i class="bi bi-cone-striped" aria-hidden="true"></i><span>Development preview: this post isn’t saved, and liking or commenting on it won’t work.</span>
     </p>
 
-    <!-- A provider's own work: their profile, or a request, is a tap away -->
-    <div v-if="showProviderActions" class="order-5 mx-4 mt-3 flex items-center justify-between gap-3 rounded-2xl bg-primary-tint/70 px-3.5 py-2.5 lg:mx-5" :class="{ 'sm:mx-0 lg:mx-0': video }">
-      <p class="min-w-0 text-[13px] text-ink truncate">Like this work?<span class="hidden sm:inline text-muted"> See their profile and reviews.</span></p>
-      <div class="flex shrink-0 gap-2">
-        <router-link :to="profileLink" class="wm-btn wm-btn-secondary !min-h-10 !px-3.5 !text-[13px]">
-          <span class="sm:hidden">Profile</span><span class="hidden sm:inline">View provider</span>
-        </router-link>
-        <router-link :to="`/provider/${post.author.provider_id}/request`" class="wm-btn wm-btn-primary !min-h-10 !px-3.5 !text-[13px]">
-          <span class="sm:hidden">Request</span><span class="hidden sm:inline">Request service</span>
-        </router-link>
-      </div>
+    <!-- A provider's own work: their profile, or a request, a tap away (kept low-key) -->
+    <div v-if="showProviderActions" class="flex items-center justify-between gap-2 px-4 pt-2">
+      <router-link :to="profileLink" class="inline-flex min-h-10 min-w-0 items-center text-[13px] font-semibold text-primary hover:underline">
+        <span class="truncate">View profile and reviews</span>
+      </router-link>
+      <router-link :to="`/provider/${post.author.provider_id}/request`" class="wm-btn wm-btn-secondary !min-h-10 !px-3.5 !text-[13px] shrink-0">
+        <i class="bi bi-calendar-plus" aria-hidden="true"></i>Request service
+      </router-link>
     </div>
 
     <!-- Actions: the like and comment icons carry their counts -->
-    <div v-if="!post.removed" class="order-3 grid grid-cols-4 px-1.5 py-1" :class="video ? 'mt-1 sm:px-0' : 'mt-3 border-t border-line/70'">
+    <div v-if="!post.removed" class="mt-2 grid grid-cols-4 border-t border-line/60 px-1 py-0.5">
       <button type="button" class="wm-post-action" :class="{ 'text-primary': post.liked }" :aria-pressed="post.liked" :aria-label="`Like. ${countLabel(post.likes_count, 'like')}`" @click="toggleLike(post)">
         <i :class="['bi', post.liked ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up']" aria-hidden="true"></i><span v-if="post.likes_count" class="tabular-nums">{{ shortCount(post.likes_count) }}</span>
       </button>
@@ -110,14 +109,14 @@
         <i :class="['bi', post.saved ? 'bi-bookmark-fill' : 'bi-bookmark']" aria-hidden="true"></i><span>{{ post.saved ? 'Saved' : 'Save' }}</span>
       </button>
     </div>
-    <div v-else class="order-3 h-4"></div>
+    <div v-else class="h-3"></div>
 
     <PhotoViewer v-if="viewer !== null" :media="photos" :start="viewer" :label="`Photos by ${post.author.name}`" @close="viewer = null" />
   </article>
 </template>
 
 <script setup>
-import { ref, computed, useId } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount, useId } from 'vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import VerifiedBadge from '@/components/VerifiedBadge.vue';
 import PhotoViewer from './PhotoViewer.vue';
@@ -141,18 +140,34 @@ const category = computed(() => categoryOf(props.post.category));
 // A listed provider's profile, otherwise their community page
 const profileLink = computed(() => personLink(props.post.author));
 
-const long = computed(() => {
-  const body = props.post.body || '';
-  return body.length > 360 || body.split('\n').length > 6;
-});
-const expanded = ref(false);
-const clamped = computed(() => long.value && !props.full && !expanded.value);
-
 /* A post has one video or up to six photos (media without a type are photos) */
 const video = computed(() => props.post.media.find(m => m.type === 'video') || null);
 const photos = computed(() => props.post.media.filter(m => m.type !== 'video'));
+const hasMedia = computed(() => !!video.value || photos.value.length > 0);
 
-/* A listed provider's work (or video): see them, or ask for the service */
+/* The words: shortened until "See more"; whether they're cut off is measured, not guessed */
+const bodyEl = ref(null);
+const expanded = ref(false);
+const overflowing = ref(false);
+const clamped = computed(() => !props.full && !expanded.value);
+function measure() {
+  const el = bodyEl.value;
+  if (!el || !clamped.value) return;
+  overflowing.value = el.scrollHeight > el.clientHeight + 2;
+}
+let resizing = null;
+onMounted(() => {
+  measure();
+  if (typeof ResizeObserver === 'function' && bodyEl.value) {
+    resizing = new ResizeObserver(measure);
+    resizing.observe(bodyEl.value);
+  }
+});
+onBeforeUnmount(() => resizing?.disconnect());
+watch(() => props.post.body, () => { expanded.value = false; nextTick(measure); });
+
+/* A listed provider's own work (or video): see them, or ask for the service. Not on
+   tips, questions and the like, so service buttons never take over a conversation. */
 const showProviderActions = computed(() => !!props.post.author.provider_id && !props.post.mine && !props.post.removed
   && (props.post.category === 'my_work' || !!video.value));
 
@@ -166,7 +181,7 @@ const singleRatio = computed(() => {
 });
 function tileClass(i) {
   const n = photos.value.length;
-  if (n === 1) return 'max-h-[560px]';
+  if (n === 1) return 'max-h-[min(70vh,560px)]';
   if (n === 3 && i === 0) return 'row-span-2 h-full';
   return 'aspect-square';
 }
