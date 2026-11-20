@@ -24,6 +24,16 @@ class Mp4Inspector
     private const FIRST_READ = 65536;
     private const MAX_TOP_BOXES = 64;
 
+    /**
+     * Box types that may start an MP4/MOV file. Most begin with ftyp, but valid
+     * files can start with free/skip/wide/uuid, and older QuickTime-style files
+     * have no ftyp at all.
+     */
+    public const TOP_LEVEL_BOXES = [
+        'ftyp', 'moov', 'mdat', 'free', 'skip', 'wide', 'uuid', 'meta', 'pdin',
+        'moof', 'mfra', 'styp', 'sidx', 'ssix', 'prft', 'emsg', 'udta', 'pnot', 'junk',
+    ];
+
     // Video formats phones and cameras record in
     public const VIDEO_CODECS = [
         'avc1', 'avc3',                          // H.264
@@ -54,11 +64,20 @@ class Mp4Inspector
         $offset = 0;
         for ($i = 0; $i < self::MAX_TOP_BOXES && $offset < $size; $i++) {
             $header = $this->bytes($offset, (int) min(16, $size - $offset));
-            if (strlen($header) < 8) {
-                throw $this->reject('video_damaged');
+            try {
+                if (strlen($header) < 8) {
+                    throw $this->reject('video_damaged');
+                }
+                [$boxSize, $type, $headerSize] = $this->boxHeader($header, $size - $offset);
+            } catch (BusinessRuleException $e) {
+                // Data after the movie header that isn't a box (Samsung appends such a
+                // trailer, ending in "SEFT"): the video itself is complete, so stop here
+                if ($moov !== null) {
+                    break;
+                }
+                throw $e;
             }
-            [$boxSize, $type, $headerSize] = $this->boxHeader($header, $size - $offset);
-            if ($i === 0 && $type !== 'ftyp') {
+            if ($i === 0 && ! in_array($type, self::TOP_LEVEL_BOXES, true)) {
                 throw $this->reject('video_not_mp4');
             }
             if ($type === 'ftyp') {
@@ -73,14 +92,24 @@ class Mp4Inspector
             $offset += $boxSize;
         }
 
-        if ($brand === null) {
-            throw $this->reject('video_not_mp4');
-        }
         if ($moov === null || strlen($moov) < 8) {
-            throw $this->reject('video_damaged');
+            throw $this->reject($brand === null ? 'video_not_mp4' : 'video_damaged');
         }
+        // No ftyp: an older QuickTime-style file
+        $container = $brand === null || $brand === 'qt  ' ? 'mov' : (strpos($brand, '3g') === 0 ? '3gp' : 'mp4');
 
-        return $this->readMovie($moov) + ['brand' => $brand, 'container' => $brand === 'qt  ' ? 'mov' : (strpos($brand, '3g') === 0 ? '3gp' : 'mp4')];
+        return $this->readMovie($moov) + ['brand' => $brand, 'container' => $container];
+    }
+
+    /** True when the file starts like MP4/MOV (a known top-level box), whatever the first box is */
+    public static function looksLike(string $firstBytes): bool
+    {
+        if (strlen($firstBytes) < 8) {
+            return false;
+        }
+        $size = unpack('N', substr($firstBytes, 0, 4))[1];
+
+        return ($size === 1 || $size === 0 || $size >= 8) && in_array(substr($firstBytes, 4, 4), self::TOP_LEVEL_BOXES, true);
     }
 
     private function readMovie(string $moov): array

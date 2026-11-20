@@ -96,7 +96,8 @@ class CommunityVideoTest extends ApiTestCase
     /** A real MP4 header (no picture data) */
     private static function mp4(array $o = []): string
     {
-        $o += ['brand' => 'isom', 'video' => 'avc1', 'audio' => 'mp4a', 'seconds' => 12, 'width' => 720, 'height' => 1280, 'moovAtEnd' => false, 'mdat' => 4000, 'fragmented' => false];
+        $o += ['brand' => 'isom', 'compatible' => 'isomavc1', 'video' => 'avc1', 'audio' => 'mp4a', 'seconds' => 12, 'width' => 720, 'height' => 1280,
+            'moovAtEnd' => false, 'mdat' => 4000, 'fragmented' => false, 'ftyp' => true, 'before' => '', 'after' => ''];
         $track = function (string $handler, string $format, int $w, int $h) {
             $tkhd = str_repeat("\0", 76).pack('N', $w << 16).pack('N', $h << 16);
             $hdlr = str_repeat("\0", 8).$handler.str_repeat("\0", 13);
@@ -107,11 +108,11 @@ class CommunityVideoTest extends ApiTestCase
         $mvhd = "\0\0\0\0".pack('N', 0).pack('N', 0).pack('N', 1000).pack('N', (int) ($o['seconds'] * 1000)).str_repeat("\0", 80);
         $moov = self::box('moov', self::box('mvhd', $mvhd).$track('vide', $o['video'], $o['width'], $o['height'])
             .($o['audio'] ? $track('soun', $o['audio'], 0, 0) : ''));
-        $ftyp = self::box('ftyp', $o['brand'].pack('N', 0).'isomavc1');
+        $ftyp = $o['ftyp'] ? self::box('ftyp', $o['brand'].pack('N', 0).$o['compatible']) : '';
         $mdat = self::box('mdat', str_repeat("\x11", $o['mdat']));
         $extra = $o['fragmented'] ? self::box('moof', str_repeat("\0", 16)) : '';
 
-        return $o['moovAtEnd'] ? $ftyp.$mdat.$extra.$moov : $ftyp.$moov.$extra.$mdat;
+        return $o['before'].($o['moovAtEnd'] ? $ftyp.$mdat.$extra.$moov : $ftyp.$moov.$extra.$mdat).$o['after'];
     }
 
     private function ask(string $bytes, array $overrides = [])
@@ -393,6 +394,71 @@ class CommunityVideoTest extends ApiTestCase
             'fragmented MP4' => [['fragmented' => true], 'video/mp4', 'mp4', 12.0],
             '8K Samsung' => [['width' => 7680, 'height' => 4320], 'video/mp4', 'mp4', 12.0],
             'VP9 in MP4' => [['video' => 'vp09', 'audio' => 'Opus'], 'video/mp4', 'mp4', 12.0],
+        ];
+    }
+
+    /* ---------------- MP4 brands and layouts (Samsung and others) ---------------- */
+
+    // Samsung appends a trailer after the last box (not a box itself), ending in "SEFT"
+    private const SAMSUNG_TRAILER = 'SEFH'.'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'."Image_UTC_Data1700000000000\0\0\0\0".'SEFT';
+
+    /** @dataProvider legitimateMp4s */
+    public function test_legitimate_mp4_brands_and_layouts_are_accepted(array $mp4, string $container)
+    {
+        $this->member();
+        $bytes = self::mp4($mp4);
+        $ticket = $this->ask($bytes)->assertCreated()->json('data');
+        $key = $this->putToStorage($ticket['upload']['url'], $bytes);
+        $video = $this->complete($ticket['upload_id'])->assertCreated()->json('data.media.0');
+        $this->assertSame('ready', $video['status']);
+        $this->assertEquals(12, $video['duration']);
+        $this->assertSame($bytes, $this->bucket[$key]);
+    }
+
+    public function legitimateMp4s(): array
+    {
+        $brands = [];
+        foreach (['isom' => 'isomavc1', 'iso2' => 'isomiso2avc1mp41', 'mp41' => 'isommp41', 'mp42' => 'isommp42', 'avc1' => 'isomavc1',
+            '3gp4' => '3gp4isom', 'MSNV' => 'MSNVmp42isom', 'XAVC' => 'XAVCmp42iso2', 'qt  ' => 'qt  '] as $brand => $compatible) {
+            $brands["brand {$brand}"] = [['brand' => $brand, 'compatible' => $compatible], $brand === 'qt  ' ? 'mov' : 'mp4'];
+        }
+
+        return $brands + [
+            'HEVC hvc1, moov at the end (Samsung)' => [['video' => 'hvc1', 'moovAtEnd' => true, 'brand' => 'mp42', 'compatible' => 'isommp42'], 'mp4'],
+            'HEVC hev1' => [['video' => 'hev1'], 'mp4'],
+            'Samsung trailer after the movie header' => [['moovAtEnd' => true, 'after' => self::SAMSUNG_TRAILER], 'mp4'],
+            'Samsung trailer, HEVC' => [['video' => 'hvc1', 'moovAtEnd' => true, 'after' => self::SAMSUNG_TRAILER], 'mp4'],
+            'a proper box after the movie header (sefd)' => [['moovAtEnd' => true, 'after' => self::box('sefd', self::SAMSUNG_TRAILER)], 'mp4'],
+            'free box before ftyp' => [['before' => self::box('free', str_repeat("\0", 16))], 'mp4'],
+            'uuid box before ftyp' => [['before' => self::box('uuid', str_repeat("\x07", 24))], 'mp4'],
+            'no ftyp (older QuickTime layout)' => [['ftyp' => false, 'before' => self::box('wide', ''), 'moovAtEnd' => true], 'mov'],
+        ];
+    }
+
+    /** @dataProvider malformedMp4s */
+    public function test_malformed_mp4s_are_still_refused(string $bytes, string $code)
+    {
+        $this->member();
+        $ticket = $this->ask($bytes)->assertCreated()->json('data');
+        $key = $this->putToStorage($ticket['upload']['url'], $bytes);
+        $this->complete($ticket['upload_id'])->assertStatus(422)->assertJsonPath('code', $code);
+        $this->assertArrayNotHasKey($key, $this->bucket);
+        $this->assertSame(0, CommunityPost::count());
+    }
+
+    public function malformedMp4s(): array
+    {
+        $ftyp = self::box('ftyp', 'isom'.pack('N', 0).'isomavc1');
+        $good = self::mp4(['moovAtEnd' => true]);
+
+        return [
+            'junk before the movie header' => [$ftyp.'not a box at all, just junk bytes here'.substr($good, 28), 'video_damaged'],
+            'unknown first box' => [substr($good, 0, 4).'abcd'.substr($good, 8), 'video_unsupported_format'],
+            'first box with an impossible size' => ["\x7f\xff\xff\xff".substr($good, 4), 'video_damaged'],
+            'no movie header' => [$ftyp.self::box('mdat', str_repeat("\x11", 3000)), 'video_damaged'],
+            'no ftyp and no movie header' => [self::box('free', '').self::box('mdat', str_repeat("\x11", 3000)), 'video_not_mp4'],
+            'movie header cut short' => [substr($good, 0, -60), 'video_damaged'],
+            'Samsung trailer with no video before it' => [$ftyp.self::SAMSUNG_TRAILER, 'video_damaged'],
         ];
     }
 

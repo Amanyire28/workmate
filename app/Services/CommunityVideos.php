@@ -190,7 +190,7 @@ class CommunityVideos
                     : $this->r2->read($upload->object_key, $offset, $length);
             };
             $first = substr($start, 0, 16);
-            $family = MatroskaInspector::looksLike($first) ? 'ebml' : (substr($first, 4, 4) === 'ftyp' ? 'iso' : null);
+            $family = MatroskaInspector::looksLike($first) ? 'ebml' : (Mp4Inspector::looksLike($first) ? 'iso' : null);
             if ($family === null || self::STORED_AS[$family][0] !== $upload->mime_type) {
                 throw new BusinessRuleException('video_unsupported_format', 'This file isn’t a video format we can check. Choose an MP4, MOV or WebM video.', 422);
             }

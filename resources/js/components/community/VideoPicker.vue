@@ -79,7 +79,7 @@
 <script setup>
 import { ref, onBeforeUnmount } from 'vue';
 import VideoTrimmer from './VideoTrimmer.vue';
-import { VIDEO_ACCEPT, UNKNOWN_FORMAT, checkVideo, readVideoMetadata, makePoster, formatBytes, formatDuration, videoLog } from '@/utils/video.js';
+import { VIDEO_ACCEPT, UNKNOWN_FORMAT, checkVideo, readVideoMetadata, makePoster, formatBytes, formatDuration, videoLog, describeVideoFile, isoFacts } from '@/utils/video.js';
 import { videoLimits } from '@/stores/video.js';
 
 /**
@@ -128,7 +128,9 @@ async function pick(e) {
   try {
     const result = await checkVideo(original, url, videoLimits.value);
     if (mine !== generation) return;
-    videoLog('chosen', { name: original.name, type: original.type, bytes: original.size, family: result.family || null, ready: !!result.ok, needsReading: !!result.probe, needsTrim: !!result.trim, error: result.error || null });
+    // TEMPORARY diagnostics (file type, size, boxes and brands; never its contents)
+    const described = await describeVideoFile(original).catch(() => ({}));
+    videoLog('chosen', { ...described, ready: !!result.ok, needsReading: !!result.probe, needsTrim: !!result.trim, error: result.error || null }, !!result.error);
     if (result.error) {
       emit('error', result.error);
       return;
@@ -151,7 +153,16 @@ async function pick(e) {
     try {
       info = await tools.probe(original);
     } catch (err) {
-      videoLog('could not read', { error: String(err?.message || err) }, true);
+      videoLog('trimming tool could not read it', { error: String(err?.message || err), container: result.family }, true);
+      // An MP4/MOV the tool can't read (unusual layout): read its header ourselves
+      const facts = result.family === 'iso' ? await isoFacts(original) : null;
+      if (mine !== generation) return;
+      if (facts && result.probe) {
+        videoLog('read from its own header', facts);
+        await use(original, url, { duration: facts.duration, width: facts.video.width, height: facts.video.height }, { previewable: false }, mine);
+        url = null;
+        return;
+      }
       emit('error', result.trim ? `This video is ${formatBytes(original.size)}, and this browser can’t read its format to trim it. ${TRIM_ALTERNATIVE}` : UNKNOWN_FORMAT);
       return;
     }
