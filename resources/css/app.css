@@ -704,6 +704,19 @@
 
     /* ---- Community videos ---- */
     .wm-video { max-height: min(72vh, 600px); }
+    /* A video post in the feed: no card; the video runs edge to edge on phones */
+    .wm-video-post {
+        display: flex;
+        flex-direction: column;
+        padding-bottom: 12px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+    }
+    @media (max-width: 639px) {
+        .wm-video-post { margin-inline: -16px; }
+    }
+    /* Never taller than most of the screen, so the actions stay in reach */
+    .wm-video-immersive { max-height: min(78vh, 760px); }
+    @supports (height: 1svh) { .wm-video-immersive { max-height: min(78svh, 760px); } }
     .wm-video-full { max-height: none; height: 100%; }
     .wm-video-btn {
         display: inline-flex;
@@ -739,6 +752,13 @@
         border: 0;
         border-radius: 9999px;
         background: #fff;
+    }
+    /* Trimming a video: big, easy handles for thumbs */
+    .wm-trim-range {
+        width: 100%;
+        height: 32px;
+        accent-color: var(--color-primary);
+        cursor: pointer;
     }
     .wm-upload-bar {
         height: 6px;

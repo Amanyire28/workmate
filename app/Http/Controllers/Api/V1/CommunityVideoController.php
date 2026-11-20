@@ -34,16 +34,16 @@ class CommunityVideoController extends Controller
             'body' => ['nullable', 'string', 'max:'.CommunityPost::MAX_BODY],
             'topic' => ['nullable', 'string', Rule::exists('categories', 'slug')->where('is_active', true)],
             'file_name' => ['nullable', 'string', 'max:255'],
-            'mime_type' => ['required', Rule::in(['video/mp4'])],
+            'mime_type' => ['required', Rule::in(array_keys(CommunityVideos::TYPES))],
             'size' => ['required', 'integer', 'min:1', 'max:'.$this->videos->maxBytes()],
-            'duration' => ['required', 'numeric', 'min:0.5', 'max:'.($this->videos->maxSeconds() + 0.5)],
-            'width' => ['required', 'integer', 'min:16', 'max:4096'],
-            'height' => ['required', 'integer', 'min:16', 'max:4096'],
+            // Only for reference: the file's own header decides (there's no length limit)
+            'duration' => ['nullable', 'numeric', 'min:0'],
+            'width' => ['required', 'integer', 'min:16', 'max:8192'],
+            'height' => ['required', 'integer', 'min:16', 'max:8192'],
             'client_token' => ['required', 'uuid'],
         ], [
-            'mime_type.in' => 'Choose an MP4 video.',
+            'mime_type.in' => 'Choose an MP4, MOV or WebM video.',
             'size.max' => 'Videos can be up to '.(int) ($this->videos->maxBytes() / 1048576).' MB.',
-            'duration.max' => 'Videos can be up to '.$this->videos->maxSeconds().' seconds.',
         ]);
 
         $ticket = $this->videos->authorize($request->user(), $data);

@@ -5,20 +5,33 @@ namespace App\Services;
 use App\Exceptions\BusinessRuleException;
 
 /**
- * Checks an uploaded video from its MP4 header alone: the container, the real
- * length, the picture size and the codecs. Only a few small byte ranges are
- * read (into memory), never the whole file.
+ * Checks an uploaded MP4, MOV or 3GP video (they share one structure, ISO
+ * media) from its header alone: the container, the length, the picture size
+ * and the codecs. Only a few small byte ranges are read (into memory), never
+ * the whole file.
+ *
+ * Original phone recordings are kept as they are, so any video codec phones
+ * record in is accepted (H.264, H.265/HEVC incl. Dolby Vision, VP9, AV1,
+ * MPEG-4, H.263), with any sound. Unknown or encrypted video, or a broken
+ * structure, is refused. Whether a viewer's browser can play the codec is
+ * its own matter (the player says so).
  *
  * What it can't check: that every frame decodes. A file whose header is
  * valid but whose picture data is damaged will pass and simply not play.
- *
- * For the pilot only H.264 video (avc1/avc3) with AAC sound (mp4a), or no
- * sound, in an MP4 file is accepted: what every phone browser can play.
  */
 class Mp4Inspector
 {
     private const FIRST_READ = 65536;
     private const MAX_TOP_BOXES = 64;
+
+    // Video formats phones and cameras record in
+    public const VIDEO_CODECS = [
+        'avc1', 'avc3',                          // H.264
+        'hvc1', 'hev1',                          // H.265 / HEVC
+        'dvh1', 'dvhe', 'dva1', 'dvav',          // Dolby Vision (iPhone HDR)
+        'vp09', 'av01',                          // VP9, AV1
+        'mp4v', 's263',                          // MPEG-4 Part 2, H.263 (older phones, 3GP)
+    ];
 
     /** @var callable */
     private $read;
@@ -28,7 +41,7 @@ class Mp4Inspector
 
     /**
      * @param  callable(int $offset, int $length): string  $read  bytes from the file
-     * @return array{duration: float, width: int, height: int, video_codec: string, audio_codec: ?string, brand: string}
+     * @return array{duration: ?float, width: int, height: int, video_codec: string, audio_codec: ?string, brand: string, container: string}
      * @throws BusinessRuleException when the file isn't a video we accept
      */
     public function inspect(callable $read, int $size, int $maxHeaderBytes): array
@@ -55,34 +68,32 @@ class Mp4Inspector
                     throw $this->reject('video_header_too_large');
                 }
                 $moov = $this->bytes($offset + $headerSize, $boxSize - $headerSize);
-            } elseif ($type === 'moof') {
-                // Split ("fragmented") MP4s don't say their length up front
-                throw $this->reject('video_fragmented');
             }
+            // Split ("fragmented") recordings have moof boxes after the header: fine
             $offset += $boxSize;
         }
 
         if ($brand === null) {
             throw $this->reject('video_not_mp4');
         }
-        if ($brand === 'qt  ') {
-            throw $this->reject('video_mov');
-        }
         if ($moov === null || strlen($moov) < 8) {
             throw $this->reject('video_damaged');
         }
 
-        return $this->readMovie($moov) + ['brand' => $brand];
+        return $this->readMovie($moov) + ['brand' => $brand, 'container' => $brand === 'qt  ' ? 'mov' : (strpos($brand, '3g') === 0 ? '3gp' : 'mp4')];
     }
 
     private function readMovie(string $moov): array
     {
         $duration = null;
+        $fragmentDuration = null;
         $video = null;
         $audio = [];
         foreach ($this->children($moov) as [$type, $payload]) {
             if ($type === 'mvhd') {
                 $duration = $this->movieDuration($payload);
+            } elseif ($type === 'mvex') {
+                $fragmentDuration = $payload;
             } elseif ($type === 'trak') {
                 $track = $this->readTrack($payload);
                 if ($track['handler'] === 'vide' && $video === null) {
@@ -93,34 +104,51 @@ class Mp4Inspector
             }
         }
 
-        if (! $duration || $duration <= 0) {
-            throw $this->reject('video_damaged');
+        // Fragmented recordings may give their length in mvex → mehd instead
+        if ((! $duration || $duration <= 0) && $fragmentDuration !== null) {
+            $duration = $this->fragmentDuration($fragmentDuration, $moov);
         }
         if ($video === null) {
             throw $this->reject('video_no_picture');
         }
-        if (in_array($video['format'], ['hvc1', 'hev1'], true)) {
-            throw $this->reject('video_hevc');
+        if (in_array($video['format'], ['encv', 'drmi'], true)) {
+            throw $this->reject('video_encrypted');
         }
-        if (! in_array($video['format'], ['avc1', 'avc3'], true)) {
+        if (! in_array($video['format'], self::VIDEO_CODECS, true)) {
             throw $this->reject('video_codec');
         }
-        foreach ($audio as $format) {
-            if ($format !== 'mp4a') {
-                throw $this->reject('video_audio_codec');
-            }
-        }
-        if ($video['width'] < 16 || $video['height'] < 16 || $video['width'] > 4096 || $video['height'] > 4096) {
+        if ($video['width'] < 16 || $video['height'] < 16 || $video['width'] > 8192 || $video['height'] > 8192) {
             throw $this->reject('video_size');
         }
 
         return [
-            'duration' => round($duration, 2),
+            // Unknown (null) when the file doesn't say
+            'duration' => $duration && $duration > 0 ? round($duration, 2) : null,
             'width' => $video['width'],
             'height' => $video['height'],
             'video_codec' => $video['format'],
             'audio_codec' => $audio[0] ?? null,
         ];
+    }
+
+    /** The fragment duration (mvex → mehd) in the movie's timescale */
+    private function fragmentDuration(string $mvex, string $moov): ?float
+    {
+        $scale = null;
+        foreach ($this->children($moov) as [$type, $payload]) {
+            if ($type === 'mvhd' && strlen($payload) >= 20) {
+                $scale = ord($payload[0]) === 1 ? self::u32($payload, 20) : self::u32($payload, 12);
+            }
+        }
+        foreach ($this->children($mvex) as [$type, $payload]) {
+            if ($type === 'mehd' && $scale) {
+                $length = ord($payload[0]) === 1 && strlen($payload) >= 12 ? self::u64($payload, 4) : (strlen($payload) >= 8 ? self::u32($payload, 4) : 0);
+
+                return $length > 0 ? $length / $scale : null;
+            }
+        }
+
+        return null;
     }
 
     /** @return array{handler: ?string, format: ?string, width: int, height: int} */
@@ -244,15 +272,12 @@ class Mp4Inspector
     private function reject(string $code): BusinessRuleException
     {
         $messages = [
-            'video_not_mp4' => 'This file isn’t an MP4 video. Choose an MP4 video.',
-            'video_mov' => 'This is a MOV video. Choose an MP4 video, or on an iPhone set Camera → Formats → Most Compatible and record again.',
-            'video_damaged' => 'This video looks damaged and can’t be used. Try recording it again.',
+            'video_not_mp4' => 'This file isn’t a video format we can check. Choose an MP4, MOV or WebM video.',
+            'video_damaged' => 'This video’s file looks damaged and can’t be used. Try recording it again.',
             'video_header_too_large' => 'We couldn’t check this video. Try a shorter clip.',
-            'video_fragmented' => 'This kind of MP4 can’t be used yet. Try saving or recording the video again.',
             'video_no_picture' => 'This file has no picture. Choose a video.',
-            'video_hevc' => 'This video uses the H.265 (HEVC) format, which many phones can’t play. Record in H.264 (“Most Compatible”) and try again.',
-            'video_codec' => 'This video’s format can’t be played on most phones. Choose an MP4 recorded in H.264.',
-            'video_audio_codec' => 'This video’s sound format can’t be played on most phones. Choose a video with standard (AAC) sound.',
+            'video_encrypted' => 'This video is protected (encrypted) and can’t be shared.',
+            'video_codec' => 'This video uses a format we don’t recognise. Choose a video recorded with your phone’s camera.',
             'video_size' => 'This video’s picture size isn’t supported.',
         ];
 

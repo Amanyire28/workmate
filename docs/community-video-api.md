@@ -11,12 +11,13 @@ Anyone who may post in the community may add a video, exactly as with photos. Th
 signed in, have an active (not suspended) account and a confirmed email, and maintenance mode
 must be off. There is no separate video permission or switch.
 
-Only the limits are settings (Admin → Settings → Platform → Community videos, public):
+Only the size limit is a setting (Admin → Settings → Platform → Community videos, public):
 
 | Key | Default |
 |---|---|
 | `community.video_max_mb` | 25 |
-| `community.video_max_seconds` | 60 |
+
+There is no length limit: a video of any length is fine within the size limit.
 
 If the server can't see the R2 keys, uploads are refused with `503 video_storage_unavailable`
 and an error is logged. Run `php artisan workmate:video-check` on the server: it shows which
@@ -118,21 +119,38 @@ video, so they can be restored.
 - The duration and codec come from the file's own header, not from what the browser says.
 - The phone runs the same header check before uploading, so refused files don't use up data.
 
-## Converting on the phone (before upload)
+## Formats
 
-`resources/js/utils/videoConvert.js` (with the `mediabunny` package, pinned to 1.65.1, MPL-2.0) runs only
-in the member's browser and is downloaded only when a video needs it (about 122 KB gzipped).
+Original files are kept byte for byte, with no conversion. Accepted, after the server has checked the file's own structure:
 
-- **Fast path:** an MP4 with H.264 video and AAC sound (or none), within the size limit, is uploaded as it is.
-  The header check is ours, and nothing extra is loaded.
-- **Converted:** anything else the browser can decode, using WebCodecs (the phone's own video hardware):
-  - H.264 video, at most 720p (short side) and 30 fps, at a bitrate sized for the limit (at most 2.5 Mbit/s).
-    The picture is turned upright, so rotation metadata isn't needed.
-  - AAC sound is copied. Other sound is re-encoded to AAC where the browser can encode AAC; otherwise
-    the member is asked whether to share the video without sound.
-  - An H.264 MOV within the limits is only re-packed as MP4 (well under a second).
-  - The output gets a second pass at a lower bitrate if it's still over the limit, and is then checked like any other file.
-- **Refused with a reason:** longer than the limit, no picture, or a codec this browser can't decode
-  (for example HEVC on a browser without an HEVC decoder). The message explains how to record in H.264.
+| Structure | Files | Video codecs accepted | Sound |
+|---|---|---|---|
+| ISO media (`ftyp`) | MP4, MOV, 3GP, M4V | H.264, H.265/HEVC (incl. Dolby Vision), VP9, AV1, MPEG-4, H.263 | any |
+| EBML | WebM, MKV | VP8, VP9, AV1, H.264, H.265 | any |
 
-The server's checks are unchanged. Converted files are validated by `Mp4Inspector` like any other upload.
+- Upload types: `video/mp4`, `video/quicktime`, `video/3gpp`, `video/x-m4v`, `video/webm`, `video/x-matroska`.
+  The announced type must match the file's real structure (`422 video_unsupported_format`).
+- Stored as `video/mp4` (ISO) or `video/webm` (EBML). Browsers look inside the file anyway.
+- Refused (`422`): unknown or encrypted video codecs, a missing picture, more than 8192 px, a broken structure,
+  or any other container (AVI, FLV, MPEG-TS…).
+- The length comes from the file (`mvhd`, `mehd`, or Matroska `Duration`). When the file doesn't state it
+  (common in browser-made WebM), it's stored as unknown, never taken from the phone.
+- **Playback depends on the viewer's device.** H.265/HEVC plays on iPhones and most recent Android phones,
+  but not everywhere. The player says clearly when a format can't play in that browser.
+
+## Trimming on the phone (videos over the size limit)
+
+`resources/js/utils/videoTrim.js` (Mediabunny 1.65.1, MPL-2.0) is downloaded only when a chosen video is over
+the limit (about 127 KB gzipped).
+
+- The member picks a start and an end. They see the kept length and an estimated size.
+- The chosen part is **copied** into a new file of the same kind (MOV stays MOV, WebM stays WebM) without
+  decoding or re-encoding, so picture, sound and quality are unchanged. This also works for formats the
+  browser can't play.
+- Copying cuts at key frames, so the clip may start up to a key-frame interval (about 1–2 s on phones)
+  earlier than chosen.
+- The real file is measured. If it's still over the limit, the trimmer reopens and asks for a shorter part.
+  Only a complete file within the limit is ever uploaded.
+- If the sound can't be copied in this browser, trimming stops; the sound is never dropped quietly.
+- If the browser can't read the format, the member is told so and shown how to trim it in the phone's Gallery.
+- The server checks the trimmed file like any other upload.

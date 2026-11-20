@@ -311,9 +311,9 @@ class CommunityVideoTest extends ApiTestCase
     public function test_what_the_phone_claims_is_checked_before_an_address_is_given()
     {
         $this->member();
-        $this->ask(self::mp4(), ['mime_type' => 'video/webm'])->assertStatus(422)->assertJsonValidationErrors('mime_type');
+        $this->ask(self::mp4(), ['mime_type' => 'video/x-msvideo'])->assertStatus(422)->assertJsonValidationErrors('mime_type');
         $this->ask(self::mp4(), ['size' => 26 * 1024 * 1024])->assertStatus(422)->assertJsonValidationErrors('size');
-        $this->ask(self::mp4(), ['duration' => 61])->assertStatus(422)->assertJsonValidationErrors('duration');
+        $this->ask(self::mp4(), ['width' => 9000])->assertStatus(422)->assertJsonValidationErrors('width');
         $this->ask(self::mp4(), ['category' => 'nonsense'])->assertStatus(422)->assertJsonValidationErrors('category');
         $this->ask(self::mp4(), ['client_token' => 'not-a-uuid'])->assertStatus(422);
         $this->assertSame(0, CommunityVideoUpload::count());
@@ -343,7 +343,7 @@ class CommunityVideoTest extends ApiTestCase
     }
 
     /** @dataProvider badVideos */
-    public function test_videos_phones_cannot_play_are_refused_and_removed(array $mp4, string $code)
+    public function test_files_that_are_not_usable_videos_are_refused_and_removed(array $mp4, string $code)
     {
         $this->member();
         $bytes = self::mp4($mp4);
@@ -359,22 +359,124 @@ class CommunityVideoTest extends ApiTestCase
     public function badVideos(): array
     {
         return [
-            'H.265 (HEVC)' => [['video' => 'hvc1'], 'video_hevc'],
-            'iPhone MOV container' => [['brand' => 'qt  '], 'video_mov'],
-            'unknown video codec' => [['video' => 'mp4v'], 'video_codec'],
-            'AMR sound' => [['audio' => 'samr'], 'video_audio_codec'],
-            'fragmented MP4' => [['fragmented' => true], 'video_fragmented'],
-            'really longer than claimed' => [['seconds' => 95], 'video_too_long'],
+            'unknown video codec' => [['video' => 'zzz1'], 'video_codec'],
+            'encrypted video' => [['video' => 'encv'], 'video_encrypted'],
+            'picture too large' => [['width' => 9000, 'height' => 9000], 'video_size'],
         ];
     }
 
-    public function test_a_file_that_is_not_an_mp4_at_all_is_refused()
+    /** @dataProvider originalVideos */
+    public function test_original_phone_videos_are_kept_as_they_are(array $mp4, string $mime, string $container, ?float $seconds)
+    {
+        $this->member();
+        $bytes = self::mp4($mp4);
+        $ticket = $this->ask($bytes, ['mime_type' => $mime, 'width' => $mp4['width'] ?? 720, 'height' => $mp4['height'] ?? 1280])->assertCreated()->json('data');
+        $this->assertSame(['Content-Type' => 'video/mp4'], $ticket['upload']['headers']);
+        $key = $this->putToStorage($ticket['upload']['url'], $bytes);
+
+        $video = $this->complete($ticket['upload_id'])->assertCreated()->json('data.media.0');
+        $this->assertSame('ready', $video['status']);
+        $this->assertEquals($seconds, $video['duration']);
+        // The very bytes that were uploaded
+        $this->assertSame($bytes, $this->bucket[$key]);
+        $this->assertStringEndsWith('.mp4', $key);
+    }
+
+    public function originalVideos(): array
+    {
+        return [
+            'Samsung/iPhone H.265 (HEVC) MP4' => [['video' => 'hvc1'], 'video/mp4', 'mp4', 12.0],
+            'iPhone MOV (H.264)' => [['brand' => 'qt  '], 'video/quicktime', 'mov', 12.0],
+            'iPhone MOV (HEVC, Dolby Vision)' => [['brand' => 'qt  ', 'video' => 'dvh1'], 'video/quicktime', 'mov', 12.0],
+            '3GP with AMR sound' => [['brand' => '3gp5', 'video' => 's263', 'audio' => 'samr', 'width' => 352, 'height' => 288], 'video/3gpp', '3gp', 12.0],
+            'longer than a minute (no length limit)' => [['seconds' => 95], 'video/mp4', 'mp4', 95.0],
+            'fragmented MP4' => [['fragmented' => true], 'video/mp4', 'mp4', 12.0],
+            '8K Samsung' => [['width' => 7680, 'height' => 4320], 'video/mp4', 'mp4', 12.0],
+            'VP9 in MP4' => [['video' => 'vp09', 'audio' => 'Opus'], 'video/mp4', 'mp4', 12.0],
+        ];
+    }
+
+    /* ---------------- WebM and MKV ---------------- */
+
+    private static function ebml(string $id, string $payload): string
+    {
+        $n = strlen($payload);
+        $size = $n < 127 ? chr(0x80 | $n) : ($n < 16383 ? chr(0x40 | ($n >> 8)).chr($n & 0xFF) : "\x01".substr(pack('J', $n), 1));
+
+        return $id.$size.$payload;
+    }
+
+    /** A real WebM/MKV header (no picture data) */
+    private static function webm(array $o = []): string
+    {
+        $o += ['doc' => 'webm', 'video' => 'V_VP9', 'audio' => 'A_OPUS', 'seconds' => 33.5, 'width' => 1080, 'height' => 1920, 'encrypted' => false];
+        $info = self::ebml("\x2A\xD7\xB1", "\x0F\x42\x40")   // timecode scale 1,000,000 ns
+            .($o['seconds'] !== null ? self::ebml("\x44\x89", pack('E', $o['seconds'] * 1000)) : '');
+        $video = self::ebml("\xAE", self::ebml("\x83", "\x01").self::ebml("\x86", $o['video'])
+            .($o['encrypted'] ? self::ebml("\x6D\x80", self::ebml("\x62\x40", "")) : '')
+            .self::ebml("\xE0", self::ebml("\xB0", pack('n', $o['width'])).self::ebml("\xBA", pack('n', $o['height']))));
+        $audio = $o['audio'] ? self::ebml("\xAE", self::ebml("\x83", "\x02").self::ebml("\x86", $o['audio'])) : '';
+        $segment = self::ebml("\x15\x49\xA9\x66", $info).self::ebml("\x16\x54\xAE\x6B", $video.$audio)
+            .self::ebml("\x1F\x43\xB6\x75", str_repeat("\x22", 3000));
+
+        return self::ebml("\x1A\x45\xDF\xA3", self::ebml("\x42\x82", $o['doc']))
+            // A segment of unknown size, as browsers write while recording
+            ."\x18\x53\x80\x67\x01\xFF\xFF\xFF\xFF\xFF\xFF\xFF".$segment;
+    }
+
+    public function test_webm_and_mkv_videos_are_checked_and_kept()
+    {
+        $this->member();
+        foreach ([
+            [self::webm(), 'video/webm', 33.5],
+            [self::webm(['seconds' => null]), 'video/webm', null],               // browser recordings often don't say
+            [self::webm(['doc' => 'matroska', 'video' => 'V_MPEGH/ISO/HEVC', 'audio' => 'A_AAC']), 'video/x-matroska', 33.5],
+        ] as [$bytes, $mime, $seconds]) {
+            $ticket = $this->ask($bytes, ['mime_type' => $mime, 'width' => 1080, 'height' => 1920])->assertCreated()->json('data');
+            $this->assertSame(['Content-Type' => 'video/webm'], $ticket['upload']['headers']);
+            $key = $this->putToStorage($ticket['upload']['url'], $bytes);
+            $this->assertStringEndsWith('.webm', $key);
+            $video = $this->complete($ticket['upload_id'])->assertCreated()->json('data.media.0');
+            $this->assertSame([1080, 1920, 'ready'], [$video['width'], $video['height'], $video['status']]);
+            $this->assertEquals($seconds, $video['duration']);
+        }
+    }
+
+    public function test_bad_webm_files_are_refused()
+    {
+        $this->member();
+        foreach ([
+            [self::webm(['video' => 'V_THEORA']), 'video_codec'],
+            [self::webm(['encrypted' => true]), 'video_encrypted'],
+            [self::webm(['doc' => 'notvideo']), 'video_not_webm'],
+            [substr(self::webm(), 0, 40), 'video_damaged'],
+        ] as [$bytes, $code]) {
+            $ticket = $this->ask($bytes, ['mime_type' => 'video/webm'])->assertCreated()->json('data');
+            $this->putToStorage($ticket['upload']['url'], $bytes);
+            $this->complete($ticket['upload_id'])->assertStatus(422)->assertJsonPath('code', $code);
+        }
+        $this->assertSame(0, CommunityPost::count());
+    }
+
+    public function test_the_files_real_structure_must_match_what_was_announced()
+    {
+        $this->member();
+        // Announced as WebM, but it's an MP4 (or the other way round): refused, whatever the name says
+        foreach ([[self::mp4(), 'video/webm'], [self::webm(), 'video/mp4']] as [$bytes, $mime]) {
+            $ticket = $this->ask($bytes, ['mime_type' => $mime])->assertCreated()->json('data');
+            $key = $this->putToStorage($ticket['upload']['url'], $bytes);
+            $this->complete($ticket['upload_id'])->assertStatus(422)->assertJsonPath('code', 'video_unsupported_format');
+            $this->assertArrayNotHasKey($key, $this->bucket);
+        }
+    }
+
+    public function test_a_file_that_is_not_a_video_at_all_is_refused()
     {
         $this->member();
         $bytes = str_repeat('not a video ', 400);
         $ticket = $this->ask($bytes)->json('data');
         $this->putToStorage($ticket['upload']['url'], $bytes);
-        $this->complete($ticket['upload_id'])->assertStatus(422)->assertJsonPath('code', 'video_damaged');
+        $this->complete($ticket['upload_id'])->assertStatus(422)->assertJsonPath('code', 'video_unsupported_format');
     }
 
     public function test_storage_trouble_says_so_and_the_upload_can_be_finished_later()

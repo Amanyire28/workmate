@@ -88,7 +88,6 @@ export default {
             ] },
             { title: 'Community videos', description: 'Anyone who can post in the community can add one video to a post. Videos are stored in Cloudflare R2, not on the WorkMate server.', fields: [
                 { key: 'videoMaxMb', label: 'Largest video', type: 'number', unit: 'MB', min: 1, max: 100 },
-                { key: 'videoMaxSeconds', label: 'Longest video', type: 'number', unit: 'seconds', min: 10, max: 180 },
             ] },
         ],
         validate: (v) => ({

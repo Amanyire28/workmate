@@ -1,20 +1,15 @@
 /**
  * Videos people add to community posts: checked and previewed on the phone
- * before anything is uploaded. The server checks again (size, length and
- * type); nothing here is trusted.
+ * before anything is uploaded. The original file is uploaded as it is (any
+ * format the server can check: MP4, MOV, 3GP, WebM, MKV); the server checks
+ * it again, and nothing here is trusted.
  *
- * An MP4 with H.264 picture and AAC sound within the limits is used as it
- * is. Anything else (HEVC, MOV, WebM, too big) is converted on the phone
- * first, where its browser can (utils/videoConvert.js, loaded only then).
+ * Videos over the size limit can be trimmed on the phone first, keeping
+ * their format and quality (utils/videoTrim.js, loaded only then).
  */
 
-// What's uploaded is always MP4 (H.264): what every phone browser can play.
-// What can be chosen is any phone video; the rest is converted first.
 const VIDEO_EXTENSIONS = /\.(mp4|m4v|mov|webm|mkv|3gp)$/i;
 export const VIDEO_ACCEPT = 'video/*,.mp4,.m4v,.mov,.webm,.mkv,.3gp';
-
-// A little slack: phones round a 60-second recording up
-const DURATION_SLACK = 0.5;
 
 /** Some Android file pickers give no type; the name is the next best thing */
 export function isVideoFile(file) {
@@ -131,150 +126,55 @@ export async function makePoster(src, { at = 0.5, maxSide = 720 } = {}) {
 }
 
 /**
- * Checks a chosen file against the limits before anything is uploaded.
+ * Checks a chosen file before anything is uploaded. The original file is
+ * kept as it is; the server checks its structure and codecs again.
  *
- * - ok: usable as it is (the fast path: nothing extra is downloaded)
- * - convert: needs converting first (another format, or too big)
+ * - ok: ready to upload (the phone's player could read it)
+ * - probe: fine to upload, but this browser can't play it to read its size
+ *   and length (e.g. HEVC on some phones): read them from the file instead
+ * - trim: bigger than the limit: the member chooses a part to keep
  * - otherwise an error to show
  *
- * @returns {Promise<{ok: true, duration: number, width: number, height: number} | {ok: false, convert?: true, error?: string}>}
+ * @returns {Promise<{ok: true, duration: number, width: number, height: number, family: string} | {ok: false, probe?: true, trim?: true, family?: string, error?: string}>}
  */
-export async function checkVideo(file, src, { maxMb, maxSeconds }) {
+export async function checkVideo(file, src, { maxMb }) {
     if (!isVideoFile(file)) {
         return { ok: false, error: 'That file isn’t a video. Choose a video.' };
     }
-    // The same header check the server makes, before any data is spent uploading
-    const code = await mp4Code(file);
-    if (code === 'damaged') return { ok: false, error: MP4_MESSAGES.damaged };
-    // Another format (HEVC, MOV, WebM…) or bigger than the limit: convert it on the phone
-    if (code || file.size > maxMb * 1024 * 1024) return { ok: false, convert: true };
+    const family = await containerOf(file);
+    if (!family) {
+        return { ok: false, error: UNKNOWN_FORMAT };
+    }
+    if (file.size > maxMb * 1024 * 1024) return { ok: false, trim: true, family };
 
     let meta;
     try {
         meta = await readVideoMetadata(src);
     } catch {
-        // The phone's player can't open it; the converter may still be able to
-        return { ok: false, convert: true };
+        return { ok: false, probe: true, family };
     }
-    if (!meta.width || !meta.height) {
-        return { ok: false, error: 'This file has no picture. Choose a video.' };
+    if (!meta.width || !meta.height || !Number.isFinite(meta.duration)) {
+        return { ok: false, probe: true, family };
     }
-    if (!Number.isFinite(meta.duration)) {
-        return { ok: false, convert: true };
-    }
-    if (meta.duration > maxSeconds + DURATION_SLACK) {
-        return { ok: false, error: tooLongMessage(meta.duration, maxSeconds) };
-    }
-    return { ok: true, ...meta };
+    return { ok: true, ...meta, family };
 }
 
-export function tooLongMessage(seconds, maxSeconds) {
-    return `This video is ${formatDuration(seconds)} long. Videos can be up to ${maxSeconds} seconds. Trim it on your phone and try again.`;
-}
-
-/* ---------------- The MP4 header (as the server checks it) ---------------- */
-
-const MP4_MESSAGES = {
-    not_mp4: 'This file isn’t an MP4 video. Choose an MP4 video.',
-    mov: 'This is a MOV video. Choose an MP4 video, or on an iPhone set Camera → Formats → Most Compatible and record again.',
-    fragmented: 'This kind of MP4 can’t be used yet. Try saving or recording the video again.',
-    hevc: 'This video uses the H.265 (HEVC) format, which many phones can’t play. Record in H.264 (“Most Compatible”) and try again.',
-    codec: 'This video’s format can’t be played on most phones. Choose an MP4 recorded in H.264.',
-    audio: 'This video’s sound format can’t be played on most phones. Choose a video with standard (AAC) sound.',
-    damaged: 'This video looks damaged and can’t be used. Try recording it again.',
-};
+export const UNKNOWN_FORMAT = 'We don’t recognise this video format. Choose an MP4, MOV or WebM video.';
 
 /**
- * Reads only the MP4's box headers and its "moov" header (never the whole
- * file) and returns a message when the server would refuse it, else null.
- * Unreadable cases are left for the server to decide.
+ * The file's real structure, from its first bytes (not its name or type):
+ * 'iso' (MP4, MOV, 3GP), 'ebml' (WebM, MKV) or null.
  */
-export async function mp4Problem(file) {
-    const code = await mp4Code(file);
-    return code ? MP4_MESSAGES[code] : null;
-}
-
-/** The reason the server would refuse it ('hevc', 'mov', …), or null; WebM and others give 'not_mp4' */
-async function mp4Code(file) {
+export async function containerOf(file) {
     try {
-        return await mp4Check(file);
+        const b = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+        if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return 'ebml';
+        if (String.fromCharCode(b[4], b[5], b[6], b[7]) === 'ftyp') return 'iso';
     } catch {
-        return null;
+        // Unreadable: treated as unknown
     }
-}
-
-async function bytesOf(file, start, length) {
-    return new DataView(await file.slice(start, start + length).arrayBuffer());
-}
-const fourcc = (view, at) => String.fromCharCode(view.getUint8(at), view.getUint8(at + 1), view.getUint8(at + 2), view.getUint8(at + 3));
-
-function boxAt(view, at, remaining) {
-    let size = view.getUint32(at);
-    const type = fourcc(view, at + 4);
-    let header = 8;
-    if (size === 1) { size = Number(view.getBigUint64(at + 8)); header = 16; }
-    else if (size === 0) size = remaining;
-    return { size, type, header };
-}
-
-function* children(view, start, end) {
-    let at = start;
-    for (let i = 0; i < 256 && at + 8 <= end; i++) {
-        const box = boxAt(view, at, end - at);
-        if (box.size < box.header || at + box.size > end) return;
-        yield { type: box.type, start: at + box.header, end: at + box.size };
-        at += box.size;
-    }
-}
-
-async function mp4Check(file) {
-    let at = 0;
-    let brand = null;
-    let moov = null;
-    for (let i = 0; i < 64 && at < file.size; i++) {
-        const head = await bytesOf(file, at, Math.min(16, file.size - at));
-        if (head.byteLength < 8) return 'damaged';
-        if (i === 0 && fourcc(head, 4) !== 'ftyp') return 'not_mp4';
-        const box = boxAt(head, 0, file.size - at);
-        if (box.size < box.header || box.size > file.size - at) return 'damaged';
-        if (box.type === 'ftyp') brand = fourcc(await bytesOf(file, at + box.header, 4), 0);
-        else if (box.type === 'moof') return 'fragmented';
-        else if (box.type === 'moov') {
-            if (box.size > 4 * 1024 * 1024) return null; // the server decides
-            moov = await bytesOf(file, at, box.size);
-            moov = { view: moov, start: box.header, end: box.size };
-        }
-        at += box.size;
-    }
-    if (!brand) return 'not_mp4';
-    if (brand === 'qt  ') return 'mov';
-    if (!moov) return 'damaged';
-
-    let video = null;
-    const audio = [];
-    for (const trak of children(moov.view, moov.start, moov.end)) {
-        if (trak.type !== 'trak') continue;
-        let handler = null;
-        let format = null;
-        for (const mdia of children(moov.view, trak.start, trak.end)) {
-            if (mdia.type !== 'mdia') continue;
-            for (const m of children(moov.view, mdia.start, mdia.end)) {
-                if (m.type === 'hdlr') handler = fourcc(moov.view, m.start + 8);
-                if (m.type !== 'minf') continue;
-                for (const stbl of children(moov.view, m.start, m.end)) {
-                    if (stbl.type !== 'stbl') continue;
-                    for (const s of children(moov.view, stbl.start, stbl.end)) {
-                        if (s.type === 'stsd') format = fourcc(moov.view, s.start + 12);
-                    }
-                }
-            }
-        }
-        if (handler === 'vide' && !video) video = format;
-        if (handler === 'soun') audio.push(format);
-    }
-    if (!video) return 'damaged';
-    if (video === 'hvc1' || video === 'hev1') return 'hevc';
-    if (video !== 'avc1' && video !== 'avc3') return 'codec';
-    if (audio.some(a => a !== 'mp4a')) return 'audio';
     return null;
 }
+
+/** The type sent to the server for each structure */
+export const UPLOAD_TYPES = { iso: 'video/mp4', ebml: 'video/webm' };

@@ -17,10 +17,9 @@ export const VIDEO_MOCK = import.meta.env.DEV && import.meta.env.VITE_COMMUNITY_
 /** Videos are offered wherever photos are: to signed-in members (the server checks the posting rules) */
 export const videoPostsEnabled = computed(() => VIDEO_MOCK || !!auth.user);
 
-/** The same limits the server checks (community.video_max_mb / video_max_seconds) */
+/** The size limit the server checks (community.video_max_mb); there's no length limit */
 export const videoLimits = computed(() => ({
     maxMb: appSettings.videoMaxMb,
-    maxSeconds: appSettings.videoMaxSeconds,
 }));
 
 /* ---------------- Preferences (this phone only) ---------------- */

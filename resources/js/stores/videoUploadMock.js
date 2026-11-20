@@ -29,9 +29,8 @@ export const mockAdapter = {
         await wait(400);
         if (mode() === 'fail-authorize') throw new ApiError(503, { code: 'video_uploads_unavailable', message: 'Video uploads are paused for a moment. Please try again later.' });
         // The checks the real server makes again
-        const { maxMb, maxSeconds } = videoLimits.value;
+        const { maxMb } = videoLimits.value;
         if (fields.size > maxMb * MB) throw new ApiError(422, { code: 'validation_failed', message: 'The video is too large.', errors: { size: [`Videos can be up to ${maxMb} MB.`] } });
-        if (fields.duration > maxSeconds + 0.5) throw new ApiError(422, { code: 'validation_failed', message: 'The video is too long.', errors: { duration: [`Videos can be up to ${maxSeconds} seconds.`] } });
         const id = `mock-${Date.now().toString(36)}-${++counter}`;
         return {
             upload_id: id,

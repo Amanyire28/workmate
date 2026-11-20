@@ -1,21 +1,36 @@
 <template>
   <div>
     <!-- The file box; the composer's "Add video" and "Replace" buttons are labels for it -->
-    <input :id="inputId" type="file" :accept="VIDEO_ACCEPT" class="sr-only" :disabled="disabled || !!converting" @change="pick" />
+    <input :id="inputId" type="file" :accept="VIDEO_ACCEPT" class="sr-only" :disabled="disabled || !!working || !!trimming" @change="pick" />
 
-    <!-- Converting on the phone: real progress, and a way out -->
-    <div v-if="converting" class="flex w-full flex-col gap-3 rounded-xl bg-primary-tint/70 px-4 py-4" role="status" aria-live="polite">
+    <!-- Too big: choose the part to keep -->
+    <VideoTrimmer
+      v-if="trimming && !working"
+      :key="trimming.key"
+      :url="trimming.url"
+      :size="trimming.file.size"
+      :duration="trimming.info.duration"
+      :max-bytes="trimming.maxBytes"
+      :playable="trimming.playable"
+      :note="trimming.note"
+      :initial="trimming.last"
+      @trim="cut"
+      @cancel="stop('Trimming cancelled. Your words are still here; choose a video again when you’re ready.')"
+    />
+
+    <!-- Making the shorter file: real progress, and a way out -->
+    <div v-else-if="working" class="flex w-full flex-col gap-3 rounded-xl bg-primary-tint/70 px-4 py-4" role="status" aria-live="polite">
       <div class="flex items-center gap-3">
         <span class="wm-spinner text-primary" aria-hidden="true"></span>
         <p class="min-w-0 flex-1 text-[14px] font-semibold text-ink">
-          {{ converting.stage === 'reading' ? 'Checking your video…' : `Preparing your video… ${Math.round(converting.progress * 100)}%` }}
+          {{ working.label }}<template v-if="working.measurable"> {{ Math.round(working.progress * 100) }}%</template>
         </p>
       </div>
-      <div v-if="converting.stage === 'converting'" class="wm-upload-bar" role="progressbar" aria-label="Preparing the video" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="Math.round(converting.progress * 100)">
-        <span :style="{ width: `${Math.round(converting.progress * 100)}%` }"></span>
+      <div v-if="working.measurable" class="wm-upload-bar" role="progressbar" :aria-label="working.label" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="Math.round(working.progress * 100)">
+        <span :style="{ width: `${Math.round(working.progress * 100)}%` }"></span>
       </div>
-      <p class="text-[13px] text-muted">{{ converting.note }} Keep this page open; your words stay as they are.</p>
-      <button type="button" class="wm-btn wm-btn-secondary !min-h-10 self-start !px-4 !text-[13px]" @click="stop">
+      <p class="text-[13px] text-muted">Keep this page open; your words stay as they are.</p>
+      <button type="button" class="wm-btn wm-btn-secondary !min-h-10 self-start !px-4 !text-[13px]" @click="stop('Stopped. Choose the video again when you’re ready.')">
         <i class="bi bi-x-lg" aria-hidden="true"></i>Stop
       </button>
     </div>
@@ -27,6 +42,7 @@
 
     <figure v-else-if="modelValue" class="overflow-hidden rounded-xl bg-[#0B1220]">
       <video
+        v-if="modelValue.previewable"
         :key="modelValue.key"
         :src="modelValue.url"
         :poster="modelValue.posterUrl || undefined"
@@ -34,14 +50,18 @@
         playsinline
         preload="metadata"
         class="block max-h-[46vh] w-full object-contain"
-        :aria-label="`Your video, ${formatDuration(modelValue.duration)} long`"
+        :aria-label="`Your video${modelValue.duration ? `, ${formatDuration(modelValue.duration)} long` : ''}`"
       ></video>
+      <div v-else class="flex aspect-video w-full flex-col items-center justify-center gap-2 px-6 text-center text-white">
+        <i class="bi bi-camera-video text-2xl" aria-hidden="true"></i>
+        <p class="text-[14px] font-semibold">This browser can’t show a preview of this video.</p>
+        <p class="text-[13px] text-white/75">It will be shared exactly as recorded. People whose phones support its format will be able to watch it.</p>
+      </div>
       <figcaption class="flex flex-wrap items-center justify-between gap-2 bg-white px-1 pt-2">
         <span class="flex flex-wrap items-center gap-1.5 text-[13px] text-muted">
           <i class="bi bi-camera-video text-primary" aria-hidden="true"></i>
-          <span class="tabular-nums">{{ formatDuration(modelValue.duration) }}</span><span aria-hidden="true">·</span><span class="tabular-nums">{{ formatBytes(modelValue.size) }}</span>
-          <template v-if="modelValue.converted"><span aria-hidden="true">·</span><span>prepared for every phone</span></template>
-          <template v-if="modelValue.silent"><span aria-hidden="true">·</span><span>no sound</span></template>
+          <span class="tabular-nums">{{ modelValue.duration ? formatDuration(modelValue.duration) : 'length unknown' }}</span><span aria-hidden="true">·</span><span class="tabular-nums">{{ formatBytes(modelValue.size) }}</span>
+          <template v-if="modelValue.trimmed"><span aria-hidden="true">·</span><span>trimmed</span></template>
         </span>
         <span class="flex gap-2">
           <label :for="inputId" class="wm-btn wm-btn-secondary !min-h-10 !px-3.5 !text-[13px] cursor-pointer" :class="{ 'pointer-events-none opacity-60': disabled }">
@@ -58,14 +78,15 @@
 
 <script setup>
 import { ref, onBeforeUnmount } from 'vue';
-import { VIDEO_ACCEPT, checkVideo, makePoster, formatBytes, formatDuration, tooLongMessage, videoLog } from '@/utils/video.js';
+import VideoTrimmer from './VideoTrimmer.vue';
+import { VIDEO_ACCEPT, UNKNOWN_FORMAT, checkVideo, readVideoMetadata, makePoster, formatBytes, formatDuration, videoLog } from '@/utils/video.js';
 import { videoLimits } from '@/stores/video.js';
 
 /**
- * Choosing one video for a post: checked (type, size, length) and shown
- * before anything is uploaded. Videos that aren't already a small H.264 MP4
- * are converted on the phone first, where its browser can. v-model holds
- * { key, file, url, poster, posterUrl, duration, width, height, size, converted, silent } or null.
+ * Choosing one video for a post. The original file is used as it is; one
+ * over the size limit can be trimmed here first (same format and quality).
+ * Nothing incomplete is ever handed on. v-model holds
+ * { key, file, url, poster, posterUrl, duration, width, height, size, trimmed, previewable } or null.
  */
 const props = defineProps({
   modelValue: { type: Object, default: null },
@@ -75,10 +96,23 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'error', 'checking']);
 
 const checking = ref(false);
-const converting = ref(null);   // { stage: 'reading'|'converting', progress, note }
+const trimming = ref(null);   // { key, file, url, info, maxBytes, playable, note, last }
+const working = ref(null);    // { label, progress, measurable }
 let control = null;
 let keys = 0;
 let generation = 0;
+
+const TRIM_ALTERNATIVE = 'Trim it in your phone’s Gallery (Edit → Trim) and choose it again, or choose a smaller video.';
+
+async function loadTools() {
+  try {
+    // Only downloaded when a video needs it
+    return await import('@/utils/videoTrim.js');
+  } catch (e) {
+    videoLog('trim tools did not load', { error: String(e?.message || e) }, true);
+    return null;
+  }
+}
 
 async function pick(e) {
   const original = e.target.files?.[0];
@@ -88,163 +122,160 @@ async function pick(e) {
   const mine = ++generation;
   checking.value = true;
   emit('checking', true);
-  const limits = videoLimits.value;
+  const maxBytes = videoLimits.value.maxMb * 1024 * 1024;
   let url = URL.createObjectURL(original);
-  let file = original;
-  let converted = false;
-  let silent = false;
+  let keepWaiting = false;
   try {
-    let result = await checkVideo(original, url, limits);
+    const result = await checkVideo(original, url, videoLimits.value);
     if (mine !== generation) return;
-    videoLog('chosen', { name: original.name, type: original.type, bytes: original.size, fastPath: !!result.ok, convert: !!result.convert, error: result.error || null });
-
-    if (!result.ok && result.convert) {
-      URL.revokeObjectURL(url);
-      url = null;
-      const made = await prepare(original, limits, mine);
-      if (!made) return;
-      ({ file, silent } = made);
-      converted = true;
-      url = URL.createObjectURL(file);
-      // The converted file goes through the same checks as any other
-      result = await checkVideo(file, url, limits);
-      if (mine !== generation) return;
-      if (!result.ok) {
-        emit('error', result.error || 'This video couldn’t be prepared on this phone. Try another video.');
-        return;
-      }
-    }
-    if (!result.ok) {
+    videoLog('chosen', { name: original.name, type: original.type, bytes: original.size, family: result.family || null, ready: !!result.ok, needsReading: !!result.probe, needsTrim: !!result.trim, error: result.error || null });
+    if (result.error) {
       emit('error', result.error);
       return;
     }
 
-    // A still for the card before it plays (not every phone can make one)
-    const poster = await makePoster(url);
+    if (result.ok) {
+      await use(original, url, { duration: result.duration, width: result.width, height: result.height }, { previewable: true }, mine);
+      url = null;
+      return;
+    }
+
+    // Either this browser can't play it (read its details from the file), or it's too big (trim)
+    const tools = await loadTools();
     if (mine !== generation) return;
-    release(props.modelValue);
-    emit('update:modelValue', {
-      key: ++keys,
-      file,
-      url,
-      poster,
-      posterUrl: poster ? URL.createObjectURL(poster) : null,
-      duration: result.duration,
-      width: result.width,
-      height: result.height,
-      size: file.size,
-      converted,
-      silent,
-    });
-    url = null; // now owned by the chosen video
+    if (!tools) {
+      emit('error', result.trim ? `This video is ${formatBytes(original.size)}, over the ${formatBytes(maxBytes)} limit, and the trimming tool couldn’t load. Check your connection and try again.` : 'We couldn’t read this video. Check your connection and try again.');
+      return;
+    }
+    let info;
+    try {
+      info = await tools.probe(original);
+    } catch (err) {
+      videoLog('could not read', { error: String(err?.message || err) }, true);
+      emit('error', result.trim ? `This video is ${formatBytes(original.size)}, and this browser can’t read its format to trim it. ${TRIM_ALTERNATIVE}` : UNKNOWN_FORMAT);
+      return;
+    }
+    if (mine !== generation) return;
+    videoLog('read', { container: info.container, seconds: info.duration, video: info.video, audio: info.audio, userAgent: navigator.userAgent });
+    if (!info.video || !info.video.width || !info.video.height) {
+      // Too big and unreadable here: say what can't be done, and what to do instead
+      emit('error', result.trim
+        ? `This video is ${formatBytes(original.size)}, and this browser can’t read its format to trim it. ${TRIM_ALTERNATIVE}`
+        : 'This file has no picture we can read. Choose a video recorded with your phone’s camera.');
+      return;
+    }
+
+    if (result.probe) {
+      // Fine to share as it is; this browser just can't show it
+      await use(original, url, { duration: info.duration, width: info.video.width, height: info.video.height }, { previewable: false }, mine);
+      url = null;
+      return;
+    }
+
+    // Too big: open the trimmer (the member chooses; nothing happens until they do)
+    if (!info.duration) {
+      emit('error', `This video is ${formatBytes(original.size)}, and its length can’t be read here to trim it. ${TRIM_ALTERNATIVE}`);
+      return;
+    }
+    let playable = true;
+    try { await readVideoMetadata(url); } catch { playable = false; }
+    if (mine !== generation) return;
+    trimming.value = { key: mine, file: original, url, info, maxBytes, playable, note: '', last: null, tools };
+    url = null;
+    keepWaiting = true;
   } finally {
     if (url) URL.revokeObjectURL(url);
     if (mine === generation) {
       checking.value = false;
-      converting.value = null;
-      emit('checking', false);
+      if (!keepWaiting) emit('checking', false);
     }
   }
 }
 
-/**
- * Converts on the phone. Returns { file, silent } or null (refused, stopped
- * or failed: the reason has been shown). Nothing incomplete is ever returned.
- */
-async function prepare(original, { maxMb, maxSeconds }, mine) {
-  converting.value = { stage: 'reading', progress: 0, note: 'We’re making it playable on every phone.' };
-  let tools;
+/** Makes the shorter file, checks its real size, and uses it (or asks again) */
+async function cut({ start, end }) {
+  const t = trimming.value;
+  if (!t) return;
+  const mine = generation;
+  working.value = { label: 'Trimming your video…', progress: 0, measurable: true };
+  control = new AbortController();
+  const started = Date.now();
+  let file;
   try {
-    // Only downloaded when a video needs it
-    tools = await import('@/utils/videoConvert.js');
+    file = await t.tools.trim(t.file, t.info, start, end, {
+      signal: control.signal,
+      // Whole percents only: the screen doesn't need redrawing for every frame
+      onProgress: (p) => {
+        if (working.value && Math.floor(p * 100) !== Math.floor(working.value.progress * 100)) working.value.progress = p;
+      },
+    });
   } catch (e) {
-    videoLog('converter did not load', { error: String(e?.message || e) }, true);
-    emit('error', 'The video converter couldn’t load. Check your connection and try again.');
-    return null;
+    if (mine !== generation) return;
+    working.value = null;
+    if (e?.name === 'AbortError') return;
+    videoLog('trim failed', { code: e?.code || null, reasons: e?.reasons || null, error: String(e?.message || e), container: t.info.container, video: t.info.video, audio: t.info.audio }, true);
+    const why = e?.code === 'audio_not_copyable' ? 'its sound can’t be copied in this browser (and we won’t share it without sound)'
+      : 'this browser can’t copy its format';
+    stop(`This video can’t be trimmed here: ${why}. ${TRIM_ALTERNATIVE}`);
+    return;
+  } finally {
+    control = null;
   }
-  const maxBytes = maxMb * 1024 * 1024;
-  let info;
-  try {
-    info = await tools.probe(original);
-  } catch (e) {
-    videoLog('could not read', { error: String(e?.message || e) }, true);
-    emit('error', 'We couldn’t read this video. It may be damaged or in a format we can’t use. Try another video.');
-    return null;
-  }
-  if (mine !== generation) return null;
-  if (Number.isFinite(info.duration) && info.duration > maxSeconds + 0.5) {
-    emit('error', tooLongMessage(info.duration, maxSeconds));
-    return null;
-  }
-  videoLog('read', { container: info.container, seconds: info.duration, video: info.video, audio: info.audio,
-    webcodecs: typeof VideoEncoder !== 'undefined', userAgent: navigator.userAgent, deviceMemoryGb: navigator.deviceMemory || null });
-  let chosen = await tools.plan(info, original, { maxBytes, maxSeconds });
-  if (mine !== generation) return null;
-  videoLog('plan', { action: chosen.action, reason: chosen.reason || null, remuxOnly: !!chosen.remuxOnly, video: chosen.video || null, audio: chosen.audio || null });
-  if (chosen.action !== 'convert') {
-    emit('error', chosen.message);
-    return null;
-  }
-  if (chosen.needsAudioConsent && !window.confirm('This video’s sound can’t be converted on this phone. Share it without sound?')) {
-    emit('error', 'Choose another video, or share this one without sound.');
-    return null;
-  }
+  if (mine !== generation) return;
+  working.value = null;
+  videoLog('trimmed', { seconds: (Date.now() - started) / 1000, chosen: [start, end], inputBytes: t.file.size, outputBytes: file.size, limitBytes: t.maxBytes });
 
-  converting.value = {
-    stage: 'converting',
-    progress: 0,
-    note: chosen.remuxOnly ? 'Saving it as MP4 (quick).'
-      : `Making it ${chosen.target.scaled ? 'smaller and ' : ''}playable on every phone. This can take about as long as the video itself.`,
-  };
-  // At most two tries: if the first result is still too big, once more at a lower bitrate
-  for (let attempt = 0; attempt < 2; attempt++) {
-    control = new AbortController();
-    const started = Date.now();
-    let file;
-    try {
-      file = await tools.convert(original, chosen, {
-        signal: control.signal,
-        // Whole percents only: the screen doesn't need redrawing for every frame
-        onProgress: (p) => {
-          if (converting.value && Math.floor(p * 100) !== Math.floor(converting.value.progress * 100)) converting.value.progress = p;
-        },
-      });
-    } catch (e) {
-      if (e?.name === 'AbortError') {
-        videoLog('stopped', { afterSeconds: (Date.now() - started) / 1000 });
-        if (mine === generation) emit('error', 'Stopped. Choose the video again when you’re ready.');
-      } else {
-        videoLog('conversion failed', { name: e?.name, code: e?.code || null, error: String(e?.message || e), afterSeconds: (Date.now() - started) / 1000 }, true);
-        emit('error', e?.code === 'audio_not_convertible'
-          ? 'This video’s sound can’t be converted on this phone. Try another video.'
-          : 'This video couldn’t be prepared on this phone. Try another video, or record a new one with your phone’s camera.');
-      }
-      return null;
-    } finally {
-      control = null;
-    }
-    if (mine !== generation) return null;
-    videoLog('converted', { attempt: attempt + 1, seconds: (Date.now() - started) / 1000, inputBytes: original.size, outputBytes: file.size, limitBytes: maxBytes });
-    if (file.size <= maxBytes) return { file, silent: !info.audio || chosen.audio === 'drop' };
-    if (!chosen.video) {
-      emit('error', `This video is ${formatBytes(file.size)}. Videos can be up to ${maxMb} MB. Try a shorter clip.`);
-      return null;
-    }
-    chosen = { ...chosen, video: { ...chosen.video, bitrate: Math.floor(chosen.video.bitrate * (maxBytes / file.size) * 0.85) } };
-    converting.value = { stage: 'converting', progress: 0, note: 'Making it a little smaller…' };
+  if (file.size > t.maxBytes) {
+    // The real result decides: back to the trimmer to shorten it
+    trimming.value = { ...t, key: t.key + 0.5, last: { start, end }, note: `That part came out at ${formatBytes(file.size)}, over the ${formatBytes(t.maxBytes)} limit. Make it a little shorter.` };
+    return;
   }
-  emit('error', `We couldn’t make this video small enough (up to ${maxMb} MB). Try a shorter clip.`);
-  return null;
+  const url = URL.createObjectURL(file);
+  let meta = { duration: end - start, width: t.info.video.width, height: t.info.video.height };
+  let previewable = false;
+  try {
+    const m = await readVideoMetadata(url);
+    if (m.width && m.height) { meta = m; previewable = true; }
+  } catch {
+    // Not playable in this browser: shared as it is
+  }
+  if (mine !== generation) { URL.revokeObjectURL(url); return; }
+  URL.revokeObjectURL(t.url);
+  trimming.value = null;
+  await use(file, url, meta, { previewable, trimmed: true }, mine);
+  emit('checking', false);
 }
 
-/** Stops checking or converting (the caption is untouched) */
-function stop() {
+/** Hands a finished file to the composer, with a poster where the browser can make one */
+async function use(file, url, meta, { previewable, trimmed = false }, mine) {
+  const poster = previewable ? await makePoster(url) : null;
+  if (mine !== generation) { URL.revokeObjectURL(url); return; }
+  release(props.modelValue);
+  emit('update:modelValue', {
+    key: ++keys,
+    file,
+    url,
+    poster,
+    posterUrl: poster ? URL.createObjectURL(poster) : null,
+    duration: meta.duration || null,
+    width: meta.width,
+    height: meta.height,
+    size: file.size,
+    trimmed,
+    previewable,
+  });
+}
+
+/** Stops checking or trimming (the caption is untouched) */
+function stop(message) {
   generation++;
   control?.abort();
+  if (trimming.value) URL.revokeObjectURL(trimming.value.url);
+  trimming.value = null;
+  working.value = null;
   checking.value = false;
-  converting.value = null;
   emit('checking', false);
-  emit('error', 'Stopped. Choose the video again when you’re ready.');
+  if (message) emit('error', message);
 }
 
 function release(v) {
@@ -261,6 +292,7 @@ function remove() {
 onBeforeUnmount(() => {
   generation++;
   control?.abort();
+  if (trimming.value) URL.revokeObjectURL(trimming.value.url);
 });
-defineExpose({ release, stop, busy: () => checking.value || !!converting.value });
+defineExpose({ release, stop: () => stop('Stopped. Choose the video again when you’re ready.') });
 </script>

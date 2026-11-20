@@ -30,7 +30,6 @@ export const appSettings = reactive({
     minimumAge: 18,
     // Community videos: the limits the server checks
     videoMaxMb: 25,
-    videoMaxSeconds: 60,
 });
 
 export const categories = reactive([]);
@@ -177,7 +176,6 @@ function applySettings(s) {
         askLegal: !!pick('legal.ask_acceptance', true),
         minimumAge: pick('legal.minimum_age', 18),
         videoMaxMb: Number(pick('community.video_max_mb', 25)) || 25,
-        videoMaxSeconds: Number(pick('community.video_max_seconds', 60)) || 60,
     });
     applySearchSettings(s);
 }

@@ -2,7 +2,7 @@
   <div
     ref="root"
     class="wm-video relative w-full overflow-hidden bg-[#0B1220] text-white select-none"
-    :class="{ 'wm-video-full': fullscreen }"
+    :class="{ 'wm-video-full': fullscreen, 'wm-video-immersive': immersive }"
     :style="fullscreen ? null : { aspectRatio: boxRatio }"
     role="group"
     :aria-label="label"
@@ -109,6 +109,8 @@ const props = defineProps({
   // { url, poster_url, thumb_url, width, height, duration, status }
   media: { type: Object, required: true },
   label: { type: String, default: 'Video' },
+  // In the feed: edge to edge, and tall phone videos get more room
+  immersive: { type: Boolean, default: false },
 });
 
 const root = ref(null);
@@ -138,7 +140,7 @@ const waitingVisible = computed(() => waiting.value && armed.value);
 const boxRatio = computed(() => {
   const w = Number(props.media.width) || 16;
   const h = Number(props.media.height) || 9;
-  return String(Math.min(16 / 9, Math.max(4 / 5, w / h)));
+  return String(Math.min(16 / 9, Math.max(props.immersive ? 9 / 16 : 4 / 5, w / h)));
 });
 
 /* ---------------- Playing ---------------- */
@@ -236,10 +238,11 @@ async function onError() {
     retry({ refresh: false });
     return;
   }
-  // Browsers give the same code for "format not supported" and "file not found", so stay general
+  // Network trouble, or (after a fresh address didn't help) a format this browser can't play:
+  // videos are kept as recorded, so e.g. H.265/HEVC plays only where the device supports it
   error.value = code === 2
     ? 'The video stopped loading. Check your connection.'
-    : 'This video can’t be played right now.';
+    : 'This video’s format can’t play in this browser. It may play on another phone or browser.';
 }
 
 /** A fresh playback address from WorkMate; false when there is none (or it's a development preview) */

@@ -68,7 +68,7 @@
             <i class="bi bi-camera-video" aria-hidden="true"></i>Add video
           </label>
         </div>
-        <p v-if="videoPostsEnabled && !photos.length && !video && !checkingVideo" class="wm-field-hint mt-1.5">A video can be up to {{ videoLimits.maxSeconds }} seconds and {{ videoLimits.maxMb }} MB.</p>
+        <p v-if="videoPostsEnabled && !photos.length && !video && !checkingVideo" class="wm-field-hint mt-1.5">Videos up to {{ videoLimits.maxMb }} MB are shared exactly as recorded; bigger ones can be trimmed.</p>
 
         <!-- Uploading a video: how far it's got -->
         <div v-if="busy && video" ref="uploadBox" class="mt-3 scroll-mb-4" role="status" aria-live="polite">
@@ -240,7 +240,7 @@ function cancel() {
   if (busy.value) return;
   // Preparing a video: closing stops it (only a finished video is ever kept)
   if (checkingVideo.value) {
-    if (!window.confirm('Stop preparing this video?')) return;
+    if (!window.confirm('Stop working on this video?')) return;
     videoPicker.value?.stop();
   }
   const unsaved = editing.value ? body.value !== (props.post.body || '') : (body.value.trim() || photos.value.length || video.value);

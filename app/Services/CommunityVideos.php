@@ -31,6 +31,9 @@ class CommunityVideos
     /** @var Mp4Inspector */
     private $inspector;
 
+    /** @var MatroskaInspector */
+    private $matroska;
+
     /** @var Community */
     private $community;
 
@@ -40,10 +43,11 @@ class CommunityVideos
     /** @var PlatformSettings */
     private $settings;
 
-    public function __construct(R2Storage $r2, Mp4Inspector $inspector, Community $community, PhotoVariants $photos, PlatformSettings $settings)
+    public function __construct(R2Storage $r2, Mp4Inspector $inspector, MatroskaInspector $matroska, Community $community, PhotoVariants $photos, PlatformSettings $settings)
     {
         $this->r2 = $r2;
         $this->inspector = $inspector;
+        $this->matroska = $matroska;
         $this->community = $community;
         $this->photos = $photos;
         $this->settings = $settings;
@@ -56,10 +60,20 @@ class CommunityVideos
         return (int) $this->settings->get('community.video_max_mb') * 1024 * 1024;
     }
 
-    public function maxSeconds(): int
-    {
-        return (int) $this->settings->get('community.video_max_seconds');
-    }
+    /**
+     * The kinds of file accepted (as the phone names them) and how each is
+     * stored: MP4, MOV and 3GP are one structure (ISO media), WebM and MKV another.
+     */
+    public const TYPES = [
+        'video/mp4' => 'iso', 'video/quicktime' => 'iso', 'video/3gpp' => 'iso', 'video/x-m4v' => 'iso',
+        'video/webm' => 'ebml', 'video/x-matroska' => 'ebml',
+    ];
+
+    // What storage tells browsers it is (they look inside the file anyway)
+    private const STORED_AS = ['iso' => ['video/mp4', 'mp4'], 'ebml' => ['video/webm', 'webm']];
+
+    // The length columns hold up to this (2.7 hours): far beyond what 25 MB holds
+    private const MAX_STORED_SECONDS = 9999.99;
 
     /* ---------------- 1. Where to upload ---------------- */
 
@@ -88,20 +102,22 @@ class CommunityVideos
             throw new BusinessRuleException('too_many_uploads', 'You have other videos still uploading. Wait for them to finish, then try again.', 429);
         }
 
+        [$storedType, $extension] = self::STORED_AS[self::TYPES[$data['mime_type']]];
         $upload = new CommunityVideoUpload();
         $upload->forceFill([
             'uuid' => (string) Str::uuid(),
             'user_id' => $user->getKey(),
             'client_token' => $data['client_token'],
             // Chosen here, never by the phone, and impossible to guess
-            'object_key' => 'community/'.now()->format('Y/m').'/'.Str::lower(Str::random(40)).'.mp4',
+            'object_key' => 'community/'.now()->format('Y/m').'/'.Str::lower(Str::random(40)).'.'.$extension,
             'status' => CommunityVideoUpload::STATUS_PENDING,
             'category' => $data['category'],
             'body' => $data['body'] ?? null,
             'topic' => $data['topic'] ?? null,
-            'mime_type' => 'video/mp4',
+            'mime_type' => $storedType,
             'size' => (int) $data['size'],
-            'duration' => (float) $data['duration'],
+            // What the phone said; only for reference (the file's own header decides)
+            'duration' => min(self::MAX_STORED_SECONDS, (float) ($data['duration'] ?? 0)),
             'width' => (int) $data['width'],
             'height' => (int) $data['height'],
             'expires_at' => now()->addMinutes((int) config('videos.upload_window_minutes')),
@@ -113,7 +129,7 @@ class CommunityVideos
     /** The signed upload address: only this object, this type and exactly this size */
     private function ticket(CommunityVideoUpload $upload): array
     {
-        $headers = ['Content-Type' => 'video/mp4'];
+        $headers = ['Content-Type' => $upload->mime_type];
         $url = $this->r2->presign('PUT', $upload->object_key, (int) config('videos.upload_url_seconds'), $headers + [
             // Signed too: the phone's browser sends it by itself and can't send a bigger file
             'Content-Length' => (string) $upload->size,
@@ -165,9 +181,22 @@ class CommunityVideos
         }
 
         try {
-            $facts = $this->inspector->inspect(function (int $offset, int $length) use ($upload) {
-                return $this->r2->read($upload->object_key, $offset, $length);
-            }, $object['size'], (int) config('videos.max_header_bytes'));
+            // Which structure the file really has decides how it's checked (not its name or type)
+            // One ranged read of the start serves the type check and the header; more only if the header is further on
+            $start = $this->r2->read($upload->object_key, 0, (int) min(262144, $object['size']));
+            $read = function (int $offset, int $length) use ($upload, $start) {
+                return $offset + $length <= strlen($start)
+                    ? (string) substr($start, $offset, $length)
+                    : $this->r2->read($upload->object_key, $offset, $length);
+            };
+            $first = substr($start, 0, 16);
+            $family = MatroskaInspector::looksLike($first) ? 'ebml' : (substr($first, 4, 4) === 'ftyp' ? 'iso' : null);
+            if ($family === null || self::STORED_AS[$family][0] !== $upload->mime_type) {
+                throw new BusinessRuleException('video_unsupported_format', 'This file isn’t a video format we can check. Choose an MP4, MOV or WebM video.', 422);
+            }
+            $facts = $family === 'ebml'
+                ? $this->matroska->inspect($read, $object['size'])
+                : $this->inspector->inspect($read, $object['size'], (int) config('videos.max_header_bytes'));
         } catch (BusinessRuleException $e) {
             $this->fail($upload, $e->errorCode());
             throw $e;
@@ -175,10 +204,6 @@ class CommunityVideos
             $this->backToPending($upload);
             Log::warning('Video storage unreachable while checking an upload', ['upload' => $upload->uuid, 'error' => $e->getMessage()]);
             throw new BusinessRuleException('video_storage_unavailable', 'We couldn’t reach video storage. Please try again in a moment.', 503);
-        }
-        if ($facts['duration'] > $this->maxSeconds() + 0.5) {
-            $this->fail($upload, 'too_long');
-            throw new BusinessRuleException('video_too_long', 'This video is longer than '.$this->maxSeconds().' seconds. Trim it and try again.', 422);
         }
 
         // The picture size the phone saw (after rotation) when it matches the file, either way round
@@ -199,7 +224,7 @@ class CommunityVideos
                     'video_key' => $upload->object_key,
                     'width' => $width,
                     'height' => $height,
-                    'duration' => $facts['duration'],
+                    'duration' => $facts['duration'] === null ? null : min(self::MAX_STORED_SECONDS, $facts['duration']),
                     'size' => $upload->size,
                 ]);
                 $upload->forceFill([

@@ -1,12 +1,15 @@
 <template>
-  <article class="wm-card !p-0 overflow-hidden" :aria-labelledby="`${uid}-author`">
+  <!-- Text and photo posts are cards. A video post is a full-width entry instead (no card):
+       the author above the video, then the actions, the words and the provider's buttons
+       below it (the "order" classes arrange that; they do nothing in a card). -->
+  <article :class="video ? 'wm-video-post' : 'wm-card !p-0 overflow-hidden'" :aria-labelledby="`${uid}-author`">
     <!-- Removed by WorkMate: only the author sees this -->
-    <p v-if="post.removed" class="wm-notice wm-notice-warning !rounded-none !m-0">
+    <p v-if="post.removed" class="wm-notice wm-notice-warning !rounded-none !m-0 order-0">
       <i class="bi bi-eye-slash" aria-hidden="true"></i>
       <span><strong class="font-semibold">WorkMate removed this post.</strong> Only you can see it. Reason: {{ post.removed.reason }}</span>
     </p>
 
-    <header class="flex items-start gap-3 px-4 pt-4 lg:px-5">
+    <header class="order-1 flex items-start gap-3 px-4 pt-4 lg:px-5" :class="{ 'sm:px-1 lg:px-1': video }">
       <component :is="profileLink ? 'router-link' : 'span'" :to="profileLink || undefined" class="shrink-0" :tabindex="profileLink ? -1 : undefined" aria-hidden="true">
         <UserAvatar :name="post.author.name" :src="post.author.avatar_url || ''" :size="44" />
       </component>
@@ -43,7 +46,7 @@
     </header>
 
     <!-- Words: long posts open with "Read more" -->
-    <div v-if="post.body" class="px-4 pt-3 lg:px-5">
+    <div v-if="post.body" class="order-4 px-4 pt-3 lg:px-5" :class="{ '!pt-1 sm:px-1 lg:px-1': video }">
       <p :id="`${uid}-body`" class="text-[15px] leading-relaxed text-ink whitespace-pre-line break-words" :class="{ 'line-clamp-6': clamped }">{{ post.body }}</p>
       <button v-if="long && !full" type="button" class="wm-link mt-1 text-sm" :aria-expanded="!clamped" :aria-controls="`${uid}-body`" @click="expanded = !expanded">
         {{ clamped ? 'Read more' : 'Show less' }}
@@ -51,8 +54,8 @@
     </div>
 
     <!-- A video (one per post) -->
-    <div v-if="video" class="mt-3">
-      <VideoPlayer :media="video" :label="`Video by ${post.author.name}`" />
+    <div v-if="video" class="order-2 mt-3">
+      <VideoPlayer :media="video" :label="`Video by ${post.author.name}`" immersive />
     </div>
 
     <!-- Photos -->
@@ -72,12 +75,12 @@
       </button>
     </div>
 
-    <p v-if="VIDEO_MOCK && post.mock" class="wm-notice wm-notice-warning mx-4 mt-3 !text-[13px] lg:mx-5">
+    <p v-if="VIDEO_MOCK && post.mock" class="order-6 wm-notice wm-notice-warning mx-4 mt-3 !text-[13px] lg:mx-5">
       <i class="bi bi-cone-striped" aria-hidden="true"></i><span>Development preview: this post isn’t saved, and liking or commenting on it won’t work.</span>
     </p>
 
     <!-- A provider's own work: their profile, or a request, is a tap away -->
-    <div v-if="showProviderActions" class="mx-4 mt-3 flex items-center justify-between gap-3 rounded-2xl bg-primary-tint/70 px-3.5 py-2.5 lg:mx-5">
+    <div v-if="showProviderActions" class="order-5 mx-4 mt-3 flex items-center justify-between gap-3 rounded-2xl bg-primary-tint/70 px-3.5 py-2.5 lg:mx-5" :class="{ 'sm:mx-0 lg:mx-0': video }">
       <p class="min-w-0 text-[13px] text-ink truncate">Like this work?<span class="hidden sm:inline text-muted"> See their profile and reviews.</span></p>
       <div class="flex shrink-0 gap-2">
         <router-link :to="profileLink" class="wm-btn wm-btn-secondary !min-h-10 !px-3.5 !text-[13px]">
@@ -90,7 +93,7 @@
     </div>
 
     <!-- Actions: the like and comment icons carry their counts -->
-    <div v-if="!post.removed" class="mt-3 grid grid-cols-4 border-t border-line/70 px-1.5 py-1">
+    <div v-if="!post.removed" class="order-3 grid grid-cols-4 px-1.5 py-1" :class="video ? 'mt-1 sm:px-0' : 'mt-3 border-t border-line/70'">
       <button type="button" class="wm-post-action" :class="{ 'text-primary': post.liked }" :aria-pressed="post.liked" :aria-label="`Like. ${countLabel(post.likes_count, 'like')}`" @click="toggleLike(post)">
         <i :class="['bi', post.liked ? 'bi-hand-thumbs-up-fill' : 'bi-hand-thumbs-up']" aria-hidden="true"></i><span v-if="post.likes_count" class="tabular-nums">{{ shortCount(post.likes_count) }}</span>
       </button>
@@ -107,7 +110,7 @@
         <i :class="['bi', post.saved ? 'bi-bookmark-fill' : 'bi-bookmark']" aria-hidden="true"></i><span>{{ post.saved ? 'Saved' : 'Save' }}</span>
       </button>
     </div>
-    <div v-else class="h-4"></div>
+    <div v-else class="order-3 h-4"></div>
 
     <PhotoViewer v-if="viewer !== null" :media="photos" :start="viewer" :label="`Photos by ${post.author.name}`" @close="viewer = null" />
   </article>

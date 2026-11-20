@@ -1,7 +1,7 @@
 import { api, upload, ApiError } from '@/api/client.js';
 import { newClientToken } from '@/utils/photos.js';
 import { VIDEO_MOCK } from '@/stores/video.js';
-import { videoLog } from '@/utils/video.js';
+import { videoLog, containerOf, UPLOAD_TYPES } from '@/utils/video.js';
 
 /**
  * Publishing a video post. The video goes straight from the phone to storage
@@ -82,8 +82,9 @@ async function adapter() {
 export async function publishVideoPost({ category, body, topic, video }, { onStage, onProgress, signal } = {}) {
     const server = await adapter();
     onStage?.('preparing');
-    // Already an MP4 the server accepts (converted on the phone when it needed to be)
+    // The original file (or a trimmed copy in the same format)
     const file = video.file;
+    const family = await containerOf(file);
 
     let ticket;
     try {
@@ -92,10 +93,11 @@ export async function publishVideoPost({ category, body, topic, video }, { onSta
             body: body || null,
             topic: topic || null,
             file_name: file.name || 'video',
-            // Always an MP4 by now (checked from its header, or converted); the server checks again
-            mime_type: 'video/mp4',
+            // From the file's own structure, not its name; the server checks the file again
+            mime_type: UPLOAD_TYPES[family] || 'video/mp4',
             size: file.size,
-            duration: Math.round(video.duration * 10) / 10,
+            // For reference only (there's no length limit; the server reads the file)
+            duration: video.duration ? Math.round(video.duration * 10) / 10 : null,
             width: video.width,
             height: video.height,
             // The same post isn't made twice if the phone sends this twice

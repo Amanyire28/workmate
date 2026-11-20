@@ -47,7 +47,7 @@ return [
             'view_permission' => 'admin.manage',
             'change_permission' => 'admin.manage',
         ],
-        // Community videos (Cloudflare R2): the size and length limits
+        // Community videos (Cloudflare R2): the size limit
         'community' => [
             'label' => 'Community videos',
             'view_permission' => 'admin.manage',
@@ -238,12 +238,6 @@ return [
             'label' => 'Largest video (MB)',
             'description' => 'Videos bigger than this are refused before upload.',
             'type' => 'integer', 'min' => 1, 'max' => 100, 'default' => 25, 'public' => true,
-        ],
-        'community.video_max_seconds' => [
-            'group' => 'community',
-            'label' => 'Longest video (seconds)',
-            'description' => 'Longer videos are refused.',
-            'type' => 'integer', 'min' => 10, 'max' => 180, 'default' => 60, 'public' => true,
         ],
         'legal.minimum_age' => [
             'group' => 'legal',
