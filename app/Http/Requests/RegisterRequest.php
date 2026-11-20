@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Support\EmailRules;
 use App\Http\Requests\Concerns\ValidatesPhone;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
@@ -25,7 +26,7 @@ class RegisterRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:100'],
-            'email' => ['required', 'string', 'email:rfc', 'max:255', 'unique:users,email'],
+            'email' => array_merge(['required'], EmailRules::new(255), ['unique:users,email']),
             'phone' => $this->phoneRules(),
             'locale' => ['nullable', 'in:en,lg'],
             'password' => ['required', 'confirmed', Password::min(8)->letters()->numbers()],

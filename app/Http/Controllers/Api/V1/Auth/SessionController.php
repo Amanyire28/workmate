@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Auth;
 
+use App\Support\EmailRules;
 use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Http\Middleware\ShortSessionOnSharedDevice;
@@ -11,6 +12,7 @@ use App\Models\User;
 use App\Services\Accounts;
 use App\Services\AuditLogger;
 use App\Services\LegalDocuments;
+use App\Services\PushNotifications;
 use App\Services\Referrals;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -59,7 +61,7 @@ class SessionController extends Controller
         $this->requireSession($request);
 
         $credentials = $request->validate([
-            'email' => ['required', 'string', 'email'],
+            'email' => array_merge(['required'], EmailRules::existing()),
             'password' => ['required', 'string'],
             'remember' => ['sometimes', 'boolean'],
         ]);
@@ -117,8 +119,17 @@ class SessionController extends Controller
         return mb_substr($local, 0, 1).'•••@'.mb_substr($domain, 0, 60);
     }
 
-    public function logout(Request $request): JsonResponse
+    public function logout(Request $request, PushNotifications $push): JsonResponse
     {
+        $data = $request->validate([
+            // This device's push address, so it stops receiving this account's notifications
+            'push_endpoint' => ['nullable', 'string', 'max:1000'],
+        ]);
+        $user = $request->user();
+        if ($user) {
+            $push->forgetDevice($user, $data['push_endpoint'] ?? null, $request->hasSession() ? $request->session()->getId() : null);
+        }
+
         Auth::guard('web')->logout();
         Cookie::queue(Cookie::forget(ShortSessionOnSharedDevice::COOKIE));
 

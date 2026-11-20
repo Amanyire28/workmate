@@ -130,5 +130,52 @@ class RouteServiceProvider extends ServiceProvider
         RateLimiter::for('community-react', function (Request $request) {
             return Limit::perMinute(90)->by(optional($request->user())->id ?: $request->ip());
         });
+
+        // Creating an account: per network address, but generous, because many phones on
+        // one mobile network share an address (carrier-grade NAT)
+        RateLimiter::for('register', function (Request $request) {
+            return [Limit::perMinute(6)->by('m'.$request->ip()), Limit::perHour(60)->by('h'.$request->ip())];
+        });
+
+        // "Forgot password" emails: per address and device (3 an hour), per address from
+        // anywhere (no flooding someone's inbox), and per network address
+        RateLimiter::for('password-reset', function (Request $request) {
+            $email = strtolower(trim((string) $request->input('email')));
+
+            return [
+                Limit::perHour(3)->by('e'.$email.'|'.$request->ip()),
+                Limit::perHour(6)->by('a'.$email),
+                Limit::perMinute(6)->by('i'.$request->ip()),
+            ];
+        });
+
+        // Likes on posts and comments (on top of community-react)
+        RateLimiter::for('community-like', function (Request $request) {
+            return Limit::perMinute(30)->by(optional($request->user())->id ?: $request->ip());
+        });
+
+        // Starting a video upload (each finished or retried upload asks again)
+        RateLimiter::for('video-upload', function (Request $request) {
+            $key = optional($request->user())->id ?: $request->ip();
+
+            return [Limit::perHour(10)->by('h'.$key), Limit::perDay(30)->by('d'.$key)];
+        });
+
+        // Turning notifications on or off; the app re-confirms its subscription when it opens
+        RateLimiter::for('push-subscription', function (Request $request) {
+            return Limit::perHour(30)->by(optional($request->user())->id ?: $request->ip());
+        });
+
+        // Searching for people (typing waits 300 ms between searches)
+        RateLimiter::for('people-search', function (Request $request) {
+            $user = $request->user('sanctum');
+
+            return $user ? Limit::perMinute(40)->by('u'.$user->id) : Limit::perMinute(120)->by('i'.$request->ip());
+        });
+
+        // Content Security Policy reports (browsers can send several per page)
+        RateLimiter::for('csp-reports', function (Request $request) {
+            return Limit::perMinute(60)->by($request->ip());
+        });
     }
 }

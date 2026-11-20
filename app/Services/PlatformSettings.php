@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\EmailRules;
 use App\Exceptions\BusinessRuleException;
 use App\Models\PlatformSetting;
 use App\Models\User;
@@ -132,7 +133,7 @@ class PlatformSettings
             case 'string':
                 return ['nullable', 'string', 'max:'.($definition['max'] ?? 255)];
             case 'email':
-                return ['nullable', 'email', 'max:120'];
+                return array_merge(['nullable'], EmailRules::new(120));
             case 'area':
                 return ['required', 'string', Rule::exists('areas', 'slug')->where('is_active', true)];
             default:

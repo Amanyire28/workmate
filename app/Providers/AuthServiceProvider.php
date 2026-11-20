@@ -51,12 +51,16 @@ class AuthServiceProvider extends ServiceProvider
             return $user->isProvider();
         });
 
-        // Email links open pages in the Vue app, which call the API
+        // Email links open pages in the Vue app, which call the API. They're built from the
+        // site's own address (APP_PUBLIC_URL), never from the Host header of the request
+        // that asked for them, so a forged header can't send the link somewhere else.
         VerifyEmail::createUrlUsing(function ($user) {
-            return URL::temporarySignedRoute('api.v1.auth.verify-email', now()->addMinutes(config('auth.verification.expire')), [
-                'id' => $user->getKey(),
-                'hash' => sha1($user->getEmailForVerification()),
-            ]);
+            return self::fromPublicUrl(function () use ($user) {
+                return URL::temporarySignedRoute('api.v1.auth.verify-email', now()->addMinutes(config('auth.verification.expire')), [
+                    'id' => $user->getKey(),
+                    'hash' => sha1($user->getEmailForVerification()),
+                ]);
+            });
         });
 
         VerifyEmail::toMailUsing(function ($user, string $url) {
@@ -73,10 +77,27 @@ class AuthServiceProvider extends ServiceProvider
         });
 
         ResetPassword::createUrlUsing(function ($user, string $token) {
-            return url('/reset-password?'.http_build_query([
-                'token' => $token,
-                'email' => $user->getEmailForPasswordReset(),
-            ]));
+            return self::fromPublicUrl(function () use ($user, $token) {
+                return url('/reset-password?'.http_build_query([
+                    'token' => $token,
+                    'email' => $user->getEmailForPasswordReset(),
+                ]));
+            });
         });
+    }
+
+    /** Builds a link from APP_PUBLIC_URL when it's set (config/security.php) */
+    private static function fromPublicUrl(callable $build): string
+    {
+        $root = (string) config('security.public_url');
+        if ($root === '') {
+            return $build();
+        }
+        URL::forceRootUrl($root);
+        try {
+            return $build();
+        } finally {
+            URL::forceRootUrl(null);
+        }
     }
 }

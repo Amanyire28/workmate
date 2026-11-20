@@ -22,7 +22,7 @@ class PushSubscription extends Model
         'platform',
     ];
 
-    protected $hidden = ['endpoint', 'public_key', 'auth_token'];
+    protected $hidden = ['endpoint', 'public_key', 'auth_token', 'session_hash'];
 
     protected $casts = [
         'user_id' => 'integer',

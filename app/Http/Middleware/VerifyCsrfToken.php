@@ -12,6 +12,7 @@ class VerifyCsrfToken extends Middleware
      * @var array<int, string>
      */
     protected $except = [
-        //
+        // Browsers send Content Security Policy reports without the page's token
+        'api/v1/csp-reports',
     ];
 }

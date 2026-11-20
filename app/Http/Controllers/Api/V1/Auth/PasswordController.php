@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1\Auth;
 
+use App\Support\EmailRules;
 use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Services\Accounts;
@@ -22,7 +23,7 @@ class PasswordController extends Controller
      */
     public function forgot(Request $request): JsonResponse
     {
-        $data = $request->validate(['email' => ['required', 'string', 'email']]);
+        $data = $request->validate(['email' => array_merge(['required'], EmailRules::existing())]);
 
         try {
             Password::sendResetLink(['email' => strtolower(trim($data['email']))]);
@@ -41,7 +42,7 @@ class PasswordController extends Controller
     {
         $data = $request->validate([
             'token' => ['required', 'string'],
-            'email' => ['required', 'string', 'email'],
+            'email' => array_merge(['required'], EmailRules::existing()),
             'password' => ['required', 'confirmed', PasswordRule::min(8)->letters()->numbers()],
         ]);
 

@@ -16,6 +16,22 @@ export const push = reactive({ state: 'checking', busy: false, error: '' });
 let publicKey = null;
 let syncedEndpoint = null;
 
+/*
+ * Which account this device's subscription was linked to, so a signed-out
+ * device, or one where someone else signs in, never keeps receiving that
+ * account's notifications. (A subscription made before anyone signed in,
+ * on the welcome screens, has no owner yet and is kept.)
+ */
+const OWNER_KEY = 'workmate.pushOwner';
+function owner() {
+    try { return localStorage.getItem(OWNER_KEY); } catch { return null; }
+}
+function setOwner(id) {
+    try {
+        if (id) localStorage.setItem(OWNER_KEY, String(id)); else localStorage.removeItem(OWNER_KEY);
+    } catch { /* private mode: the server side still protects */ }
+}
+
 function keyBytes(base64url) {
     const base64 = (base64url + '='.repeat((4 - (base64url.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/');
     return Uint8Array.from(atob(base64), c => c.charCodeAt(0));
@@ -46,6 +62,52 @@ async function save(subscription) {
         body: { endpoint: json.endpoint, keys: json.keys, content_encoding: encoding(), platform: platformGroup() },
     });
     syncedEndpoint = json.endpoint;
+    setOwner(auth.user?.id);
+}
+
+/** This device's push address, if it has one (sent when signing out) */
+export async function currentPushEndpoint() {
+    try {
+        if (!('serviceWorker' in navigator)) return null;
+        const subscription = await (await registration())?.pushManager.getSubscription();
+        return subscription?.endpoint || null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * After signing out (or on a device whose account was signed out): stops this
+ * device receiving anything at all. The next person turns notifications on
+ * for themselves.
+ */
+export async function releaseThisDevice() {
+    try {
+        const subscription = 'serviceWorker' in navigator ? await (await registration())?.pushManager.getSubscription() : null;
+        if (subscription) await subscription.unsubscribe();
+    } catch {
+        // The server has already forgotten it, so nothing more is sent here
+    }
+    syncedEndpoint = null;
+    setOwner(null);
+    if (push.state === 'on') push.state = 'off';
+}
+
+/**
+ * Opened signed out: any subscription on this device is left over from an
+ * account (notifications can only be turned on while signed in), e.g. one
+ * signed out before sign-out removed subscriptions, or whose session ran out.
+ * It's released, so that account's notifications stop arriving here.
+ */
+export async function releaseIfSignedOut() {
+    if (auth.user) return;
+    try {
+        if (!('serviceWorker' in navigator)) return;
+        const subscription = await (await registration())?.pushManager.getSubscription();
+        if (subscription || owner()) await releaseThisDevice();
+    } catch {
+        // Nothing to release
+    }
 }
 
 /** Works out the state, and makes sure the server knows about this device */
@@ -80,6 +142,13 @@ export async function refreshPush() {
         if (subscription && !sameKey(subscription)) {
             // The server's keys changed: the old subscription can't receive anything
             await subscription.unsubscribe().catch(() => {});
+            subscription = null;
+        }
+        // Linked to another account, or to one that has signed out: release it rather than
+        // passing that person's notifications on (whoever is here turns them on for themselves)
+        const linkedTo = owner();
+        if (subscription && linkedTo && (!auth.user || String(auth.user.id) !== linkedTo)) {
+            await releaseThisDevice();
             subscription = null;
         }
         if (subscription && Notification.permission === 'granted') {

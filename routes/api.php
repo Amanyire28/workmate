@@ -80,6 +80,8 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 */
 Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('health', HealthController::class)->name('health');
+    // Content Security Policy reports from browsers (logged; see SecurityHeaders)
+    Route::post('csp-reports', [\App\Http\Controllers\Api\V1\CspReportController::class, 'store'])->middleware('throttle:csp-reports')->name('csp-reports');
     Route::get('categories', [CategoryController::class, 'index'])->name('categories.index');
     Route::get('catalog', [DirectoryController::class, 'catalog'])->name('catalog');
     Route::get('avatars/{file}', [ProfilePhotoController::class, 'show'])
@@ -117,7 +119,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('community/posts', [CommunityController::class, 'index'])->name('community.index');
     Route::get('community/posts/{post}', [CommunityController::class, 'show'])->whereUuid('post')->name('community.show');
     Route::get('community/posts/{post}/comments', [CommunityController::class, 'comments'])->whereUuid('post')->name('community.comments');
-    Route::get('community/people', [CommunityPeopleController::class, 'index'])->name('community.people');
+    Route::get('community/people', [CommunityPeopleController::class, 'index'])->middleware('throttle:people-search')->name('community.people');
     Route::get('community/people/suggested', [CommunityPeopleController::class, 'suggested'])->name('community.people.suggested');
     Route::get('community/people/{user}', [CommunityPeopleController::class, 'show'])->whereNumber('user')->name('community.people.show');
     Route::get('community/people/{user}/followers', [CommunityPeopleController::class, 'followers'])->whereNumber('user')->name('community.people.followers');
@@ -141,10 +143,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
     // Signing in and out (cookie sessions; call GET /sanctum/csrf-cookie first)
     Route::prefix('auth')->name('auth.')->group(function () {
-        Route::post('register', [SessionController::class, 'register'])->middleware('throttle:account-email')->name('register');
+        Route::post('register', [SessionController::class, 'register'])->middleware(['throttle:account-email', 'throttle:register'])->name('register');
         Route::post('login', [SessionController::class, 'login'])->middleware('throttle:login')->name('login');
         Route::post('logout', [SessionController::class, 'logout'])->name('logout');
-        Route::post('forgot-password', [PasswordController::class, 'forgot'])->middleware('throttle:account-email')->name('forgot-password');
+        Route::post('forgot-password', [PasswordController::class, 'forgot'])->middleware(['throttle:account-email', 'throttle:password-reset'])->name('forgot-password');
         Route::post('reset-password', [PasswordController::class, 'reset'])->middleware('throttle:login')->name('reset-password');
         // Opened from the email; the signature is checked in the controller
         Route::get('verify-email/{id}/{hash}', [EmailVerificationController::class, 'verify'])->name('verify-email');
@@ -195,8 +197,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::post('me/reports/{id}/reply', [ReportController::class, 'reply'])->whereNumber('id')->name('me.reports.reply');
         });
         Route::middleware('throttle:marketplace-write')->group(function () {
-            Route::post('me/push-subscriptions', [PushSubscriptionController::class, 'store'])->name('me.push.store');
-            Route::delete('me/push-subscriptions', [PushSubscriptionController::class, 'destroy'])->name('me.push.destroy');
+            Route::post('me/push-subscriptions', [PushSubscriptionController::class, 'store'])->middleware('throttle:push-subscription')->name('me.push.store');
+            Route::delete('me/push-subscriptions', [PushSubscriptionController::class, 'destroy'])->middleware('throttle:push-subscription')->name('me.push.destroy');
         });
         Route::get('me/requests', [MyActivityController::class, 'requests'])->name('me.requests');
         Route::get('me/applications', [MyActivityController::class, 'applications'])->name('me.applications');
@@ -306,7 +308,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::middleware('throttle:community-post')->group(function () {
             Route::post('community/posts', [CommunityController::class, 'store'])->name('community.store');
             // Video posts: the phone uploads straight to storage, then says it's finished
-            Route::post('community/video-uploads', [CommunityVideoController::class, 'store'])->name('community.videos.store');
+            Route::post('community/video-uploads', [CommunityVideoController::class, 'store'])->middleware('throttle:video-upload')->name('community.videos.store');
         });
         Route::middleware('throttle:community-react')->group(function () {
             Route::post('community/video-uploads/{upload}/complete', [CommunityVideoController::class, 'complete'])->whereUuid('upload')->name('community.videos.complete');
@@ -318,13 +320,13 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::middleware('throttle:community-react')->group(function () {
             Route::patch('community/posts/{post}', [CommunityController::class, 'update'])->whereUuid('post')->name('community.update');
             Route::delete('community/posts/{post}', [CommunityController::class, 'destroy'])->whereUuid('post')->name('community.destroy');
-            Route::post('community/posts/{post}/like', [CommunityController::class, 'like'])->whereUuid('post')->name('community.like');
-            Route::delete('community/posts/{post}/like', [CommunityController::class, 'like'])->whereUuid('post')->name('community.unlike');
+            Route::post('community/posts/{post}/like', [CommunityController::class, 'like'])->whereUuid('post')->middleware('throttle:community-like')->name('community.like');
+            Route::delete('community/posts/{post}/like', [CommunityController::class, 'like'])->whereUuid('post')->middleware('throttle:community-like')->name('community.unlike');
             Route::post('community/posts/{post}/save', [CommunityController::class, 'save'])->whereUuid('post')->name('community.save');
             Route::delete('community/posts/{post}/save', [CommunityController::class, 'save'])->whereUuid('post')->name('community.unsave');
             Route::delete('community/comments/{comment}', [CommunityController::class, 'destroyComment'])->whereNumber('comment')->name('community.comment.destroy');
-            Route::post('community/comments/{comment}/like', [CommunityController::class, 'likeComment'])->whereNumber('comment')->name('community.comment.like');
-            Route::delete('community/comments/{comment}/like', [CommunityController::class, 'likeComment'])->whereNumber('comment')->name('community.comment.unlike');
+            Route::post('community/comments/{comment}/like', [CommunityController::class, 'likeComment'])->whereNumber('comment')->middleware('throttle:community-like')->name('community.comment.like');
+            Route::delete('community/comments/{comment}/like', [CommunityController::class, 'likeComment'])->whereNumber('comment')->middleware('throttle:community-like')->name('community.comment.unlike');
             Route::post('community/people/{user}/follow', [CommunityPeopleController::class, 'follow'])->whereNumber('user')->name('community.follow');
             Route::delete('community/people/{user}/follow', [CommunityPeopleController::class, 'follow'])->whereNumber('user')->name('community.unfollow');
         });

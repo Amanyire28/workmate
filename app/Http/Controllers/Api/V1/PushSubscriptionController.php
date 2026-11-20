@@ -30,7 +30,7 @@ class PushSubscriptionController extends Controller
             'platform' => ['nullable', Rule::in(PushSubscription::PLATFORMS)],
         ]);
 
-        $push->subscribe($request->user(), $data);
+        $push->subscribe($request->user(), $data, $request->hasSession() ? $request->session()->getId() : null);
 
         return response()->json(['data' => ['subscribed' => true]], 201);
     }

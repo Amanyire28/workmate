@@ -35,8 +35,12 @@ class PushNotifications
         return (bool) config('services.webpush.public_key') && (bool) config('services.webpush.private_key');
     }
 
-    /** Saves this device's subscription for the user; a device signed in as someone else moves to them */
-    public function subscribe(User $user, array $data): PushSubscription
+    /**
+     * Saves this device's subscription for the user; a device signed in as
+     * someone else moves to them (and stops receiving the other person's).
+     * The sign-in session is remembered (hashed) so signing out can remove it.
+     */
+    public function subscribe(User $user, array $data, ?string $sessionId = null): PushSubscription
     {
         $hash = PushSubscription::hashEndpoint($data['endpoint']);
         $subscription = PushSubscription::where('endpoint_hash', $hash)->first() ?: new PushSubscription();
@@ -47,9 +51,45 @@ class PushNotifications
             'content_encoding' => $data['content_encoding'] ?? 'aes128gcm',
             'platform' => $data['platform'] ?? null,
         ]);
-        $subscription->forceFill(['endpoint_hash' => $hash, 'user_id' => $user->getKey()])->save();
+        $subscription->forceFill([
+            'endpoint_hash' => $hash,
+            'user_id' => $user->getKey(),
+            'session_hash' => self::sessionHash($sessionId),
+        ])->save();
 
         return $subscription;
+    }
+
+    /**
+     * Signing out: removes this device's subscription, found by its address
+     * (sent by the page) or by the session it was saved in. Only the user's
+     * own; their other devices keep theirs.
+     *
+     * @return int how many were removed
+     */
+    public function forgetDevice(User $user, ?string $endpoint, ?string $sessionId): int
+    {
+        $endpointHash = $endpoint ? PushSubscription::hashEndpoint($endpoint) : null;
+        $sessionHash = self::sessionHash($sessionId);
+        if (! $endpointHash && ! $sessionHash) {
+            return 0;
+        }
+
+        return PushSubscription::where('user_id', $user->getKey())
+            ->where(function ($q) use ($endpointHash, $sessionHash) {
+                if ($endpointHash) {
+                    $q->orWhere('endpoint_hash', $endpointHash);
+                }
+                if ($sessionHash) {
+                    $q->orWhere('session_hash', $sessionHash);
+                }
+            })
+            ->delete();
+    }
+
+    private static function sessionHash(?string $sessionId): ?string
+    {
+        return $sessionId ? hash('sha256', $sessionId) : null;
     }
 
     /** Removes this device's subscription, if it belongs to the user */

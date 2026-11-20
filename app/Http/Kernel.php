@@ -14,7 +14,9 @@ class Kernel extends HttpKernel
      * @var array<int, class-string|string>
      */
     protected $middleware = [
-        // \App\Http\Middleware\TrustHosts::class,
+        // Only the site's own host names, once APP_PUBLIC_URL is set (config/security.php)
+        \App\Http\Middleware\TrustHosts::class,
+        \App\Http\Middleware\SecurityHeaders::class,
         \App\Http\Middleware\TrustProxies::class,
         \Fruitcake\Cors\HandleCors::class,
         \App\Http\Middleware\PreventRequestsDuringMaintenance::class,

@@ -9,6 +9,7 @@ use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Session\TokenMismatchException;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpFoundation\Exception\SuspiciousOperationException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -89,6 +90,11 @@ class Handler extends ExceptionHandler
 
         if ($e instanceof ModelNotFoundException || $e instanceof NotFoundHttpException) {
             return $this->apiError(404, 'not_found', 'The requested item was not found.');
+        }
+
+        // A Host header that isn't one of the site's own (TrustHosts): refused, not an error
+        if ($e instanceof SuspiciousOperationException) {
+            return $this->apiError(400, 'bad_host', 'This request was refused.');
         }
 
         if ($e instanceof TokenMismatchException) {

@@ -19,7 +19,10 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    // Only the site itself (APP_PUBLIC_URL) and any listed in CORS_ALLOWED_ORIGINS
+    // (config/security.php). The website calls the API from its own origin, so it needs none.
+    // (config/security.php is read directly: config files load in alphabetical order)
+    'allowed_origins' => (require __DIR__.'/security.php')['cors_origins'],
 
     'allowed_origins_patterns' => [],
 

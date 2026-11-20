@@ -64,11 +64,15 @@ export async function register(fields) {
 }
 
 export async function signOut() {
+    // This device's push address: the server stops sending this account's notifications to it
+    const { currentPushEndpoint, releaseThisDevice } = await import('@/stores/push.js');
+    const pushEndpoint = await currentPushEndpoint();
     try {
-        await api('/auth/logout', { method: 'POST' });
+        await api('/auth/logout', { method: 'POST', body: { push_endpoint: pushEndpoint } });
     } finally {
         auth.user = null;
         accountChanged();
+        await releaseThisDevice();
     }
 }
 
