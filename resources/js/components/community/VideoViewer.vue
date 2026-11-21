@@ -101,7 +101,7 @@
         <button ref="closeBtn" type="button" class="wm-viewer-round pointer-events-auto" aria-label="Close videos" @click="$emit('close')">
           <i class="bi bi-x-lg text-[20px]" aria-hidden="true"></i>
         </button>
-        <button type="button" class="wm-viewer-round pointer-events-auto" :aria-label="soundOff ? 'Turn sound on' : 'Mute'" :aria-pressed="!soundOff" @click="player?.toggleMute()">
+        <button type="button" class="wm-viewer-round pointer-events-auto" :aria-label="soundOff ? 'Turn sound on' : 'Mute'" :aria-pressed="!soundOff" @click="toggleSound">
           <i :class="['bi text-[20px]', soundOff ? 'bi-volume-mute-fill' : 'bi-volume-up-fill']" aria-hidden="true"></i>
         </button>
       </div>
@@ -122,7 +122,7 @@ import { ref, shallowRef, computed, watch, onMounted, onBeforeUnmount, nextTick 
 import UserAvatar from '@/components/UserAvatar.vue';
 import VerifiedBadge from '@/components/VerifiedBadge.vue';
 import VideoPlayer from './VideoPlayer.vue';
-import { videoPrefs } from '@/stores/video.js';
+import { videoPrefs, setVideoMuted } from '@/stores/video.js';
 import { toggleLike, toggleSave, sharePost, personLink, shortCount, countLabel } from '@/stores/community.js';
 
 /**
@@ -162,6 +162,11 @@ const slots = computed(() => [-1, 0, 1]
   .map(offset => ({ offset, post: props.videos[index.value + offset] }))
   .filter(s => s.post));
 const soundOff = computed(() => (player.value ? player.value.muted : videoPrefs.muted));
+// The same sound choice as the feed's videos (the playing one changes at once, without restarting)
+function toggleSound() {
+  if (player.value) player.value.toggleMute();
+  else setVideoMuted(!videoPrefs.muted);
+}
 const announcement = computed(() => {
   const p = props.videos[index.value];
   return p ? `Video ${index.value + 1}${props.done ? ` of ${props.videos.length}` : ''}, by ${p.author.name}` : '';

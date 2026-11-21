@@ -25,12 +25,23 @@ export const videoLimits = computed(() => ({
 /* ---------------- Preferences (this phone only) ---------------- */
 
 const SAVER_KEY = 'wm-data-saver';
+// Sound for every community video, feed and full screen: 'on' or 'off' (nothing personal)
+const SOUND_KEY = 'wm-video-sound';
 
 function readSaver() {
     try {
         const v = localStorage.getItem(SAVER_KEY);
         // On unless they turned it off: most members are on mobile data
         return v === null ? true : v === '1';
+    } catch {
+        return true;
+    }
+}
+
+function readMuted() {
+    try {
+        // Silent until they turn sound on
+        return localStorage.getItem(SOUND_KEY) !== 'on';
     } catch {
         return true;
     }
@@ -43,14 +54,27 @@ function reducedMotion() {
 export const videoPrefs = reactive({
     // Data Saver: videos load only when tapped, and never start by themselves
     dataSaver: readSaver(),
-    // A tapped video has sound unless they muted one before; videos that start by themselves never do
-    muted: false,
+    // One sound choice for every video (feed and full screen), kept on this phone; muted at first
+    muted: readMuted(),
     reducedMotion: reducedMotion(),
 });
 
 export function setDataSaver(on) {
     videoPrefs.dataSaver = !!on;
     try { localStorage.setItem(SAVER_KEY, on ? '1' : '0'); } catch { /* kept for this visit only */ }
+}
+
+/** Sound on or off for every community video; a playing video just changes volume, it doesn't restart */
+export function setVideoMuted(on) {
+    videoPrefs.muted = !!on;
+    try { localStorage.setItem(SOUND_KEY, on ? 'off' : 'on'); } catch { /* kept for this visit only */ }
+}
+
+// Another tab changed it: follow along
+if (typeof window !== 'undefined') {
+    window.addEventListener('storage', (e) => {
+        if (e.key === SOUND_KEY) videoPrefs.muted = e.newValue !== 'on';
+    });
 }
 
 /** The full-screen viewer is open: videos in the feed behind it never start */

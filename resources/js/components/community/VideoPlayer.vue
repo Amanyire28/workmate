@@ -71,6 +71,24 @@
         <button v-if="error !== 'This video isn’t available any more.'" type="button" class="wm-btn wm-btn-secondary !min-h-11" @click="retry()">Try again</button>
       </div>
 
+      <!-- Sound, in every feed video (one choice for all videos); in its own corner, so it never opens the viewer -->
+      <button
+        v-if="!fill && !error && (opensViewer || !started)"
+        type="button"
+        class="wm-video-sound"
+        :class="{ 'wm-video-sound-hint': soundBlocked && playing }"
+        :aria-label="muted ? 'Turn sound on for videos' : 'Mute videos'"
+        :aria-pressed="!muted"
+        @click.stop="toggleMute"
+        @pointerdown.stop
+        @touchstart.stop.passive
+      >
+        <span class="wm-video-sound-face">
+          <i :class="['bi', muted ? 'bi-volume-mute-fill' : 'bi-volume-up-fill']" aria-hidden="true"></i>
+          <span v-if="soundBlocked && playing" class="text-[12px] font-semibold">Tap for sound</span>
+        </span>
+      </button>
+
       <!-- Length before playing; controls once it has started -->
       <span v-if="(!started || opensViewer) && !error && !fill" class="pointer-events-none absolute bottom-2.5 left-2.5 z-[2] rounded-full bg-[#0B1220]/70 px-2.5 py-1 text-[12px] font-semibold tabular-nums" aria-hidden="true">
         <i class="bi bi-camera-video mr-1" aria-hidden="true"></i>{{ formatDuration(length) }}
@@ -110,7 +128,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { formatDuration, videoLog } from '@/utils/video.js';
 import { api } from '@/api/client.js';
-import { videoPrefs, autoplayAllowed, claimPlayback, releasePlayback } from '@/stores/video.js';
+import { videoPrefs, autoplayAllowed, claimPlayback, releasePlayback, setVideoMuted } from '@/stores/video.js';
 
 const props = defineProps({
   // { url, poster_url, thumb_url, width, height, duration, status }
@@ -139,7 +157,10 @@ const waiting = ref(false);
 const error = ref('');
 const position = ref(0);
 const loadedLength = ref(0);
-const muted = ref(true);
+// The browser refused sound without a tap (e.g. iPhone): playing silently until they tap the sound button
+const soundBlocked = ref(false);
+// Shared by every video: what they chose, unless the browser made this one silent
+const muted = computed(() => videoPrefs.muted || soundBlocked.value);
 const fullscreen = ref(false);
 let resumeAt = props.startAt || 0;
 let userPaused = false;          // they paused it: don't start it again by itself
@@ -176,16 +197,17 @@ async function start({ auto = false } = {}) {
   // Released earlier (its address taken off) while the page kept the same address: put it back
   if (!v.getAttribute('src') && props.media.url) v.src = props.media.url;
   autoStarted = auto;
-  // Starting by itself is always silent; a tap uses their last sound choice
-  muted.value = auto ? true : videoPrefs.muted;
+  // Their sound choice, whether it was tapped or started by itself
+  soundBlocked.value = false;
   v.muted = muted.value;
   claimPlayback(handle);
   try {
     await v.play();
   } catch (e) {
     if (e?.name === 'NotAllowedError' && !v.muted) {
-      // Some browsers only allow silent playback without a tap
-      muted.value = true;
+      // Sound needs a tap here (iPhones, some Android browsers): play silently and offer "Tap for sound";
+      // if even that is refused (e.g. Low Power Mode), the play button stays for a tap
+      soundBlocked.value = true;
       v.muted = true;
       try { await v.play(); } catch { /* the play button stays */ }
     } else if (e?.name !== 'AbortError' && !auto && !v.error) {
@@ -218,12 +240,21 @@ function toggle() {
   }
 }
 
+/** Sound on or off for every video; this one keeps playing from where it is */
 function toggleMute() {
-  muted.value = !muted.value;
-  if (video.value) video.value.muted = muted.value;
-  videoPrefs.muted = muted.value;
+  const soundOn = muted.value;
+  soundBlocked.value = false;
+  setVideoMuted(!soundOn);
+  // Straight away, inside the tap (browsers allow sound only then)
+  if (video.value) video.value.muted = !soundOn;
   autoStarted = false;
 }
+
+// Changed on another video, or in the viewer: follow it (no restart, same position)
+watch(() => videoPrefs.muted, (m) => {
+  if (!m) soundBlocked.value = false;
+  if (video.value) video.value.muted = muted.value;
+});
 
 function seek(value) {
   const v = video.value;
