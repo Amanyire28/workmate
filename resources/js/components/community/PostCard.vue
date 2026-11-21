@@ -56,7 +56,7 @@
 
     <!-- A video (one per post) -->
     <div v-if="video" class="mt-2.5">
-      <VideoPlayer :media="video" :label="`Video by ${post.author.name}`" />
+      <VideoPlayer :media="video" :label="`Video by ${post.author.name}`" :opens-viewer="videoViewer" @open="$emit('open-video', post, $event)" />
     </div>
 
     <!-- One photo keeps its whole shape (blurred copy behind); more go in a grid of up to four -->
@@ -132,8 +132,10 @@ const props = defineProps({
   full: { type: Boolean, default: false },
   // In the feed: comments open in a sheet over the page
   sheetComments: { type: Boolean, default: false },
+  // In the feed: tapping the video opens the full-screen viewer
+  videoViewer: { type: Boolean, default: false },
 });
-const emit = defineEmits(['edit', 'delete', 'report', 'comment']);
+const emit = defineEmits(['edit', 'delete', 'report', 'comment', 'open-video']);
 
 const uid = useId();
 const category = computed(() => categoryOf(props.post.category));

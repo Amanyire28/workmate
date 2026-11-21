@@ -105,7 +105,7 @@
         <template v-else>
           <ul class="mt-4 flex flex-col gap-2">
             <li v-for="post in state.posts" :key="post.id">
-              <PostCard :post="post" sheet-comments @comment="commenting = $event" @edit="editing = $event" @delete="remove" @report="reporting = { about: 'post', postId: $event.id }" />
+              <PostCard :post="post" sheet-comments video-viewer @comment="commenting = $event" @edit="editing = $event" @delete="remove" @report="reporting = { about: 'post', postId: $event.id }" @open-video="openVideo" />
             </li>
           </ul>
 
@@ -183,6 +183,18 @@
       <i class="bi bi-plus-lg text-2xl" aria-hidden="true"></i>
     </button>
 
+    <!-- Videos full screen (?video=… in the address, so Back closes it and returns to the same place) -->
+    <VideoViewer
+      v-if="viewerOpen"
+      :videos="viewerVideos"
+      :start-id="route.query.video"
+      :start-at="viewerStartAt"
+      :done="state.done"
+      :loading="state.loading"
+      @close="closeVideo"
+      @comment="commenting = $event"
+      @load-more="moreVideos"
+    />
     <CommentsSheet :post="commenting" @close="commenting = null" @report="reporting = { about: 'comment', commentId: $event.id }" />
     <PostComposer :open="composerOpen || !!editing" :post="editing" @close="composerOpen = false; editing = null" @published="published" @updated="updated" />
     <ReportSheet :open="!!reporting" :about="reporting?.about || 'post'" :post-id="reporting?.postId" :comment-id="reporting?.commentId" @close="reporting = null" />
@@ -203,7 +215,8 @@ import CommentsSheet from '@/components/community/CommentsSheet.vue';
 import PersonRow from '@/components/community/PersonRow.vue';
 import SuggestionCard from '@/components/engagement/SuggestionCard.vue';
 import DataSaverToggle from '@/components/community/DataSaverToggle.vue';
-import { videoPostsEnabled, VIDEO_MOCK } from '@/stores/video.js';
+import VideoViewer from '@/components/community/VideoViewer.vue';
+import { videoPostsEnabled, VIDEO_MOCK, videoViewer } from '@/stores/video.js';
 import { refreshSuggestions } from '@/stores/engagement.js';
 import { api } from '@/api/client.js';
 import { auth, isProvider } from '@/stores/auth.js';
@@ -357,6 +370,78 @@ watch(feedKey, async () => {
   watchSentinel();
 });
 watch(() => state.posts.length, async () => { await nextTick(); if (sentinel.value && observer) observer.observe(sentinel.value); });
+
+/* ---------------- Videos, full screen ---------------- */
+
+// Playable videos among the posts already loaded (the very same objects as the feed's)
+const feedVideos = computed(() => state.posts.filter(p => !p.removed
+  && p.media?.some(m => m.type === 'video' && (m.status || 'ready') === 'ready')));
+// A video opened from a link that isn't in the loaded feed: fetched (and checked) by the server
+const extraVideo = ref(null);
+const viewerVideos = computed(() => (extraVideo.value && !feedVideos.value.some(p => p.id === extraVideo.value.id)
+  ? [extraVideo.value, ...feedVideos.value]
+  : feedVideos.value));
+const viewerOpen = computed(() => !!route.query.video && viewerVideos.value.some(p => p.id === route.query.video));
+const viewerStartAt = ref(0);
+let openedHere = false;
+let opener = null;
+
+function openVideo(post, { at = 0 } = {}) {
+  viewerStartAt.value = at;
+  opener = document.activeElement;
+  openedHere = true;
+  // Only the address changes: the feed stays as it is (and the router keeps the scroll position for Back)
+  router.push({ query: { ...route.query, video: post.id } });
+}
+
+function closeVideo() {
+  if (openedHere) {
+    router.back();
+  } else {
+    const { video: _drop, ...rest } = route.query;
+    router.replace({ query: rest });
+  }
+}
+
+watch(() => route.query.video, async (id, previous) => {
+  videoViewer.open = !!id;
+  if (!id) {
+    openedHere = false;
+    extraVideo.value = null;
+    // Back where they were, on the video they opened
+    if (previous) nextTick(() => opener?.focus?.({ preventScroll: true }));
+    return;
+  }
+  // Opened from a link: wait for the feed, then find it, or ask the server for that one post
+  if (!viewerVideos.value.some(p => p.id === id)) {
+    while (state.loading) await new Promise(r => setTimeout(r, 100));
+    if (route.query.video !== id || viewerVideos.value.some(p => p.id === id)) return;
+    try {
+      const post = (await api(`/community/posts/${encodeURIComponent(id)}`)).data;
+      const playable = post.media?.some(m => m.type === 'video' && (m.status || 'ready') === 'ready');
+      if (playable && route.query.video === id) { extraVideo.value = post; return; }
+    } catch { /* not found or not allowed */ }
+    if (route.query.video === id) closeVideo();
+  }
+}, { immediate: true });
+onBeforeUnmount(() => { videoViewer.open = false; });
+
+// More videos for the viewer: the next feed pages, until one has a video (or there are no more)
+let fetchingVideos = false;
+async function moreVideos() {
+  if (fetchingVideos || state.done) return;
+  fetchingVideos = true;
+  try {
+    const before = feedVideos.value.length;
+    for (let i = 0; i < 4 && !state.done && feedVideos.value.length === before; i++) {
+      while (state.loading) await new Promise(r => setTimeout(r, 100));
+      if (state.done) break;
+      await load();
+    }
+  } finally {
+    fetchingVideos = false;
+  }
+}
 
 /* ---------------- Writing, editing, deleting, reporting ---------------- */
 const composerOpen = ref(false);

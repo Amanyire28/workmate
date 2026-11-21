@@ -2,8 +2,8 @@
   <div
     ref="root"
     class="wm-video relative w-full overflow-hidden bg-[#0B1220] text-white select-none"
-    :class="{ 'wm-video-full': fullscreen }"
-    :style="fullscreen ? null : { aspectRatio: boxRatio }"
+    :class="{ 'wm-video-full': fullscreen, 'wm-video-fill': fill }"
+    :style="fullscreen || fill ? null : { aspectRatio: boxRatio }"
     role="group"
     :aria-label="label"
   >
@@ -46,12 +46,13 @@
     </div>
 
     <template v-else>
-      <!-- Tap anywhere to play or pause -->
+      <!-- Tap anywhere to play or pause (in the feed: open the full-screen viewer) -->
       <button
         type="button"
         class="absolute inset-0 z-[1] h-full w-full cursor-pointer focus-visible:outline-offset-[-4px]"
-        :aria-label="playing ? `Pause video. ${durationLabel}` : `Play video. ${durationLabel}`"
-        @click="toggle"
+        :aria-label="opensViewer ? `Play video full screen. ${durationLabel}` : playing ? `Pause video. ${durationLabel}` : `Play video. ${durationLabel}`"
+        :aria-haspopup="opensViewer ? 'dialog' : undefined"
+        @click="tapped"
       ></button>
 
       <!-- The big play button while paused -->
@@ -71,10 +72,14 @@
       </div>
 
       <!-- Length before playing; controls once it has started -->
-      <span v-if="!started && !error" class="pointer-events-none absolute bottom-2.5 left-2.5 z-[2] rounded-full bg-[#0B1220]/70 px-2.5 py-1 text-[12px] font-semibold tabular-nums" aria-hidden="true">
+      <span v-if="(!started || opensViewer) && !error && !fill" class="pointer-events-none absolute bottom-2.5 left-2.5 z-[2] rounded-full bg-[#0B1220]/70 px-2.5 py-1 text-[12px] font-semibold tabular-nums" aria-hidden="true">
         <i class="bi bi-camera-video mr-1" aria-hidden="true"></i>{{ formatDuration(length) }}
       </span>
-      <div v-if="started && !error" class="absolute inset-x-0 bottom-0 z-[2] flex items-center gap-1 bg-gradient-to-t from-[#0B1220]/80 to-transparent px-1.5 pb-1 pt-6">
+      <!-- Full screen: a thin progress line only (the viewer has its own buttons) -->
+      <div v-if="fill && started && !error" class="pointer-events-none absolute inset-x-0 bottom-0 z-[2] h-[3px] bg-white/25" aria-hidden="true">
+        <div class="h-full bg-white" :style="{ width: `${length ? (position / length) * 100 : 0}%` }"></div>
+      </div>
+      <div v-else-if="started && !error && !opensViewer && !fill" class="absolute inset-x-0 bottom-0 z-[2] flex items-center gap-1 bg-gradient-to-t from-[#0B1220]/80 to-transparent px-1.5 pb-1 pt-6">
         <label class="flex min-h-11 min-w-0 flex-1 items-center px-2">
           <span class="sr-only">Video position</span>
           <input
@@ -111,9 +116,18 @@ const props = defineProps({
   // { url, poster_url, thumb_url, width, height, duration, status }
   media: { type: Object, required: true },
   label: { type: String, default: 'Video' },
-  // In the feed: edge to edge, and tall phone videos get more room
-  immersive: { type: Boolean, default: false },
+  // In the feed: a tap opens the full-screen viewer instead of playing here
+  opensViewer: { type: Boolean, default: false },
+  // In the viewer: fills the screen (whole picture, never stretched or cropped)
+  fill: { type: Boolean, default: false },
+  // In the viewer: plays while true, and is fully released while false (null: the feed decides)
+  active: { type: Boolean, default: null },
+  // In the viewer: the next video, readied by fetching only its header (Data Saver off)
+  prime: { type: Boolean, default: false },
+  // Where to start (seconds), e.g. the moment it had reached in the feed
+  startAt: { type: Number, default: 0 },
 });
+const emit = defineEmits(['open']);
 
 const root = ref(null);
 const video = ref(null);
@@ -127,7 +141,7 @@ const position = ref(0);
 const loadedLength = ref(0);
 const muted = ref(true);
 const fullscreen = ref(false);
-let resumeAt = 0;
+let resumeAt = props.startAt || 0;
 let userPaused = false;          // they paused it: don't start it again by itself
 let autoStarted = false;
 
@@ -142,8 +156,9 @@ const waitingVisible = computed(() => waiting.value && armed.value);
 const boxRatio = computed(() => {
   const w = Number(props.media.width) || 16;
   const h = Number(props.media.height) || 9;
-  return String(Math.min(16 / 9, Math.max(props.immersive ? 9 / 16 : 4 / 5, w / h)));
+  return String(Math.min(16 / 9, Math.max(4 / 5, w / h)));
 });
+const controlled = computed(() => props.active !== null);
 
 /* ---------------- Playing ---------------- */
 
@@ -158,6 +173,8 @@ async function start({ auto = false } = {}) {
   }
   const v = video.value;
   if (!v) return;
+  // Released earlier (its address taken off) while the page kept the same address: put it back
+  if (!v.getAttribute('src') && props.media.url) v.src = props.media.url;
   autoStarted = auto;
   // Starting by itself is always silent; a tap uses their last sound choice
   muted.value = auto ? true : videoPrefs.muted;
@@ -171,10 +188,23 @@ async function start({ auto = false } = {}) {
       muted.value = true;
       v.muted = true;
       try { await v.play(); } catch { /* the play button stays */ }
-    } else if (e?.name !== 'AbortError' && !auto) {
+    } else if (e?.name !== 'AbortError' && !auto && !v.error) {
+      // A file that can't load is handled once, by the error event (not here as well)
       onError();
     }
   }
+}
+
+/** In the feed: open the viewer where this one had got to (and stop it here) */
+function tapped() {
+  if (props.opensViewer) {
+    const at = video.value?.currentTime || 0;
+    // The viewer plays it from here; this copy lets go of its download
+    unload();
+    emit('open', { at });
+    return;
+  }
+  toggle();
 }
 
 function toggle() {
@@ -227,7 +257,17 @@ function onEnded() {
   userPaused = true;
   releasePlayback(handle);
 }
+let handlingError = false;
 async function onError() {
+  if (handlingError) return;
+  handlingError = true;
+  try {
+    await handleError();
+  } finally {
+    handlingError = false;
+  }
+}
+async function handleError() {
   const code = video.value?.error?.code;
   // The browser's reason (1 stopped, 2 network, 3 decoding, 4 not supported or not found); never the address
   videoLog('playback error', { media: props.media.id, mediaErrorCode: code ?? null, message: video.value?.error?.message || null, retriedWithFreshAddress: refreshedOnce }, true);
@@ -293,7 +333,8 @@ function unload() {
 let observer = null;
 let visible = 0;
 onMounted(() => {
-  if (!('IntersectionObserver' in window)) return;
+  // In the viewer, the viewer decides what plays
+  if (controlled.value || !('IntersectionObserver' in window)) return;
   observer = new IntersectionObserver(([entry]) => {
     visible = entry.isIntersecting ? entry.intersectionRatio : 0;
     if (fullscreen.value) return;
@@ -309,8 +350,41 @@ onMounted(() => {
   observer.observe(root.value);
 });
 
+/* ---------------- In the viewer ---------------- */
+
+// The current slide plays (they chose it: a tap or a swipe); any other is released at once
+watch(() => props.active, (active) => {
+  if (active === null) return;
+  if (active) {
+    userPaused = false;
+    start();
+  } else {
+    unload();
+    resumeAt = 0;   // coming back to it starts from the beginning
+    if (props.prime) prepare();
+  }
+}, { immediate: true });
+
+// The next video: only its header is fetched, so it starts at once when swiped to
+function prepare() {
+  if (status.value !== 'ready' || armed.value || props.active) return;
+  armed.value = true;
+}
+watch(() => props.prime, (prime) => {
+  if (!controlled.value || props.active) return;
+  if (prime) prepare(); else if (armed.value) unload();
+}, { immediate: true });
+
+defineExpose({
+  get muted() { return muted.value; },
+  get playing() { return playing.value; },
+  toggleMute,
+  pause: () => video.value?.pause(),
+});
+
 // Data Saver turned on while a video plays by itself: stop it
 watch(autoplayAllowed, (allowed) => {
+  if (controlled.value) return;
   if (!allowed && playing.value && autoStarted) video.value?.pause();
   if (allowed && visible >= 0.6 && !playing.value && !userPaused) start({ auto: true });
 });

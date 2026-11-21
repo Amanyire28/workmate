@@ -738,6 +738,50 @@
     }
     .wm-see-more:hover { color: var(--color-primary); text-decoration: underline; }
     .wm-video-full { max-height: none; height: 100%; }
+    /* The full-screen video viewer: swipes are ours, not the page's scrolling */
+    .wm-viewer-stage { touch-action: none; overscroll-behavior: none; }
+    .wm-viewer-action {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        min-width: 52px;
+        min-height: 52px;
+        border-radius: 16px;
+        color: #fff;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+    }
+    .wm-viewer-action:hover { background: rgba(255, 255, 255, 0.1); }
+    .wm-viewer-round {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        border-radius: 9999px;
+        color: #fff;
+        background: rgba(15, 23, 42, 0.45);
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        -webkit-backdrop-filter: blur(6px);
+        backdrop-filter: blur(6px);
+    }
+    .wm-viewer-round:disabled { opacity: 0.35; }
+    .wm-viewer-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 40px;
+        padding: 0 14px;
+        border-radius: 9999px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #fff;
+        background: rgba(255, 255, 255, 0.16);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    /* In the full-screen viewer: the whole screen (the picture keeps its shape inside) */
+    .wm-video-fill { max-height: none; height: 100%; background: #000; }
     .wm-video-btn {
         display: inline-flex;
         align-items: center;

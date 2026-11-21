@@ -80,8 +80,10 @@ class SecurityHeaders
         if (! $endpoint || ! ($host = parse_url($endpoint, PHP_URL_HOST))) {
             return '';
         }
+        $scheme = parse_url($endpoint, PHP_URL_SCHEME) ?: 'https';
+        $port = parse_url($endpoint, PHP_URL_PORT);
 
-        return ' https://'.$host;
+        return ' '.$scheme.'://'.$host.($port ? ':'.$port : '');
     }
 
     /** The Vite dev server while developing (public/hot), e.g. ' http://127.0.0.1:5173' */

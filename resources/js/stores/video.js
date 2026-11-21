@@ -53,8 +53,11 @@ export function setDataSaver(on) {
     try { localStorage.setItem(SAVER_KEY, on ? '1' : '0'); } catch { /* kept for this visit only */ }
 }
 
+/** The full-screen viewer is open: videos in the feed behind it never start */
+export const videoViewer = reactive({ open: false });
+
 /** Videos may start (muted) as they scroll into view: Data Saver off and motion welcome */
-export const autoplayAllowed = computed(() => !videoPrefs.dataSaver && !videoPrefs.reducedMotion);
+export const autoplayAllowed = computed(() => !videoPrefs.dataSaver && !videoPrefs.reducedMotion && !videoViewer.open);
 
 /* ---------------- One video at a time ---------------- */
 

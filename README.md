@@ -115,6 +115,11 @@ Throughout this README:
 - **Messages** between customers and providers, visible only to the two sides of the chat
 - **Reports and complaints** (see [Reports and complaints](#reports-and-complaints)): customers and providers report each other, or anything else that went wrong, with up to 3 photos, and follow the outcome
 
+**Community**
+- A public feed of members' work, tips, experiences, questions and opportunities, with photos and **videos**, likes, comments, saves, follows and moderation (see [Community](#community))
+- **Videos** go straight from the phone to private Cloudflare R2 storage; videos over 25 MB are trimmed on the phone before upload
+- A **full-screen video viewer**: tap a video in the feed, then swipe up and down through the feed's videos
+
 **Verification**
 - **Get verified:** National ID (front and back) plus up to 5 supporting documents, stored privately; reviewers accept or send back each document and can ask for further documents; approval gives the **grey tick**
 
@@ -131,7 +136,7 @@ Throughout this README:
 - **Settings** that change the app straight away: nearby search (radii, maximum distance, fallbacks, GPS, tie-breaks), the default place, support phone and email, accepting provider applications, maintenance mode, and presence timings
 
 **Quality**
-- **252 automated tests** (feature and unit) on a separate MariaDB test database
+- **480 automated tests** (feature and unit) on a separate MariaDB test database
 
 ### 🟡 In development
 
@@ -154,7 +159,7 @@ Throughout this README:
 - Saved locations
 - Admin management of places
 - Real-time messaging (the chat currently checks for new messages every few seconds)
-- "WorkMate in Action" short provider videos with moderation
+- "WorkMate in Action": a dedicated showcase of providers' videos (community videos already exist, see [Community](#community))
 - Luganda interface translations
 - Android and iOS apps on the same API
 
@@ -297,13 +302,28 @@ A place for members to share their work: **My Work** (finished jobs and before-a
 
 - **Reading:** anyone, signed in or not. Newest first, 10 posts at a time as you scroll (cursor pagination). **For you** (providers) shows the people they follow, their professions and their base place; **Following** shows the people you follow; **Latest** shows everything. Filters: kind of post, profession and place. Signed-out visitors are asked to sign in only when they act.
 - **Posting:** signed-in members with a confirmed email. Text up to 3,000 characters and up to **6 photos** (JPG, PNG or WebP, up to 8 MB). Phones shrink photos before sending; the server re-draws every photo as JPEG in two sizes (1600 px and a 720 px thumbnail), which removes hidden data such as GPS, stores them under `storage/app/community` and serves them through `/api/v1/community/media/…` only while the post can be seen. Upload progress is shown and double submissions are blocked. Authors edit their words, kind and profession (`edited` is shown) and delete their posts.
+- **Feed layout:** every post uses one compact layout: who posted it (name, tick, title, area, time), the words (3 lines with photos or video, 6 for text only, then **See more**), the photos or video, a slim provider row (**View profile**, **Request service**) and the actions. Edge to edge on phones, a card on wider screens. A single photo is shown whole, never cropped, over a blurred copy of itself.
+- **Videos ✅:** anyone who may post may add one video to a post. The size limit (25 MB by default) is set in **Admin → Settings → Community videos**; there is no length limit.
+  - Phones keep the original recording. A video over the limit is trimmed on the phone (Mediabunny, copy mode, no re-encoding) before upload.
+  - Uploads go straight from the phone to a **private Cloudflare R2 bucket** using short-lived signed addresses (`POST /api/v1/community/video-uploads`, then `…/{upload}/complete`). The server never stores or processes the video: it signs addresses and checks the file's size and MP4/WebM header (a few byte ranges, in memory). Samsung files that don't start with `ftyp`, or that end with a Samsung trailer, are accepted.
+  - Playback uses a signed address that lasts an hour (`/api/v1/community/media/{id}/playback`), given only while the post can be seen. A page left open gets a fresh address automatically.
+  - In the feed, videos play silently when scrolled into view unless **Data Saver** is on; nothing is downloaded before then.
+  - `workmate:video-cleanup` (hourly, from the scheduler) expires abandoned uploads and removes the videos of deleted posts after 7 days. `workmate:video-check` checks the R2 settings without showing any keys. Settings are in `config/videos.php`; see `docs/community-video-api.md`.
+- **Full-screen video viewer ✅:** tapping a video in the feed opens it full screen, from the moment it had reached.
+  - Swipe up and down (arrow keys, Page Up/Down, the mouse wheel or the buttons on desktop) through the videos in the feed being viewed; posts without a ready video are skipped and more feed pages load as needed. At either end a short note says so.
+  - On screen: close and sound buttons, the author with their tick (linking to their page), title and area, the words (2 lines, **See more**), Like, Comment, Share and Save, and **View provider** / **Request service** on providers' videos. Likes and saves show in the feed straight away; comments open in the usual sheet above the viewer.
+  - One video plays at a time. Only the previous, current and next slides are on the page, and only the current one holds a video; with Data Saver off, only the next video's header is fetched in advance.
+  - The address gains `?video=<post id>`: the phone's **Back** button, the X or Escape closes it, back to the same scroll position, with focus on the video that was opened. Shared links to `/community?video=<id>` open that video, after the server confirms it can be seen.
+  - Code: `resources/js/components/community/VideoViewer.vue`, with `VideoPlayer.vue` and `CommunityPage.vue`.
 - **Taking part:** like, comment and reply (one level), save (Saved posts), share (the phone's share menu, or the link is copied), report. Likes and saves update on screen at once and go back if the server refuses. A post's author can delete comments on it. Maintenance mode pauses new posts and comments.
 - **Who's who:** approved providers show their business name, main profession, base place and the tick, and link to their profile (with **View profile** on their work). Other members show as "Aisha N." and link to their community page. No contact details are ever shown. Posts are labelled as shared by members; reviews on profiles are the ones that come from WorkMate jobs.
 - **People:** follow and unfollow (from a person's page, Discover people, suggestions or a post's menu). **Discover people** (`/community/people`) searches by name or business and filters by profession; only listed providers and members who have posted can be found. Each member has a community page (`/community/people/{id}`) with their posts and follower and following lists. Provider profiles show **In the community**: followers, a Follow button and their latest posts, kept apart from the jobs and reviews that come from WorkMate. The desktop feed suggests **People to follow** and shows the professions **Active this week** (real post counts).
 - **Notifications (push):** a new follower (once a week per person, however often they re-follow), every comment on your post or answer to your question, replies to your comment, and likes at most once an hour per post ("Grace A. and 3 others liked your post"). A post's notifications replace each other on the phone. They never include the words of a comment.
 - **Safety:** reports about posts and comments go into the existing Reports and Abuse queue, with the content, its photos and its status. Moderators with `content.view` **remove** a post or comment (the author is notified and sees the reason on their post) or **restore** a post. Suspended accounts' posts disappear. Rate limits: 3 posts a minute and 40 a day, 10 comments a minute and 150 an hour, 90 likes, saves and edits a minute.
 
-**Data:** `community_posts` (soft deletes, removal fields, like and comment counts, `likes_notified_at`), `community_post_media`, `community_comments` (`parent_id` for replies), `community_post_likes`, `community_post_saves`, `follows`, and `reports.community_post_id` / `community_comment_id`.
+Rapid repeat taps on like, save and comment-like are ignored while the first is still being sent.
+
+**Data:** `community_posts` (soft deletes, removal fields, like and comment counts, `likes_notified_at`), `community_post_media` (photos, and videos with their R2 key, size, dimensions and status), `community_video_uploads` (uploads in progress), `community_comments` (`parent_id` for replies), `community_post_likes`, `community_post_saves`, `follows`, and `reports.community_post_id` / `community_comment_id`.
 
 ---
 
@@ -366,6 +386,7 @@ The blue tick is separate from document checks and is awarded **automatically**.
 - **Posts from people you follow ✅:** followers are told when someone they follow shares a post, at most once every 3 hours per author.
 - **Choices per kind ✅:** Requests and jobs, New jobs near you (providers only), Messages, Comments and replies, Posts from people you follow, Likes, New followers can each be turned off (bell → settings, or **Account → What you're notified about**); off stops both the push and the list entry. Account and safety notices (application and document decisions, reports, warnings, removed posts) always arrive. Stored in `users.notification_preferences`.
 - Administrators with `comms.send` send announcements from **Communications → Push Announcements**. Sending happens after the response, with no queue worker; devices that unsubscribed are removed automatically.
+- **Signing out stops a device's notifications ✅:** sign-out removes this device's subscription (matched by its push address, or by the session it was created in), and a device that opens WorkMate signed out releases any subscription left on it. `php artisan workmate:push-prune-signed-out` (a dry run; add `--apply` to delete) removes subscriptions of accounts that are signed in nowhere; it needs `SESSION_DRIVER=database`.
 - Requires VAPID keys in `.env` (see [Environment variables](#environment-variables)). Without them the switch is hidden.
 
 ---
@@ -590,7 +611,11 @@ Not yet in the schema: bookings and booking event history; performance-tick rule
   - registration and emails: 6 per minute
   - jobs, requests, replies, ratings, applications, messages, reports, uploads and push subscriptions: 30 per minute
   - place search: 120 per minute; install events: 10 per minute
+  - separate limits for registration, password reset emails, community likes, video uploads, push subscriptions, people search and CSP reports
   - general API: 60 per minute
+- **Security headers** (`SecurityHeaders`, on every response): `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: SAMEORIGIN`, `Permissions-Policy`, and HSTS once `APP_PUBLIC_URL` is https. A **Content Security Policy** is sent in **report-only** mode (`CSP_MODE`): violations are reported to `/api/v1/csp-reports` and logged (without query strings), and nothing is blocked. Switch to `enforce` only after the logs show no unexpected reports.
+- **Public address** (`config/security.php`): when `APP_PUBLIC_URL` is set, email links are built only from it, requests for any other host name are refused (`400 bad_host`), CORS allows only that origin (plus `CORS_ALLOWED_ORIGINS`) and HSTS is sent. Until it is set, none of this changes.
+- **Email addresses** are checked strictly, and control characters (such as line breaks) are refused (`App\Support\EmailRules`).
 - **Authorisation and data isolation:**
   - Admin routes use `can:<permission>`, and an account must be active to hold any permission.
   - Provider actions check membership of that provider business; requests, chats and documents return "not found" to anyone outside them.
@@ -727,6 +752,11 @@ The admin area is at <http://127.0.0.1:8000/admin>. On the live server, run the 
 | `php artisan workmate:role {email} {role} --revoke` | Removes it (the last active Super Administrator can't be removed) |
 | `php artisan workmate:mail-test {email}` | Sends a test email to check the mail settings (shows the mailer and sender, never the password) |
 | `php artisan workmate:push-keys` | Creates the VAPID keys for push notifications and prints them for `.env` (asks before replacing existing keys) |
+| `php artisan workmate:push-prune-signed-out [--apply]` | Counts (or with `--apply`, deletes) push subscriptions of accounts signed in nowhere |
+| `php artisan workmate:video-check` | Checks the community video storage (R2) settings, without showing any keys |
+| `php artisan workmate:video-cleanup` | Expires abandoned video uploads and removes unused videos from R2 (runs hourly from the scheduler) |
+| `php artisan workmate:reminders` | Sends due booking reminders (runs every 15 minutes from the scheduler) |
+| `php artisan workmate:watermark-photos --dry-run` | Counts public photos added before the watermark; without `--dry-run` it watermarks them (resumable) |
 | `php artisan route:list --path=api` | Lists the API routes |
 | `php artisan test` | Runs the test suite on `workmate_test` |
 
@@ -796,6 +826,20 @@ VAPID_PUBLIC_KEY=
 VAPID_PRIVATE_KEY=
 # Optional: a mailto: or https address push services can contact (defaults to APP_URL)
 VAPID_SUBJECT=
+
+# Community videos (Cloudflare R2). Check with: php artisan workmate:video-check
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_VIDEO_BUCKET=workmate-community-videos
+R2_ENDPOINT=                  # optional; defaults to https://<account id>.r2.cloudflarestorage.com
+
+# Security (config/security.php). Nothing changes until APP_PUBLIC_URL is set
+APP_PUBLIC_URL=               # e.g. https://your-domain on the live server
+TRUSTED_HOSTS=                # extra host names to accept, comma-separated
+CORS_ALLOWED_ORIGINS=         # extra origins allowed by CORS, comma-separated
+HSTS_SECONDS=15552000         # 0 = off; sent only when APP_PUBLIC_URL is https
+CSP_MODE=report-only          # report-only or enforce
 
 QUEUE_CONNECTION=sync
 SESSION_DRIVER=file
