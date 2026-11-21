@@ -45,15 +45,22 @@ class ProfilePhotoController extends Controller
      * Profile photos are shown publicly next to names, like on any marketplace.
      * Names are random and change with every upload, so they can be cached for good.
      */
-    public function show(string $file): BinaryFileResponse
+    public function show(Request $request, string $file)
     {
         $path = ProfilePhotos::DIRECTORY.'/'.$file;
         abort_unless(Storage::disk('local')->exists($path), 404);
-
-        return response()->file(Storage::disk('local')->path($path), [
+        $headers = [
             'Content-Type' => 'image/jpeg',
             'Cache-Control' => 'public, max-age=31536000, immutable',
             'X-Content-Type-Options' => 'nosniff',
-        ]);
+        ];
+
+        // ?s=96: a small copy (lists of people); any other value, or a failure, serves the photo as it is
+        $thumbnail = $this->photos->thumbnail($path, (int) $request->query('s'));
+        if ($thumbnail !== null) {
+            return response($thumbnail, 200, $headers);
+        }
+
+        return response()->file(Storage::disk('local')->path($path), $headers);
     }
 }

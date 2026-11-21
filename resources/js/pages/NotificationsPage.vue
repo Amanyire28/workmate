@@ -36,26 +36,48 @@
       <section v-for="group in groups" :key="group.label" class="mt-5" :aria-labelledby="`group-${group.key}`">
         <h2 :id="`group-${group.key}`" class="wm-meta mb-2 px-1 font-medium uppercase tracking-wide">{{ group.label }}</h2>
         <ul class="wm-card !p-1.5 flex flex-col">
-          <li v-for="n in group.items" :key="n.id">
-            <a :href="n.url" class="flex items-start gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-white/70" :class="{ 'bg-primary-tint/60': !n.read }" @click.prevent="open(n)">
-              <!-- The people it is about (real pictures, or initials); otherwise the kind of event -->
-              <span v-if="n.actors && n.actors.length" class="relative shrink-0 pb-1 pr-1" :style="{ minWidth: `${34 + (Math.min(n.actors.length, 3) - 1) * 22}px` }">
-                <AvatarStack :actors="n.actors" :size="34" />
-                <span class="absolute -bottom-0.5 -right-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[11px] text-white ring-2 ring-white" aria-hidden="true">
-                  <i :class="['bi', KIND_ICONS[n.kind] || 'bi-bell']"></i>
+          <li v-for="n in group.items" :key="n.id" class="relative flex items-start gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-white/70" :class="{ 'bg-primary-tint/60': !n.read }">
+            <!-- The whole row opens what it is about; the person's picture and name, and "see all", sit above it and do their own thing -->
+            <a :href="n.url" class="absolute inset-0 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" :aria-label="rowLabel(n)" @click.prevent="open(n)"></a>
+
+            <!-- The people it is about (real pictures, or initials); otherwise the kind of event -->
+            <span v-if="n.actors && n.actors.length" class="relative z-10 shrink-0 pb-1 pr-1" :style="{ minWidth: `${40 + (Math.min(n.actors.length, 3) - 1) * 24}px` }">
+              <button v-if="n.activity" type="button" class="block rounded-full" :aria-label="seeAllLabel(n)" @click="openActivity(n)">
+                <AvatarStack :actors="n.actors" :size="40" />
+              </button>
+              <router-link v-else-if="n.actors[0].profile" :to="n.actors[0].profile" class="block rounded-full" :aria-label="`View ${n.actors[0].name}’s profile`">
+                <AvatarStack :actors="n.actors" :size="40" />
+              </router-link>
+              <AvatarStack v-else :actors="n.actors" :size="40" />
+              <span class="pointer-events-none absolute -bottom-0.5 -right-0.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[11px] text-white ring-2 ring-white" aria-hidden="true">
+                <i :class="['bi', KIND_ICONS[n.kind] || 'bi-bell']"></i>
+              </span>
+            </span>
+            <span v-else class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full" :class="n.read ? 'bg-[#F1F5F9] text-muted' : 'bg-white text-primary'" aria-hidden="true">
+              <i :class="['bi text-lg', KIND_ICONS[n.kind] || 'bi-bell']"></i>
+            </span>
+
+            <span class="pointer-events-none min-w-0 flex-1">
+              <template v-if="n.lead">
+                <span class="block text-[15px] leading-snug text-ink" :class="n.read ? '' : 'font-semibold'">
+                  <router-link v-if="!n.grouped && n.actors[0] && n.actors[0].profile" :to="n.actors[0].profile" class="pointer-events-auto relative z-10 font-semibold hover:underline">{{ n.lead }}</router-link>
+                  <strong v-else class="font-semibold">{{ n.lead }}</strong>{{ n.tail }}
                 </span>
-              </span>
-              <span v-else class="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full" :class="n.read ? 'bg-[#F1F5F9] text-muted' : 'bg-white text-primary'" aria-hidden="true">
-                <i :class="['bi text-lg', KIND_ICONS[n.kind] || 'bi-bell']"></i>
-              </span>
-              <span class="min-w-0 flex-1">
+              </template>
+              <template v-else>
                 <span class="block text-[15px] leading-snug" :class="n.read ? 'text-ink' : 'font-semibold text-ink'">{{ n.title }}</span>
                 <span class="mt-0.5 block text-[14px] leading-snug text-muted">{{ n.body }}</span>
-                <span class="mt-1 block text-[12.5px] text-muted"><time :datetime="n.at">{{ agoLabel(n.at) }}</time></span>
+              </template>
+              <!-- A short plain-text look at the comment (never shown on the phone's lock screen) -->
+              <span v-if="n.preview" class="mt-1.5 line-clamp-2 break-words rounded-xl bg-white/70 px-3 py-1.5 text-[14px] leading-snug text-ink ring-1 ring-line">{{ n.preview }}</span>
+              <span class="mt-1 flex flex-wrap items-center gap-x-2 text-[12.5px] text-muted">
+                <time :datetime="n.at">{{ agoLabel(n.at) }}</time>
+                <span v-if="n.detail">· {{ n.detail }}</span>
+                <button v-if="n.activity" type="button" class="pointer-events-auto relative z-10 font-semibold text-primary hover:underline" @click="openActivity(n)">{{ n.comments ? 'See all comments' : 'See who' }}</button>
               </span>
-              <span v-if="!n.read" class="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-primary" aria-hidden="true"></span>
-              <span v-if="!n.read" class="sr-only">Unread</span>
-            </a>
+            </span>
+            <span v-if="!n.read" class="mt-2 h-2.5 w-2.5 shrink-0 rounded-full bg-primary" aria-hidden="true"></span>
+            <span v-if="!n.read" class="sr-only">Unread</span>
           </li>
         </ul>
       </section>
@@ -67,6 +89,28 @@
         <p v-else class="wm-meta py-2">Notifications are kept for 90 days.</p>
       </div>
     </template>
+
+    <!-- Who is behind a grouped notification, or each comment in a group -->
+    <BottomSheet :open="!!activity.item" :title="activity.item && activity.item.comments ? 'New comments' : 'People'" @close="activity.item = null">
+      <p v-if="activity.loading" class="py-6 text-center wm-meta" aria-busy="true">Loading…</p>
+      <p v-else-if="activity.error" class="wm-notice wm-notice-error" role="alert"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>{{ activity.error }}</span></p>
+      <ul v-else class="flex flex-col divide-y divide-line">
+        <li v-for="a in activity.actors" :key="a.id" class="flex items-center gap-3 py-3">
+          <UserAvatar :name="a.name" :src="a.avatar_url || ''" :size="40" />
+          <router-link v-if="a.profile" :to="a.profile" class="min-w-0 flex-1 truncate text-[15px] font-medium text-ink hover:underline" @click="activity.item = null">{{ a.name }}</router-link>
+          <span v-else class="min-w-0 flex-1 truncate text-[15px] font-medium text-ink">{{ a.name }}</span>
+        </li>
+        <li v-for="c in activity.comments" :key="c.id" class="py-3">
+          <router-link :to="c.url" class="flex items-start gap-3" @click="activity.item = null">
+            <UserAvatar :name="c.actor.name" :src="c.actor.avatar_url || ''" :size="40" />
+            <span class="min-w-0 flex-1">
+              <span class="block text-[15px] font-medium text-ink">{{ c.actor.name }} <time class="ml-1 text-[12.5px] font-normal text-muted" :datetime="c.at">{{ agoLabel(c.at) }}</time></span>
+              <span class="line-clamp-2 break-words text-[14px] leading-snug text-muted">{{ c.preview }}</span>
+            </span>
+          </router-link>
+        </li>
+      </ul>
+    </BottomSheet>
 
     <!-- What to be told about -->
     <BottomSheet :open="settingsOpen" title="Notification settings" @close="closeSettings">
@@ -134,6 +178,8 @@ import EmptyState from '@/components/EmptyState.vue';
 import BottomSheet from '@/components/BottomSheet.vue';
 import PushNotificationSetting from '@/components/PushNotificationSetting.vue';
 import AvatarStack from '@/components/AvatarStack.vue';
+import UserAvatar from '@/components/UserAvatar.vue';
+import { api } from '@/api/client.js';
 import { agoLabel } from '@/stores/catalog.js';
 import { notifications, KIND_ICONS, loadNotifications, markRead, loadChoices, setChoice, setPush, setFilter, saveQuietHours } from '@/stores/notifications.js';
 
@@ -161,6 +207,30 @@ const groups = computed(() => {
 function open(n) {
   markRead(n);
   router.push(n.url);
+}
+
+/* A readable name for the whole-row link */
+function rowLabel(n) {
+  return [n.lead ? `${n.lead}${n.tail}` : `${n.title}. ${n.body}`, n.preview ? `“${n.preview}”` : '', n.detail || '', n.read ? '' : 'Unread'].filter(Boolean).join(' ');
+}
+function seeAllLabel(n) {
+  return n.comments ? 'See all the comments' : 'See everyone who did this';
+}
+
+/* The people (or comments) inside a grouped notification */
+const activity = reactive({ item: null, loading: false, error: '', actors: [], comments: [] });
+async function openActivity(n) {
+  Object.assign(activity, { item: n, loading: true, error: '', actors: [], comments: [] });
+  try {
+    const r = await api(`/me/notifications/${n.id}/activity`);
+    if (activity.item !== n) return;
+    activity.actors = r.data.actors || [];
+    activity.comments = r.data.comments || [];
+  } catch (e) {
+    if (activity.item === n) activity.error = e.message || 'This couldn’t load.';
+  } finally {
+    if (activity.item === n) activity.loading = false;
+  }
 }
 
 /* Settings */

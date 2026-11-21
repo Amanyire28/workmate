@@ -39,6 +39,9 @@ use Illuminate\Support\Facades\Log;
 class EngagementNotifications
 {
     public const LIKES = 'community_likes';
+
+    /** What a like group can be about (stored as the group's subject_type, read again from the post when shown) */
+    public const LIKE_TYPES = ['post', 'video', 'photo', 'question'];
     public const FOLLOWS = 'community_follows';
 
     /** @internal tests only: behave as if the database had no window functions */
@@ -74,7 +77,7 @@ class EngagementNotifications
         if ($recipient === $by->getKey() || ! $this->notifications->wants($recipient, self::LIKES)) {
             return;
         }
-        $type = $post->media()->where('type', 'video')->exists() ? 'video' : 'post';
+        $type = $this->contentLabels([$post->id])[$post->id] ?? 'post';       // video, photo, question or post
         $row = $this->touch(self::LIKES, $type, $post->id, $recipient, $by, '/community/post/'.$post->uuid, 'community-post-'.$post->uuid.'-likes', $at);
         if ($row->read_at !== null) {
             return;   // (only if a group read in this very second was found again: nothing new to announce)
@@ -104,7 +107,7 @@ class EngagementNotifications
     public function likeRemoved(CommunityPost $post, User $by): void
     {
         $recipient = (int) $post->user_id;
-        $row = UserNotification::where('user_id', $recipient)->where('kind', self::LIKES)->whereIn('subject_type', ['post', 'video'])
+        $row = UserNotification::where('user_id', $recipient)->where('kind', self::LIKES)->whereIn('subject_type', self::LIKE_TYPES)
             ->where('subject_id', $post->id)->orderByDesc('id')->lockForUpdate()->first();
         if ($row) {
             $row->forceFill(['group_count' => $this->count($row)])->save();
@@ -153,7 +156,7 @@ class EngagementNotifications
      */
     private function touch(string $kind, string $type, int $subjectId, int $recipient, User $latest, string $url, string $tag, Carbon $at): UserNotification
     {
-        $types = $type === 'account' ? ['account'] : ['post', 'video'];
+        $types = $type === 'account' ? ['account'] : self::LIKE_TYPES;
         $find = function () use ($kind, $types, $subjectId, $recipient) {
             return UserNotification::where('user_id', $recipient)->where('kind', $kind)->whereIn('subject_type', $types)
                 ->where('subject_id', $subjectId)->orderByDesc('id')->lockForUpdate()->first();
@@ -319,11 +322,13 @@ class EngagementNotifications
     }
 
     /**
-     * Name and picture as the community shows them (a provider's business name,
-     * or "Aisha N."), for these accounts.
+     * Name and picture as the community shows them (a provider's business name, or "Aisha N."),
+     * for these ACTIVE accounts (a suspended or deleted one is simply not returned, so it never
+     * appears). The picture is the small copy (96 px); `icon` is the address a phone notification
+     * may use (128 px, on this site).
      *
      * @param  int[]  $ids
-     * @return array<int, array{id: int, name: string, avatar_url: ?string}>
+     * @return array<int, array{id: int, name: string, avatar_url: ?string, icon: ?string, provider_id: ?int}>
      */
     public function users(array $ids): array
     {
@@ -331,9 +336,36 @@ class EngagementNotifications
             return [];
         }
         $out = [];
-        User::whereIn('id', array_values(array_unique($ids)))->with(['providerProfile.owner', 'providerProfile.professions'])->get()->each(function (User $u) use (&$out) {
-            $a = CommunityPostResource::author($u, $u->providerProfile);
-            $out[$u->id] = ['id' => $u->id, 'name' => $a['name'], 'avatar_url' => $a['avatar_url']];
+        User::whereIn('id', array_values(array_unique($ids)))->where('status', User::STATUS_ACTIVE)
+            ->with(['providerProfile.owner', 'providerProfile.professions'])->get()->each(function (User $u) use (&$out) {
+                $a = CommunityPostResource::author($u, $u->providerProfile);
+                $out[$u->id] = ['id' => $u->id, 'name' => $a['name'], 'avatar_url' => $u->avatarUrl(96), 'icon' => $u->avatarPath(128), 'provider_id' => $a['provider_id']];
+            });
+
+        return $out;
+    }
+
+    /**
+     * What each post is, as a person would say it: video, photo, question or post. Read from the post as it
+     * is now (the media does not change after posting), in two queries however many posts there are.
+     *
+     * @param  int[]  $postIds
+     * @return array<int, string>
+     */
+    public function contentLabels(array $postIds): array
+    {
+        $postIds = array_values(array_unique(array_filter($postIds)));
+        if (! $postIds) {
+            return [];
+        }
+        $media = DB::table('community_post_media')->whereIn('community_post_id', $postIds)->select('community_post_id', 'type')->distinct()->get()
+            ->groupBy('community_post_id')->map(function ($rows) {
+                return $rows->pluck('type')->all();
+            });
+        $out = [];
+        CommunityPost::withTrashed()->whereIn('id', $postIds)->get(['id', 'category'])->each(function ($post) use (&$out, $media) {
+            $types = $media[$post->id] ?? [];
+            $out[$post->id] = in_array('video', $types, true) ? 'video' : (in_array('photo', $types, true) ? 'photo' : ($post->category === 'question' ? 'question' : 'post'));
         });
 
         return $out;
@@ -343,33 +375,87 @@ class EngagementNotifications
 
     private function nameOf(User $user): string
     {
-        return $this->users([$user->getKey()])[$user->getKey()]['name'];
+        return $this->users([$user->getKey()])[$user->getKey()]['name'] ?? User::shortNameOf($user->name);
     }
 
     /**
-     * "Brian, Sarah and 28 others liked your video." Two names are shown;
-     * everyone else is counted.
+     * The people, as a sentence: "A", "A and B", "A, B and C", then "A, B and 2 others" (two names, the
+     * rest counted, never a hard-coded number). Up to three names are needed; fewer are fine.
      *
-     * @param  string[]  $names  the newest people first (at least the first two, if there are that many)
+     * @param  string[]  $names  the newest people first
+     */
+    public static function who(array $names, int $count): string
+    {
+        $count = max($count, 1);
+        $names = array_values(array_filter($names, 'strlen'));
+        $first = $names[0] ?? 'Someone';
+        $others = function (int $n) {
+            return $n.' '.($n === 1 ? 'other' : 'others');
+        };
+        if ($count === 1) {
+            return $first;
+        }
+        if ($count === 2) {
+            return isset($names[1]) ? $first.' and '.$names[1] : $first.' and 1 other';
+        }
+        if ($count === 3 && isset($names[2])) {
+            return $first.', '.$names[1].' and '.$names[2];
+        }
+
+        return isset($names[1]) ? $first.', '.$names[1].' and '.$others($count - 2) : $first.' and '.$others($count - 1);
+    }
+
+    /**
+     * The sentence for one notification, in two parts: who, and what they did. ("Brian P." + " liked your video.")
+     *
+     * @param  string  $what  like | follow | comment | reply | burst
+     * @param  array{label?: string, total?: int}  $extra
+     * @return array{0: string, 1: string} who, what they did
+     */
+    public static function phrase(string $what, array $names, int $people, array $extra = []): array
+    {
+        $label = $extra['label'] ?? 'post';
+        $who = self::who($names, $people);
+        switch ($what) {
+            case 'like':
+                return [$who, ' liked your '.$label.'.'];
+            case 'follow':
+                return [$who, ' started following you.'];
+            case 'reply':
+                return [$who, ' replied to your comment.'];
+            case 'burst':
+                $total = (int) ($extra['total'] ?? $people);
+                if ($total > $people) {
+                    return [$who, ' posted '.$total.' comments on your '.$label.'.'];
+                }
+                // fall through: as many comments as people
+            case 'comment':
+            default:
+                return [$who, $label === 'question' ? ' answered your question.' : ' commented on your '.$label.'.'];
+        }
+    }
+
+    /**
+     * Title and sentence of a like or follow group, as the notification list and the phone say it.
+     *
+     * @param  string[]  $names  the newest people first (three are used)
+     * @param  string  $type  the content: video, photo, question or post
      * @return array{0: string, 1: string} title and body
      */
     public function compose(string $kind, string $type, array $names, int $count): array
     {
         $count = max($count, 1);
-        $who = count($names) >= 2 && $count >= 2
-            ? ($count === 2 ? $names[0].' and '.$names[1] : $names[0].', '.$names[1].' and '.($count - 2).' '.($count - 2 === 1 ? 'other' : 'others'))
-            : ($count === 1 ? ($names[0] ?? 'Someone') : ($names[0] ?? 'Someone').' and '.($count - 1).' '.($count - 1 === 1 ? 'other' : 'others'));
+        $label = in_array($type, ['video', 'photo', 'question'], true) ? $type : 'post';
+        [$who, $did] = self::phrase($kind === self::LIKES ? 'like' : 'follow', $names, $count, ['label' => $label]);
 
         if ($kind === self::LIKES) {
-            $what = $type === 'video' ? 'video' : 'post';
-
-            return ['Your '.$what.' was liked', $who.' liked your '.$what.'.'];
+            return ['Your '.$label.' was liked', $who.$did];
         }
 
-        return [$count === 1 ? 'New follower' : 'New followers', $who.' started following you.'];
+        return [$count === 1 ? 'New follower' : 'New followers', $who.$did];
     }
 
-    /** The wording from the people read from the tables (for the scheduled push) */
+    /** The wording from the people read from the tables (for the scheduled push), with the latest person's picture */
     public function messageNow(UserNotification $row): ?array
     {
         $people = $this->peopleFor(collect([$row]))[$row->id] ?? null;
@@ -378,11 +464,36 @@ class EngagementNotifications
         }
         $names = array_map(function ($a) {
             return $a['name'];
-        }, array_slice($people['actors'], 0, 2));
-        [$title, $body] = $this->compose($row->kind, $row->subject_type, $names, $people['count']);
+        }, array_slice($people['actors'], 0, 3));
+        $label = $row->kind === self::LIKES ? ($this->contentLabels([$row->subject_id])[$row->subject_id] ?? 'post') : $row->subject_type;
+        [$title, $body] = $this->compose($row->kind, $label, $names, $people['count']);
         // A single new follower opens their page; several open the newest's
         $url = $row->kind === self::FOLLOWS && $people['actors'] ? '/community/people/'.$people['actors'][0]['id'] : $row->url;
+        $latest = $people['actors'][0]['id'] ?? null;
+        $icon = $latest ? ($this->users([$latest])[$latest]['icon'] ?? null) : null;
 
-        return ['title' => $title, 'body' => $body, 'url' => $url, 'tag' => $row->tag];
+        return array_filter(['title' => $title, 'body' => $body, 'url' => $url, 'tag' => $row->tag, 'icon' => $icon], function ($v) {
+            return $v !== null;
+        });
+    }
+
+    /**
+     * Who is in a like or follow group, newest first, for the "who" sheet: up to $limit people.
+     *
+     * @return array<int, array{id: int, name: string, avatar_url: ?string, provider_id: ?int}>
+     */
+    public function actorsOf(UserNotification $row, int $limit = 50): array
+    {
+        [$query, $who] = $this->members($row);
+        $ids = $query->orderByDesc('m.created_at')->orderByDesc('m.id')->limit($limit)->pluck($who)->all();
+        $people = $this->users($ids);
+        $out = [];
+        foreach ($ids as $id) {
+            if (isset($people[$id])) {
+                $out[] = $people[$id];
+            }
+        }
+
+        return $out;
     }
 }

@@ -33,9 +33,13 @@ class EventNotifications
     /** @var UserNotifications */
     private $notifications;
 
-    public function __construct(UserNotifications $notifications)
+    /** @var CommentNotifications */
+    private $comments;
+
+    public function __construct(UserNotifications $notifications, CommentNotifications $comments)
     {
         $this->notifications = $notifications;
+        $this->comments = $comments;
     }
 
     /* ---------------- Requests sent to one provider ---------------- */
@@ -299,20 +303,15 @@ class EventNotifications
     /** A comment on someone's post, or a reply to their comment. The words stay in WorkMate. */
     public function commented(CommunityPost $post, CommunityComment $comment, User $by): void
     {
-        $name = $this->communityName($by);
-        $url = '/community/post/'.$post->uuid.'#comments';
-        $tag = 'community-post-'.$post->uuid;
         $toParent = $comment->parent_id ? optional($comment->parent)->user_id : null;
 
+        // Each reply is its own notification; the post's author hears about each comment (grouped when
+        // many arrive in a minute). See CommentNotifications.
         if ($toParent && $toParent !== $by->id) {
-            $this->send('community_comments', [$toParent], ['title' => 'New reply', 'body' => $name.' replied to your comment.', 'url' => $url, 'tag' => $tag.'-reply', 'actor_id' => $by->id]);
+            $this->comments->repliedTo($post, $comment, $by, (int) $toParent);
         }
         if ($post->user_id !== $by->id && $post->user_id !== $toParent) {
-            $this->send('community_comments', [$post->user_id], [
-                'title' => $post->category === 'question' ? 'New answer' : 'New comment',
-                'body' => $name.($post->category === 'question' ? ' answered your question.' : ' commented on your post.'),
-                'url' => $url, 'tag' => $tag, 'actor_id' => $by->id,
-            ]);
+            $this->comments->commentedOnPost($post, $comment, $by);
         }
     }
 
@@ -328,7 +327,7 @@ class EventNotifications
             'body' => $this->communityName($by).' mentioned you in '.$where.'.',
             'url' => '/community/post/'.$post->uuid.($comment ? '#comment-'.$comment->id : ''),
             'tag' => 'community-mention-'.($comment ? 'comment-'.$comment->id : 'post-'.$post->uuid),
-            'actor_id' => $by->id,
+            'actor_id' => $by->id, 'icon' => $by->avatarPath(128),
         ]);
     }
 

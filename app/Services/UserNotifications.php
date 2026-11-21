@@ -125,6 +125,10 @@ class UserNotifications
         if ($ids->isEmpty() || ! PushNotifications::configured()) {
             return;
         }
+        // Not part of what a phone is sent: who it was (the picture is `icon`), and which notification a
+        // push belongs to (a later push for the same one replaces the phone's notification silently)
+        $groupRowId = isset($message['group_row_id']) ? (int) $message['group_row_id'] : null;
+        $message = array_diff_key($message, ['actor_id' => 1, 'group_row_id' => 1]);
 
         $priority = self::priority($kind);
         $delivery = app(PushDelivery::class);
@@ -142,7 +146,7 @@ class UserNotifications
                 continue;
             }
             if ($outbox) {
-                if ($pushId = $delivery->enqueueDirect($id, $kind, $message)) {
+                if ($pushId = $delivery->enqueueDirect($id, $kind, $message, $groupRowId)) {
                     $queued[] = $pushId;
                 }
 
@@ -260,12 +264,35 @@ class UserNotifications
         return $this->visible(UserNotification::where('user_id', $user->getKey())->whereNull('read_at'))->count();
     }
 
-    /** Leaves out groups whose people have all taken their like or follow back */
+    /** A post anyone can see: published, not deleted, its author's account active (the post's id is the expression) */
+    private const POST_SEEN = "exists (select 1 from community_posts p join users pa on pa.id = p.user_id where p.id = %s and p.status = 'published' and p.deleted_at is null and pa.status = 'active' and pa.deleted_at is null)";
+
+    /**
+     * What the list and the unread count show: leaves out
+     *  - the notifications inside a group (they are shown as the group),
+     *  - a like or follow group whose people have all taken it back,
+     *  - anything about a post that is removed, deleted or from a suspended account,
+     *  - a comment or reply that was deleted or moderated, or whose author is suspended,
+     *  - a comment group with no comment left to see.
+     * Notifications from before this (no subject) and everything else are shown as always.
+     */
     public function visible($query)
     {
-        return $query->where(function ($q) {
-            $q->whereNull('group_count')->orWhere('group_count', '>', 0);
-        });
+        $post = function (string $id) {
+            return sprintf(self::POST_SEEN, $id);
+        };
+        $comment = "exists (select 1 from community_comments c join users cu on cu.id = c.user_id where c.id = user_notifications.subject_id and c.status = 'published' and c.deleted_at is null and cu.status = 'active' and cu.deleted_at is null and ".$post('c.community_post_id').')';
+        $someComment = "exists (select 1 from user_notifications ch join community_comments c on c.id = ch.subject_id join users cu on cu.id = c.user_id where ch.parent_id = user_notifications.id and c.status = 'published' and c.deleted_at is null and cu.status = 'active' and cu.deleted_at is null)";
+
+        return $query->whereNull('parent_id')
+            ->where(function ($q) {
+                $q->whereNull('group_count')->orWhere('group_count', '>', 0);
+            })
+            ->whereRaw('(user_notifications.subject_type is null'
+                .' or (user_notifications.subject_type in (\'post\', \'video\', \'photo\', \'question\') and '.$post('user_notifications.subject_id').')'
+                .' or (user_notifications.subject_type in (\'comment\', \'reply\') and '.$comment.')'
+                .' or (user_notifications.subject_type = \'burst\' and '.$post('user_notifications.subject_id').' and '.$someComment.')'
+                .' or user_notifications.subject_type not in (\'post\', \'video\', \'photo\', \'question\', \'comment\', \'reply\', \'burst\'))');
     }
 
     /** Marks one notification, or all of them, as read */
@@ -273,7 +300,10 @@ class UserNotifications
     {
         UserNotification::where('user_id', $user->getKey())->whereNull('read_at')
             ->when($id, function ($q) use ($id) {
-                $q->whereKey($id);
+                // A group, and the notifications that were folded into it
+                $q->where(function ($w) use ($id) {
+                    $w->whereKey($id)->orWhere('parent_id', $id);
+                });
             })
             ->update(['read_at' => now()]);
     }

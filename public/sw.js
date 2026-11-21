@@ -141,6 +141,27 @@ function planPush(windows) {
     return { show: !watching, tell: windows };
 }
 
+/**
+ * The picture beside a notification: the person's own small profile photo where the push names one and it
+ * can be fetched, otherwise the WorkMate icon. Only WorkMate's own avatar address is ever used (a payload
+ * can't point the phone at another site), a slow or missing photo costs at most a moment, and any failure
+ * quietly falls back. (Fetching it first also puts it in the browser's cache, so showing it is instant.)
+ */
+const AVATAR_ICON = /^\/api\/v1\/avatars\/[0-9a-f-]{36}\.jpg(\?s=\d{2,3})?$/;
+const APP_ICON = '/icons/icon-192.png';
+async function pickIcon(raw) {
+    if (typeof raw !== 'string' || !AVATAR_ICON.test(raw)) return APP_ICON;
+    try {
+        const answer = await Promise.race([
+            fetch(raw, { credentials: 'omit' }),
+            new Promise((resolve, reject) => setTimeout(() => reject(new Error('slow')), 1200)),
+        ]);
+        return answer && answer.ok ? raw : APP_ICON;
+    } catch (e) {
+        return APP_ICON;
+    }
+}
+
 self.addEventListener('push', (event) => {
     let data = {};
     try { data = event.data ? event.data.json() : {}; } catch (e) { data = { body: event.data && event.data.text() }; }
@@ -162,8 +183,8 @@ self.addEventListener('push', (event) => {
 
         const options = {
             body: data.body || '',
-            // Large picture beside the text
-            icon: '/icons/icon-192.png',
+            // Large picture beside the text: the person's own photo where there is one, else the app's
+            icon: await pickIcon(data.icon),
             // Small status-bar icon: Android paints it white, so it must be a white shape on transparent
             badge: '/icons/badge-96.png',
             // The same tag replaces the notification already shown (one per group, not a pile)

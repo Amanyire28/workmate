@@ -85,10 +85,18 @@ class User extends Authenticatable implements MustVerifyEmail
         return mb_substr(trim($first.' '.$last), 0, 60);
     }
 
-    /** Web address of the profile photo, or null when there isn't one */
-    public function avatarUrl(): ?string
+    /** Web address of the profile photo, or null when there isn't one ($size: a small copy, see ProfilePhotos::THUMBNAIL_SIZES) */
+    public function avatarUrl(?int $size = null): ?string
     {
-        return $this->avatar_path ? url('/api/v1/avatars/'.basename($this->avatar_path)) : null;
+        $path = $this->avatarPath($size);
+
+        return $path ? url($path) : null;
+    }
+
+    /** The same address without the site name (for a push, which the service worker only opens on this site) */
+    public function avatarPath(?int $size = null): ?string
+    {
+        return $this->avatar_path ? '/api/v1/avatars/'.basename($this->avatar_path).($size ? '?s='.$size : '') : null;
     }
 
     /** Community: the accounts following this one, and the ones it follows */

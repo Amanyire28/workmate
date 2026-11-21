@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\UserNotification;
-use App\Services\EngagementNotifications;
+use App\Services\NotificationPresenter;
 use App\Services\PushDelivery;
 use App\Services\PushNotifications;
 use App\Services\UserNotifications;
@@ -19,13 +19,13 @@ class NotificationController extends Controller
     /** @var UserNotifications */
     private $notifications;
 
-    /** @var EngagementNotifications */
-    private $engagement;
+    /** @var NotificationPresenter */
+    private $presenter;
 
-    public function __construct(UserNotifications $notifications, EngagementNotifications $engagement)
+    public function __construct(UserNotifications $notifications, NotificationPresenter $presenter)
     {
         $this->notifications = $notifications;
-        $this->engagement = $engagement;
+        $this->presenter = $presenter;
     }
 
     /**
@@ -43,41 +43,25 @@ class NotificationController extends Controller
             $query->whereNull('read_at');
         }
         $page = $query->orderByDesc('created_at')->orderByDesc('id')->cursorPaginate(self::PER_PAGE);
-        $items = collect($page->items());
 
-        // People: grouped rows from the likes / follows tables, single ones from the person they name (a few queries for the whole page)
-        $people = $this->engagement->peopleFor($items);
-        $actors = $this->engagement->users($items->whereNull('group_key')->pluck('actor_id')->filter()->all());
-
-        $data = $items->map(function (UserNotification $n) use ($people, $actors) {
-            $grouped = $n->group_key !== null;
-            $who = $grouped ? ($people[$n->id] ?? ['count' => 0, 'actors' => []]) : ['count' => null, 'actors' => isset($actors[$n->actor_id]) ? [$actors[$n->actor_id]] : []];
-            $title = $n->title;
-            $body = $n->body;
-            $url = $n->url;
-            if ($grouped) {
-                if ($who['count'] < 1) {
-                    return null;   // everyone in it has since gone
-                }
-                [$title, $body] = $this->engagement->compose($n->kind, $n->subject_type, array_column(array_slice($who['actors'], 0, 2), 'name'), $who['count']);
-                if ($n->kind === EngagementNotifications::FOLLOWS && $who['actors']) {
-                    $url = '/community/people/'.$who['actors'][0]['id'];
-                }
-            }
-
-            return [
-                'id' => $n->id, 'kind' => $n->kind, 'priority' => UserNotifications::priority($n->kind),
-                'title' => $title, 'body' => $body, 'url' => $url,
-                'grouped' => $grouped, 'count' => $who['count'],
-                'actors' => array_values($who['actors']),
-                'read' => $n->read_at !== null, 'at' => $n->created_at->toIso8601String(),
-            ];
-        })->filter()->values();
+        // Who, what it is about, previews and counts as they are now, read for the whole page at once
+        $data = $this->presenter->present(collect($page->items()));
 
         return response()->json([
             'data' => $data,
             'meta' => ['next_cursor' => optional($page->nextCursor())->encode(), 'unread' => $this->notifications->unreadCount($user)],
         ]);
+    }
+
+    /**
+     * Who is behind a grouped notification, or which comments it is made of (up to 50, newest first), for
+     * the sheet that opens from it. Only the signed-in person's own notification, and only while it can be seen.
+     */
+    public function activity(Request $request, int $notification): JsonResponse
+    {
+        $row = $this->notifications->visible(UserNotification::where('user_id', $request->user()->getKey()))->findOrFail($notification);
+
+        return response()->json(['data' => $this->presenter->activity($row)]);
     }
 
     /** Just the number for the bell (a window asks for it when a push arrives) */

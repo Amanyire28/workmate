@@ -116,15 +116,20 @@ class PushDelivery
      * until the push is finished. Call inside the transaction that saved the event, then
      * attempt() with the ids once for the whole event. Returns 0 when the person has no device (nothing is saved).
      */
-    public function enqueueDirect(int $userId, string $kind, array $message): int
+    public function enqueueDirect(int $userId, string $kind, array $message, ?int $groupRowId = null): int
     {
         if (! PushSubscription::where('user_id', $userId)->exists()) {
             return 0;
         }
-        $payload = array_intersect_key($message, array_flip(['title', 'body', 'url', 'tag', 'important']));
+        $payload = array_intersect_key($message, array_flip(['title', 'body', 'url', 'tag', 'important', 'icon']));
+        if (empty($payload['icon'])) {
+            unset($payload['icon']);   // no photo: the phone uses the WorkMate icon
+        }
         $id = DB::table('notification_pushes')->insertGetId([
             'user_id' => $userId, 'type' => NotificationPush::TYPE_DIRECT, 'kind' => $kind, 'dedupe_key' => 'd:'.Str::uuid(),
-            'payload' => json_encode($payload), 'status' => NotificationPush::PENDING, 'send_after' => now(),
+            // $groupRowId: the notification (the first of a window of comments) this push is about; a later push
+            // for the same one is an update to what the phone already shows, so it is silent
+            'user_notification_id' => $groupRowId, 'payload' => json_encode($payload), 'status' => NotificationPush::PENDING, 'send_after' => now(),
             'created_at' => now(), 'updated_at' => now(),
         ]);
 

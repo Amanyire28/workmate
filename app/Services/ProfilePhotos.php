@@ -17,10 +17,39 @@ use Illuminate\Support\Str;
 class ProfilePhotos
 {
     public const DIRECTORY = 'avatars';
+
+    /** Small versions a page may ask for (?s=96): a list of people needs 40 pixels, not 512 */
+    public const THUMBNAIL_SIZES = [64, 96, 128, 192];
     private const SIZE = 512;
 
     /** @var AuditLogger */
     private $audit;
+
+    /**
+     * A small square copy of a stored profile photo (JPEG bytes), or null if it can't be made (the
+     * original is served then). Made as it is asked for; the photo's address changes with every
+     * upload, so browsers keep the result for good.
+     */
+    public function thumbnail(string $path, int $size): ?string
+    {
+        if (! in_array($size, self::THUMBNAIL_SIZES, true) || ! function_exists('imagecreatefromstring')) {
+            return null;
+        }
+        $bytes = \Illuminate\Support\Facades\Storage::disk('local')->get($path);
+        $source = $bytes ? @imagecreatefromstring($bytes) : false;
+        if (! $source) {
+            return null;
+        }
+        $square = imagecreatetruecolor($size, $size);
+        imagecopyresampled($square, $source, 0, 0, 0, 0, $size, $size, imagesx($source), imagesy($source));
+        ob_start();
+        imagejpeg($square, null, 82);
+        $out = ob_get_clean();
+        imagedestroy($source);
+        imagedestroy($square);
+
+        return $out ?: null;
+    }
 
     public function __construct(AuditLogger $audit)
     {
