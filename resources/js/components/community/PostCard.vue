@@ -48,7 +48,7 @@
         ref="bodyEl"
         class="text-[15px] leading-[1.45] text-ink whitespace-pre-line break-words"
         :class="clamped ? (hasMedia ? 'line-clamp-3' : 'line-clamp-6') : ''"
-      >{{ post.body }}</p>
+      ><MentionText :text="post.body" :mentions="post.mentions" /></p>
       <button v-if="!full && (overflowing || expanded)" type="button" class="wm-see-more" :aria-expanded="expanded" :aria-controls="`${uid}-body`" @click="expanded = !expanded">
         {{ expanded ? 'See less' : 'See more' }}
       </button>
@@ -121,6 +121,7 @@ import UserAvatar from '@/components/UserAvatar.vue';
 import VerifiedBadge from '@/components/VerifiedBadge.vue';
 import PhotoViewer from './PhotoViewer.vue';
 import VideoPlayer from './VideoPlayer.vue';
+import MentionText from './MentionText.vue';
 import { VIDEO_MOCK } from '@/stores/video.js';
 import { agoLabel } from '@/stores/catalog.js';
 import { categoryOf, toggleLike, toggleSave, toggleFollow, sharePost, postUrl, needsSignIn, personLink, shortCount, countLabel } from '@/stores/community.js';

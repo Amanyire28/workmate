@@ -84,6 +84,8 @@ class CommunityVideos
     public function authorize(User $user, array $data): array
     {
         $this->guardCanPost($user);
+        // Mentions in the caption are checked now, not after the whole video has uploaded
+        $this->community->checkCaption($user, $data['body'] ?? null);
 
         // The same request sent twice (a retry on a bad connection) gets the same upload
         $existing = CommunityVideoUpload::where('user_id', $user->getKey())->where('client_token', $data['client_token'])->first();
@@ -211,7 +213,7 @@ class CommunityVideos
 
         $stored = $poster ? [$this->photos->store($poster, 'community', 'community')] : [];
         try {
-            return DB::transaction(function () use ($user, $upload, $facts, $stored, $width, $height) {
+            $post = DB::transaction(function () use ($user, $upload, $facts, $stored, $width, $height) {
                 $post = $this->community->publishVideo($user, [
                     'category' => $upload->category, 'body' => $upload->body, 'topic' => $upload->topic,
                 ], [
@@ -241,6 +243,8 @@ class CommunityVideos
             $this->backToPending($upload);
             throw $e;
         }
+
+        return $post;
     }
 
     /** @return array{0: int, 1: int} */

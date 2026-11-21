@@ -76,7 +76,7 @@
               <p
                 class="whitespace-pre-line break-words text-[14px] leading-[1.45] text-white drop-shadow"
                 :class="expanded ? 'max-h-[34vh] overflow-y-auto overscroll-contain pr-1' : 'line-clamp-2'"
-              >{{ slot.post.body }}</p>
+              ><MentionText :text="slot.post.body" :mentions="slot.post.mentions" dark @navigate="leaving" /></p>
               <button v-if="expanded || long(slot.post)" type="button" class="min-h-8 text-[13px] font-semibold text-white/85" :aria-expanded="expanded" @click="expanded = !expanded">
                 {{ expanded ? 'See less' : 'See more' }}
               </button>
@@ -122,6 +122,7 @@ import { ref, shallowRef, computed, watch, onMounted, onBeforeUnmount, nextTick 
 import UserAvatar from '@/components/UserAvatar.vue';
 import VerifiedBadge from '@/components/VerifiedBadge.vue';
 import VideoPlayer from './VideoPlayer.vue';
+import MentionText from './MentionText.vue';
 import { videoPrefs, setVideoMuted } from '@/stores/video.js';
 import { toggleLike, toggleSave, sharePost, personLink, shortCount, countLabel } from '@/stores/community.js';
 

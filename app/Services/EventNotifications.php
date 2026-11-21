@@ -326,6 +326,21 @@ class EventNotifications
         }
     }
 
+    /**
+     * Someone mentioned these people in a post, comment or reply (CommunityMentions
+     * decides who, once per post or comment). The words stay in WorkMate.
+     */
+    public function mentioned(CommunityPost $post, ?CommunityComment $comment, User $by, iterable $userIds): void
+    {
+        $where = ! $comment ? 'a post' : ($comment->parent_id ? 'a reply' : ($post->category === 'question' ? 'an answer' : 'a comment'));
+        $this->send('community_mentions', $userIds, [
+            'title' => 'You were mentioned',
+            'body' => $this->communityName($by).' mentioned you in '.$where.'.',
+            'url' => '/community/post/'.$post->uuid.($comment ? '#comment-'.$comment->id : ''),
+            'tag' => 'community-mention-'.($comment ? 'comment-'.$comment->id : 'post-'.$post->uuid),
+        ]);
+    }
+
     /** At most once an hour per post (CommunityPost::likes_notified_at) */
     public function liked(CommunityPost $post, User $by, int $likes): void
     {

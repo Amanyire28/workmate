@@ -2,8 +2,12 @@
 
 namespace App\Providers;
 
+use App\Support\AfterCommit;
+use Illuminate\Database\Events\TransactionCommitted;
+use Illuminate\Database\Events\TransactionRolledBack;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Event;
 use Minishlink\WebPush\WebPush;
 
 class AppServiceProvider extends ServiceProvider
@@ -15,6 +19,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
+        // Work to do once the database changes around it are saved (see AfterCommit)
+        $this->app->singleton(AfterCommit::class);
+
         // Web push client, signed with the server's VAPID keys. On Windows, PHP
         // must start with OPENSSL_CONF set to encrypt messages (see the README).
         $this->app->bind(WebPush::class, function () {
@@ -36,6 +43,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot()
     {
+        Event::listen(TransactionCommitted::class, function () {
+            $this->app->make(AfterCommit::class)->committed();
+        });
+        Event::listen(TransactionRolledBack::class, function () {
+            $this->app->make(AfterCommit::class)->rolledBack();
+        });
+
         // Custom @vite Blade directive for Laravel 8 compatibility.
         // The tags are resolved per request (not at compile time) so a new
         // build or starting/stopping `npm run dev` never leaves stale hashes

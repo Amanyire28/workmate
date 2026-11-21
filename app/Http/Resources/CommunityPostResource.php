@@ -6,6 +6,7 @@ use App\Models\CommunityPost;
 use App\Models\CommunityPostMedia;
 use App\Models\ProviderProfile;
 use App\Models\User;
+use App\Services\CommunityMentions;
 use App\Services\CommunityVideos;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -16,7 +17,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 class CommunityPostResource extends JsonResource
 {
-    public const RELATIONS = ['author', 'provider.owner', 'provider.professions', 'topic', 'area', 'media'];
+    public const RELATIONS = ['author', 'provider.owner', 'provider.professions', 'topic', 'area', 'media', 'mentions'];
 
     /**
      * @param  \Illuminate\Http\Request  $request
@@ -32,6 +33,8 @@ class CommunityPostResource extends JsonResource
             'id' => $this->uuid,
             'category' => $this->category,
             'body' => $this->body,
+            // @mentions in the body: start and length in UTF-16 code units (CommunityMentions)
+            'mentions' => $this->relationLoaded('mentions') ? CommunityMentions::present($this->mentions, ! $removed) : [],
             'created_at' => $this->created_at->toIso8601String(),
             'edited_at' => optional($this->edited_at)->toIso8601String(),
             'author' => self::author($this->author, $this->provider) + ['following' => (bool) $this->viewer_follows_author],

@@ -167,6 +167,12 @@ class RouteServiceProvider extends ServiceProvider
         });
 
         // Searching for people (typing waits 300 ms between searches)
+        // Suggestions while typing "@name": generous for typing, not for trawling through accounts
+        RateLimiter::for('mention-search', function (Request $request) {
+            $key = optional($request->user())->id ?: $request->ip();
+
+            return [Limit::perMinute(60)->by('m'.$key), Limit::perHour(600)->by('h'.$key)];
+        });
         RateLimiter::for('people-search', function (Request $request) {
             $user = $request->user('sanctum');
 

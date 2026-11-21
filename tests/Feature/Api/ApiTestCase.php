@@ -20,6 +20,8 @@ abstract class ApiTestCase extends TestCase
         parent::setUp();
 
         $this->seed([RolesAndPermissionsSeeder::class, CatalogueSeeder::class, AreaSeeder::class]);
+        // The test's own wrapping transaction counts as "nothing open", as a real request has
+        $this->app->make(\App\Support\AfterCommit::class)->treatLevelAsOutermost(\Illuminate\Support\Facades\DB::transactionLevel());
     }
 
     /**

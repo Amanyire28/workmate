@@ -46,6 +46,50 @@ class CommunityPeople
         return $this->discoverable()->whereKey($user->getKey())->exists();
     }
 
+    /**
+     * Whose community page can be opened: people who can be discovered, and
+     * anyone mentioned in a post or comment people can see (the mention already
+     * shows their community name, and links here). Their page shows only what
+     * any card shows. They still aren't listed in searches or suggestions.
+     */
+    public function findable(): Builder
+    {
+        return User::query()->where('users.status', User::STATUS_ACTIVE)->where(function ($q) {
+            $q->whereHas('providerProfile', function ($p) {
+                $p->where('status', ProviderProfile::STATUS_APPROVED);
+            })->orWhereHas('communityPosts', function ($p) {
+                $p->where('status', CommunityPost::STATUS_PUBLISHED);
+            })->orWhereExists(function ($m) {
+                $m->select(DB::raw(1))->from('community_mentions as m')
+                    ->whereColumn('m.user_id', 'users.id')
+                    ->where(function ($w) {
+                        $w->where(function ($p) {
+                            $p->where('m.mentionable_type', CommunityMentions::TYPE_POST)->whereExists(function ($x) {
+                                $this->visiblePost($x->select(DB::raw(1))->from('community_posts as cp')->whereColumn('cp.id', 'm.mentionable_id'));
+                            });
+                        })->orWhere(function ($c) {
+                            $c->where('m.mentionable_type', CommunityMentions::TYPE_COMMENT)->whereExists(function ($x) {
+                                $this->visiblePost($x->select(DB::raw(1))->from('community_comments as cc')
+                                    ->join('community_posts as cp', 'cp.id', '=', 'cc.community_post_id')
+                                    ->whereColumn('cc.id', 'm.mentionable_id')
+                                    ->where('cc.status', 'published')->whereNull('cc.deleted_at'));
+                            });
+                        });
+                    });
+            });
+        });
+    }
+
+    /** Narrows a query joined to community_posts as "cp" to posts anyone can see */
+    private function visiblePost($query)
+    {
+        return $query->where('cp.status', CommunityPost::STATUS_PUBLISHED)->whereNull('cp.deleted_at')
+            ->whereExists(function ($a) {
+                $a->select(DB::raw(1))->from('users as au')->whereColumn('au.id', 'cp.user_id')
+                    ->where('au.status', User::STATUS_ACTIVE)->whereNull('au.deleted_at');
+            });
+    }
+
     /** Relations and counts a person card needs */
     public function withCard(Builder $query): Builder
     {
@@ -174,7 +218,7 @@ class CommunityPeople
 
         $where = ['follower_id' => $viewer->getKey(), 'followed_id' => $person->getKey()];
         if ($on) {
-            if (! $this->isDiscoverable($person)) {
+            if (! $this->findable()->whereKey($person->getKey())->exists()) {
                 throw new BusinessRuleException('person_not_found', 'This person isn’t in the community.', 404);
             }
             // Only a real change counts, so tapping twice can't follow twice

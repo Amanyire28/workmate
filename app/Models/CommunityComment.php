@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\CommunityMentions;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -32,6 +33,14 @@ class CommunityComment extends Model
         'removed_at' => 'datetime',
     ];
 
+    protected static function booted()
+    {
+        // Deleted for good: its mentions go too (soft-deleted ones keep them, unseen)
+        static::forceDeleted(function (self $item) {
+            app(CommunityMentions::class)->forget(CommunityMentions::TYPE_COMMENT, $item->id);
+        });
+    }
+
     public function post()
     {
         return $this->belongsTo(CommunityPost::class, 'community_post_id')->withTrashed();
@@ -50,6 +59,14 @@ class CommunityComment extends Model
     public function replies()
     {
         return $this->hasMany(self::class, 'parent_id');
+    }
+
+    /** @mentions in it, each with the person (and what decides where their name links) */
+    public function mentions()
+    {
+        return $this->hasMany(CommunityMention::class, 'mentionable_id')
+            ->where('mentionable_type', CommunityMentions::TYPE_COMMENT)
+            ->with('user.providerProfile');
     }
 
     public function isVisible(): bool

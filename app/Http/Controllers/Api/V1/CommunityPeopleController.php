@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\CommunityPeople;
 use App\Services\Referrals;
 use Illuminate\Http\JsonResponse;
+use App\Services\CommunityMentions;
 use Illuminate\Http\Request;
 
 /** People in the community: discovering, following and their public cards */
@@ -21,6 +22,17 @@ class CommunityPeopleController extends Controller
     public function __construct(CommunityPeople $people)
     {
         $this->people = $people;
+    }
+
+    /**
+     * People to mention while writing "@…": up to eight, matched on the name
+     * the community shows. Signed-in members only, and rate limited.
+     */
+    public function mentionSuggestions(Request $request, CommunityMentions $mentions): JsonResponse
+    {
+        $data = $request->validate(['q' => ['required', 'string', 'max:40']]);
+
+        return response()->json(['data' => $mentions->suggestions($request->user(), $data['q'])]);
     }
 
     /** People to follow, or everyone matching a name or profession */
@@ -81,7 +93,7 @@ class CommunityPeopleController extends Controller
         $viewer = $request->user();
         $me = $this->people->withCard(User::query())->findOrFail($viewer->getKey());
 
-        return response()->json(['data' => $this->people->card($me, $viewer, [], $this->people->isDiscoverable($me))]);
+        return response()->json(['data' => $this->people->card($me, $viewer, [], $this->people->findable()->whereKey($me->getKey())->exists())]);
     }
 
     public function followers(Request $request, int $user): JsonResponse
@@ -119,8 +131,8 @@ class CommunityPeopleController extends Controller
             ->orderByDesc('follows.created_at')
             ->simplePaginate(self::PER_PAGE);
         $items = collect($page->items());
-        // Followers who never posted are listed without a link to a page of their own
-        $linkable = $this->people->discoverable()->whereIn('users.id', $items->pluck('id')->all() ?: [0])->pluck('users.id')->flip();
+        // Followers without a page of their own are listed without a link
+        $linkable = $this->people->findable()->whereIn('users.id', $items->pluck('id')->all() ?: [0])->pluck('users.id')->flip();
 
         return response()->json([
             'data' => $this->cards($items, $viewer, $linkable),
@@ -139,7 +151,7 @@ class CommunityPeopleController extends Controller
 
     private function findPerson(int $id): User
     {
-        $person = $this->people->withCard($this->people->discoverable())->find($id);
+        $person = $this->people->withCard($this->people->findable())->find($id);
         abort_unless($person, 404);
 
         return $person;

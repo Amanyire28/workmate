@@ -21,6 +21,7 @@ class UserNotifications
         'job_alerts' => ['New jobs near you', 'Jobs posted near you in your line of work'],
         'messages' => ['Messages', 'New messages in your chats'],
         'community_comments' => ['Comments and replies', 'On your posts and comments in the community'],
+        'community_mentions' => ['Mentions', 'When someone mentions you in a post or comment'],
         'community_posts' => ['Posts from people you follow', 'When someone you follow shares something (at most every few hours each)'],
         'community_likes' => ['Likes', 'When people like your posts'],
         'community_follows' => ['New followers', 'When someone follows you in the community'],

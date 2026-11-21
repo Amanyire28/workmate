@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Services\CommunityMentions;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
@@ -25,6 +26,7 @@ class CommunityCommentResource extends JsonResource
             'id' => $this->id,
             'parent_id' => $this->parent_id,
             'body' => $gone ? null : $this->body,
+            'mentions' => ! $gone && $this->relationLoaded('mentions') ? CommunityMentions::present($this->mentions) : [],
             'gone' => $gone,
             'created_at' => $this->created_at->toIso8601String(),
             'author' => $gone ? null : CommunityPostResource::author($this->author, $this->author->providerProfile),

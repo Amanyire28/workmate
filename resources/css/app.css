@@ -737,6 +737,15 @@
         color: var(--color-muted);
     }
     .wm-see-more:hover { color: var(--color-primary); text-decoration: underline; }
+    /* @mentions in posts and comments: the brand blue, a little bolder, never louder than the words */
+    .wm-mention { color: var(--color-primary); font-weight: 600; border-radius: 4px; }
+    a.wm-mention:hover { text-decoration: underline; }
+    a.wm-mention:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
+    .wm-mention-dark { color: #9CCBFF; }
+    a.wm-mention-dark:focus-visible { outline-color: #fff; }
+    /* Opened from a notification: the comment it was about */
+    .wm-comment-flash { animation: wm-comment-flash 2.4s ease-out; border-radius: 16px; }
+    @keyframes wm-comment-flash { 0%, 40% { background: var(--color-primary-tint); } 100% { background: transparent; } }
     .wm-video-full { max-height: none; height: 100%; }
     /* The full-screen video viewer: swipes are ours, not the page's scrolling */
     .wm-viewer-stage { touch-action: none; overscroll-behavior: none; }

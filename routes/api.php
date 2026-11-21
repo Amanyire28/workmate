@@ -119,6 +119,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('community/posts', [CommunityController::class, 'index'])->name('community.index');
     Route::get('community/posts/{post}', [CommunityController::class, 'show'])->whereUuid('post')->name('community.show');
     Route::get('community/posts/{post}/comments', [CommunityController::class, 'comments'])->whereUuid('post')->name('community.comments');
+    Route::get('community/comments/{comment}/thread', [CommunityController::class, 'thread'])->whereNumber('comment')->name('community.comment.thread');
     Route::get('community/people', [CommunityPeopleController::class, 'index'])->middleware('throttle:people-search')->name('community.people');
     Route::get('community/people/suggested', [CommunityPeopleController::class, 'suggested'])->name('community.people.suggested');
     Route::get('community/people/{user}', [CommunityPeopleController::class, 'show'])->whereNumber('user')->name('community.people.show');
@@ -305,6 +306,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         });
         Route::get('community/saved', [CommunityController::class, 'saved'])->name('community.saved');
         Route::get('community/me', [CommunityPeopleController::class, 'me'])->name('community.me');
+        Route::get('community/mention-suggestions', [CommunityPeopleController::class, 'mentionSuggestions'])->middleware('throttle:mention-search')->name('community.mentions.suggest');
         Route::middleware('throttle:community-post')->group(function () {
             Route::post('community/posts', [CommunityController::class, 'store'])->name('community.store');
             // Video posts: the phone uploads straight to storage, then says it's finished

@@ -115,11 +115,13 @@ class CommunityController extends Controller
         ]);
     }
 
+    private const COMMENT_RELATIONS = ['author.providerProfile.owner', 'author.providerProfile.professions', 'mentions'];
+
     /** Top-level comments, oldest first, each with its replies */
     public function comments(Request $request, string $post): JsonResponse
     {
         $post = $this->findReadable($request, $post);
-        $authorRelations = ['author.providerProfile.owner', 'author.providerProfile.professions'];
+        $authorRelations = self::COMMENT_RELATIONS;
 
         $page = CommunityComment::withTrashed()
             ->where('community_post_id', $post->id)->whereNull('parent_id')
@@ -139,15 +141,47 @@ class CommunityController extends Controller
             ->orderBy('created_at')->orderBy('id')
             ->cursorPaginate(self::COMMENTS_PER_PAGE);
 
-        $items = collect($page->items())->each(function (CommunityComment $c) use ($post) {
+        $items = $this->withLikes(collect($page->items()), $post, $request->user('sanctum'));
+
+        return response()->json([
+            'data' => CommunityCommentResource::collection($items),
+            'meta' => ['next_cursor' => optional($page->nextCursor())->encode(), 'total' => $post->comments_count],
+        ]);
+    }
+
+    /**
+     * One comment's conversation (the comment it belongs to, with its replies),
+     * so a link from a notification finds it wherever it is in a long list.
+     * Only a comment people can see, on a post the viewer can read.
+     */
+    public function thread(Request $request, int $comment): JsonResponse
+    {
+        $found = CommunityComment::find($comment);
+        abort_unless($found && $found->isVisible() && $found->post, 404);
+        $post = $this->findReadable($request, (string) $found->post->uuid);
+
+        $top = CommunityComment::withTrashed()->where('community_post_id', $post->id)->whereKey($found->parent_id ?: $found->id)
+            ->with(array_merge(self::COMMENT_RELATIONS, ['replies' => function ($r) {
+                $r->where('status', CommunityComment::STATUS_PUBLISHED)->orderBy('created_at')->orderBy('id');
+            }], array_map(function ($rel) {
+                return 'replies.'.$rel;
+            }, self::COMMENT_RELATIONS)))
+            ->first();
+        abort_unless($top, 404);
+        $this->withLikes(collect([$top]), $post, $request->user('sanctum'));
+
+        return response()->json(['data' => new CommunityCommentResource($top), 'meta' => ['post' => $post->uuid]]);
+    }
+
+    /** Sets each comment's post, and whether the viewer liked it (one query for them all) */
+    private function withLikes(Collection $items, CommunityPost $post, ?User $viewer): Collection
+    {
+        $items->each(function (CommunityComment $c) use ($post) {
             $c->setRelation('post', $post);
             $c->replies->each(function ($r) use ($post) {
                 $r->setRelation('post', $post);
             });
         });
-
-        // Which of these the viewer has liked (one query for the page)
-        $viewer = $request->user('sanctum');
         $all = $items->concat($items->pluck('replies')->flatten());
         $liked = $viewer && $all->isNotEmpty()
             ? DB::table('community_comment_likes')->where('user_id', $viewer->getKey())->whereIn('community_comment_id', $all->pluck('id')->all())->pluck('community_comment_id')->flip()
@@ -156,10 +190,7 @@ class CommunityController extends Controller
             $c->likedByViewer = $liked->has($c->id);
         });
 
-        return response()->json([
-            'data' => CommunityCommentResource::collection($items),
-            'meta' => ['next_cursor' => optional($page->nextCursor())->encode(), 'total' => $post->comments_count],
-        ]);
+        return $items;
     }
 
     /** A post's photo: served only while the post can be seen */
@@ -257,7 +288,7 @@ class CommunityController extends Controller
         ], ['body.required' => 'Write a comment first.', 'body.max' => 'Comments can be up to '.CommunityComment::MAX_BODY.' characters.']);
 
         $comment = $this->community->comment($request->user(), $post, $data['body'], $data['parent'] ?? null);
-        $comment->load(['author.providerProfile.owner', 'author.providerProfile.professions'])->setRelation('post', $post)->setRelation('replies', collect());
+        $comment->load(self::COMMENT_RELATIONS)->setRelation('post', $post)->setRelation('replies', collect());
 
         return response()->json(['data' => new CommunityCommentResource($comment), 'meta' => ['comments_count' => $post->fresh()->comments_count]], 201);
     }

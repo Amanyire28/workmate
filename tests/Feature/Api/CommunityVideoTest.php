@@ -152,6 +152,34 @@ class CommunityVideoTest extends ApiTestCase
         return $this->complete($ticket['upload_id'], $poster)->assertCreated()->json('data');
     }
 
+    /* ---------------- Mentions in a caption ---------------- */
+
+    public function test_a_video_caption_mentions_people_who_are_told_once_it_is_published()
+    {
+        $sarah = User::factory()->create(['name' => 'Sarah Namuli']);
+        $hers = new CommunityPost();
+        $hers->forceFill(['uuid' => (string) Str::uuid(), 'user_id' => $sarah->id, 'category' => 'tips', 'body' => 'Hello'])->save();
+        $this->member();
+
+        $bytes = self::mp4();
+        $ticket = $this->ask($bytes, ['body' => 'Fixed with @[u:'.$sarah->id.']'])->assertCreated()->json('data');
+        // Not told while the video is still uploading
+        $this->assertSame(0, \App\Models\UserNotification::where('user_id', $sarah->id)->count());
+
+        $this->putToStorage($ticket['upload']['url'], $bytes);
+        $post = $this->complete($ticket['upload_id'])->assertCreated()->json('data');
+        $this->assertSame('Fixed with @Sarah N.', $post['body']);
+        $this->assertSame([['start' => 11, 'length' => 9, 'user_id' => $sarah->id, 'provider_id' => null, 'linkable' => true]], $post['mentions']);
+        $this->assertSame(1, \App\Models\UserNotification::where('user_id', $sarah->id)->where('kind', 'community_mentions')->count());
+    }
+
+    public function test_a_caption_with_a_mention_that_isnt_allowed_is_refused_before_uploading()
+    {
+        $this->member();
+        $this->ask(self::mp4(), ['body' => 'Thanks @[u:999999]'])->assertStatus(422)->assertJsonPath('code', 'mention_not_allowed');
+        $this->assertSame(0, CommunityVideoUpload::count());
+    }
+
     /* ---------------- Who may post: the community's own rules ---------------- */
 
     public function test_customers_providers_and_admins_who_can_post_can_upload_a_video()

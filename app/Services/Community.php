@@ -31,11 +31,15 @@ class Community
     /** @var EventNotifications */
     private $notify;
 
-    public function __construct(AuditLogger $audit, PhotoVariants $photos, EventNotifications $notify)
+    /** @var CommunityMentions */
+    private $mentions;
+
+    public function __construct(AuditLogger $audit, PhotoVariants $photos, EventNotifications $notify, CommunityMentions $mentions)
     {
         $this->audit = $audit;
         $this->photos = $photos;
         $this->notify = $notify;
+        $this->mentions = $mentions;
     }
 
     /* ---------------- Posts ---------------- */
@@ -51,6 +55,8 @@ class Community
         if ($body === null && ! $photos) {
             throw new BusinessRuleException('post_empty', 'Write something or add a photo.', 422);
         }
+        // Checked before any photo is stored
+        [$body, $mentions] = $this->mentions->expand($body, $author, CommunityPost::MAX_BODY);
 
         $stored = [];
         try {
@@ -58,25 +64,36 @@ class Community
                 $stored[] = $this->photos->store($photo, 'community', 'community');
             }
 
-            return DB::transaction(function () use ($author, $data, $body, $stored) {
-                return $this->createPost($author, $data, $body, $stored, ['photos' => count($stored)]);
+            $post = DB::transaction(function () use ($author, $data, $body, $stored, $mentions) {
+                return $this->createPost($author, $data, $body, $stored, ['photos' => count($stored)], $mentions);
             });
         } catch (\Throwable $e) {
             $this->photos->discardStored($stored);
             throw $e;
         }
+
+        return $post;
     }
 
     /**
      * A video post, once CommunityVideos has checked the upload. Call inside
      * a transaction; $video is the media row (type video, key, size, poster paths).
+     * People mentioned are told once that transaction commits.
      */
     public function publishVideo(User $author, array $data, array $video): CommunityPost
     {
         $this->guardCanTakePart($author);
+        [$body, $mentions] = $this->mentions->expand($this->clean($data['body'] ?? null), $author, CommunityPost::MAX_BODY);
 
-        return $this->createPost($author, $data, $this->clean($data['body'] ?? null), [$video], ['videos' => 1]);
+        return $this->createPost($author, $data, $body, [$video], ['videos' => 1], $mentions);
     }
+
+    /** A caption's mentions, checked before its video is uploaded (nothing is stored) */
+    public function checkCaption(User $author, ?string $body): void
+    {
+        $this->mentions->check($this->clean($body), $author, CommunityPost::MAX_BODY);
+    }
+
 
     /** Members who may post at all (confirmed email, no maintenance) */
     public function assertCanPost(User $user): void
@@ -84,7 +101,7 @@ class Community
         $this->guardCanTakePart($user);
     }
 
-    private function createPost(User $author, array $data, ?string $body, array $media, array $auditExtra): CommunityPost
+    private function createPost(User $author, array $data, ?string $body, array $media, array $auditExtra, array $mentions = []): CommunityPost
     {
         $profile = $author->providerProfile;
         $topic = ! empty($data['topic']) ? Category::active()->where('slug', $data['topic'])->value('id') : null;
@@ -106,8 +123,10 @@ class Community
             $row->forceFill($file + ['community_post_id' => $post->id, 'position' => $i])->save();
         }
 
-        $this->audit->record('community.post_published', $post, [], ['category' => $post->category] + $auditExtra, null, $author);
-        $this->tellFollowers($post, $author);
+        $post->mentionedNow = $this->mentions->record(CommunityMentions::TYPE_POST, $post->id, $post->id, $author, $mentions);
+        $this->audit->record('community.post_published', $post, [], ['category' => $post->category] + $auditExtra + ($mentions ? ['mentions' => count($mentions)] : []), null, $author);
+        // People mentioned hear about that instead
+        $this->tellFollowers($post, $author, $post->mentionedNow);
 
         return $post;
     }
@@ -119,12 +138,17 @@ class Community
         if ($post->status !== CommunityPost::STATUS_PUBLISHED) {
             throw new BusinessRuleException('post_removed', 'This post was removed by WorkMate and can’t be changed.', 409);
         }
-        $body = array_key_exists('body', $data) ? $this->clean($data['body']) : $post->body;
+        $newText = array_key_exists('body', $data);
+        $body = $newText ? $this->clean($data['body']) : $post->body;
         if ($body === null && ! $post->media()->exists()) {
             throw new BusinessRuleException('post_empty', 'Write something or add a photo.', 422);
         }
+        $mentions = [];
+        if ($newText) {
+            [$body, $mentions] = $this->mentions->expand($body, $author, CommunityPost::MAX_BODY);
+        }
 
-        return DB::transaction(function () use ($author, $post, $data, $body) {
+        $post = DB::transaction(function () use ($author, $post, $data, $body, $newText, $mentions) {
             $before = $post->only(['category', 'body', 'topic_category_id']);
             $changes = ['body' => $body, 'edited_at' => now()];
             if (! empty($data['category'])) {
@@ -134,10 +158,17 @@ class Community
                 $changes['topic_category_id'] = $data['topic'] ? Category::active()->where('slug', $data['topic'])->value('id') : null;
             }
             $post->forceFill($changes)->save();
+            if ($newText) {
+                // Only people not told about this post before hear about it
+                $this->mentions->record(CommunityMentions::TYPE_POST, $post->id, $post->id, $author, $mentions);
+            }
             $this->audit->record('community.post_edited', $post, $before, $post->only(['category', 'body', 'topic_category_id']), null, $author);
 
             return $post;
         });
+        $post->unsetRelation('mentions');
+
+        return $post;
     }
 
     public function delete(User $author, CommunityPost $post): void
@@ -237,8 +268,9 @@ class Community
         if ($body === null) {
             throw new BusinessRuleException('comment_empty', 'Write a comment first.', 422);
         }
+        [$body, $mentions] = $this->mentions->expand($body, $user, CommunityComment::MAX_BODY);
 
-        return DB::transaction(function () use ($user, $post, $body, $parentId) {
+        return DB::transaction(function () use ($user, $post, $body, $parentId, $mentions) {
             $parent = null;
             if ($parentId) {
                 $parent = CommunityComment::where('community_post_id', $post->id)->whereKey($parentId)->first();
@@ -260,6 +292,9 @@ class Community
             ])->save();
             CommunityPost::whereKey($post->id)->increment('comments_count');
             $this->notify->commented($post, $comment, $user);
+            // The post's author and the person replied to already hear about this comment
+            $this->mentions->record(CommunityMentions::TYPE_COMMENT, $comment->id, $post->id, $user, $mentions,
+                array_values(array_filter([$post->user_id, $parent ? $parent->user_id : null])));
 
             return $comment;
         });
@@ -339,13 +374,16 @@ class Community
     private const FOLLOWER_ALERT_MAX = 1000;
 
     /** Followers hear about a new post, but not about every post a busy author makes */
-    private function tellFollowers(CommunityPost $post, User $author): void
+    private function tellFollowers(CommunityPost $post, User $author, array $except = []): void
     {
         if (! Cache::add('community:followers-told:'.$author->getKey(), 1, now()->addHours(self::FOLLOWER_ALERT_HOURS))) {
             return;
         }
         $followers = DB::table('follows')->where('followed_id', $author->getKey())
-            ->latest('created_at')->limit(self::FOLLOWER_ALERT_MAX)->pluck('follower_id');
+            ->latest('created_at')->limit(self::FOLLOWER_ALERT_MAX)->pluck('follower_id')
+            ->reject(function ($id) use ($except) {
+                return in_array((int) $id, $except, true);
+            })->values();
         if ($followers->isNotEmpty()) {
             $this->notify->followedPosted($post, $author, $followers);
         }

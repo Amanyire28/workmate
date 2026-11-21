@@ -21,7 +21,7 @@
         <p class="wm-field-hint mt-1.5">{{ categoryOf(category).hint }}</p>
       </fieldset>
 
-      <div class="flex flex-col gap-1.5">
+      <div class="relative flex flex-col gap-1.5">
         <label :for="`${formId}-body`" class="sr-only">Your post</label>
         <textarea
           :id="`${formId}-body`"
@@ -30,9 +30,18 @@
           rows="4"
           :maxlength="LIMITS.body"
           class="wm-input !min-h-[120px] !py-3 !text-[16px] leading-relaxed resize-none"
-          placeholder="Share something about your work..."
-          @input="grow"
+          placeholder="Share something about your work… Type @ to mention someone."
+          aria-autocomplete="list"
+          :aria-expanded="mention.state.open"
+          :aria-controls="mention.state.open ? `${formId}-people` : undefined"
+          :aria-activedescendant="mention.state.open && mention.state.results.length ? `${formId}-people-${mention.state.active}` : undefined"
+          @input="grow(); mention.update()"
+          @click="mention.update()"
+          @keyup="['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes($event.key) && mention.update()"
+          @keydown="mention.onKeydown($event)"
+          @blur="mention.close()"
         ></textarea>
+        <MentionSuggestions :state="mention.state" :list-id="`${formId}-people`" @choose="mention.choose" />
         <p v-if="body.length > LIMITS.body - 300" class="wm-field-hint text-right" aria-live="polite">{{ LIMITS.body - body.length }} characters left</p>
       </div>
 
@@ -111,6 +120,8 @@ import { ref, computed, watch, nextTick, useId } from 'vue';
 import BottomSheet from '@/components/BottomSheet.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import VideoPicker from './VideoPicker.vue';
+import MentionSuggestions from './MentionSuggestions.vue';
+import { useMentions } from '@/stores/mentions.js';
 import { api, fieldErrors } from '@/api/client.js';
 import { auth, isProvider } from '@/stores/auth.js';
 import { categories } from '@/stores/catalog.js';
@@ -144,6 +155,10 @@ const videoPicker = ref(null);
 const photoInput = ref(null);
 let keys = 0;
 
+// @mentions in the post's words
+const mention = useMentions(body);
+watch(bodyField, (el) => mention.bind(el), { immediate: true });
+
 // One video instead of photos: { key, file, url, poster, posterUrl, duration, width, height, size }
 const video = ref(null);
 const checkingVideo = ref(false);
@@ -167,7 +182,7 @@ watch(() => props.open, async (open) => {
   error.value = '';
   if (props.post) {
     category.value = props.post.category;
-    body.value = props.post.body || '';
+    mention.load(props.post.body || '', props.post.mentions);
     topic.value = props.post.topic?.slug || '';
   } else if (!body.value && !photos.value.length && !video.value) {
     // A fresh post: providers usually show their work, others ask
@@ -222,6 +237,7 @@ function releaseVideo() {
 
 function reset({ keepVideoUrls = false } = {}) {
   body.value = '';
+  mention.reset();
   topic.value = '';
   photos.value.forEach(p => URL.revokeObjectURL(p.preview));
   photos.value = [];
@@ -253,7 +269,9 @@ async function submit() {
   // One submission at a time, however many taps
   if (busy.value || preparing.value) return;
   error.value = '';
-  const text = body.value.trim();
+  mention.close();
+  // The words with the people mentioned in them, as the server takes them
+  const text = body.value.trim() ? mention.encoded().trim() : '';
   if (!text && !photos.value.length && !video.value && !(editing.value && props.post.media?.length)) {
     error.value = videoPostsEnabled.value ? 'Write something, or add photos or a video.' : 'Write something or add a photo.';
     return;

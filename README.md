@@ -119,6 +119,7 @@ Throughout this README:
 - A public feed of members' work, tips, experiences, questions and opportunities, with photos and **videos**, likes, comments, saves, follows and moderation (see [Community](#community))
 - **Videos** go straight from the phone to private Cloudflare R2 storage; videos over 25 MB are trimmed on the phone before upload
 - A **full-screen video viewer**: tap a video in the feed, then swipe up and down through the feed's videos
+- **@mentions** in posts, captions, comments and replies: type `@` and choose someone; they're told, and their name links to their profile
 
 **Verification**
 - **Get verified:** National ID (front and back) plus up to 5 supporting documents, stored privately; reviewers accept or send back each document and can ask for further documents; approval gives the **grey tick**
@@ -136,7 +137,7 @@ Throughout this README:
 - **Settings** that change the app straight away: nearby search (radii, maximum distance, fallbacks, GPS, tie-breaks), the default place, support phone and email, accepting provider applications, maintenance mode, and presence timings
 
 **Quality**
-- **480 automated tests** (feature and unit) on a separate MariaDB test database
+- **504 automated tests** (feature and unit) on a separate MariaDB test database
 
 ### 🟡 In development
 
@@ -324,7 +325,35 @@ A place for members to share their work: **My Work** (finished jobs and before-a
 
 Rapid repeat taps on like, save and comment-like are ignored while the first is still being sent.
 
-**Data:** `community_posts` (soft deletes, removal fields, like and comment counts, `likes_notified_at`), `community_post_media` (photos, and videos with their R2 key, size, dimensions and status), `community_video_uploads` (uploads in progress), `community_comments` (`parent_id` for replies), `community_post_likes`, `community_post_saves`, `follows`, and `reports.community_post_id` / `community_comment_id`.
+### Mentions ✅
+
+Members mention people in **posts, photo and video captions, comments and replies** by typing `@` and choosing someone from the suggestions. The person is told, and their name shows in WorkMate blue, linking to their provider profile (listed providers) or their community page (members). Customers and providers can both be mentioned, without following each other.
+
+- **Who can be mentioned:** any active WorkMate account, found by the name the community shows. Suspended and deleted accounts can't be found or mentioned. A mentioned member without a community page of their own gets a minimal public one (the same card anyone's page shows) while the mention is in visible content. The author can mention themselves (they aren't notified).
+- **Suggestions while typing:** `GET /api/v1/community/mention-suggestions?q=` (signed in; `mention-search` limit: 60 a minute and 600 an hour). It returns up to 8 people: id, community name, picture, profession, provider id, ticks, the provider's area and whether you follow them. No email, phone or account fields. Matching uses the name the community shows (a provider's business name, or "Aisha N."), case-insensitively and with spaces, so a member's surname can't be used to find them. People you follow come first. The app waits briefly while you type, cancels stale searches, remembers recent ones, and shows loading, "No one called…" and limit messages. The list stays compact, above the comment box (clear of the keyboard) or below the post box. Arrow keys, Enter or Tab choose, Escape closes it; a tap chooses on phones.
+- **How a mention is stored:** the app sends a chosen person as a token, `@[u:<account id>]`. The server (`App\Services\CommunityMentions`) checks every token, replaces it with that person's community name, and stores plain text plus a `community_mentions` row: the account id, where the name starts and how long it is, in UTF-16 code units as browsers and phones count. So:
+  - text typed without choosing (`@Sarah`), email addresses and broken tokens stay plain text;
+  - nobody can be mentioned without being in the text, and posting someone's id elsewhere does nothing;
+  - a mention keeps pointing at the same account after a change of name.
+
+  While writing, the app keeps each mention's place as the text around it changes. A mention whose name is edited or partly deleted becomes plain text. Editing a post loads its mentions back as mentions.
+- **Limits:** at most **5 different people** per post, comment or reply (the same person twice counts once), checked on the server (`too_many_mentions`). A token for an account that can't be mentioned (missing, deleted, suspended, never took part) refuses the whole text (`mention_not_allowed`), and nothing is saved. With the names filled in, the text must still fit the length limit (`text_too_long`). A video caption is checked when the upload starts, not after.
+- **Notifications** (kind `community_mentions`, **Mentions** in the notification settings): "Grace A. mentioned you in a post / comment / reply / answer". Tapping it opens the post; for a comment or reply, it opens `#comment-<id>`, with the thread opened and the comment highlighted. A comment on a later page of a long list is found with `GET /api/v1/community/comments/{id}/thread` (that comment's conversation only, visible comments on a post the viewer can read); if it's gone, the page says so.
+  - Notices are queued with `App\Support\AfterCommit` inside the saving transaction: sent when the outermost transaction commits, dropped on rollback (nested ones too), so a retry still tells people.
+  - It's sent only after the post or comment is saved, and only while it can still be seen.
+  - Each person is told once per post or comment, ever (`community_mention_alerts`): editing tells only people newly added, and removing and re-adding someone doesn't tell them again.
+  - Someone already told about the item another way (the post's author, or the person replied to) isn't told twice; followers who are mentioned get the mention instead of the "new post" notice.
+  - The same author can notify the same person at most 3 times an hour, and 30 mention notifications an hour in all. Beyond that, mentions still show without a notification.
+  - Notifications never include the words.
+- **Display and safety:** mentions are drawn from text nodes and router links (`MentionText.vue`), never HTML, so typed markup stays text. Positions that don't fit the text are ignored. A tap on a mention opens that person only (never the video viewer or the post). Previews (3 lines with media, 6 without, See more), the full-screen video caption, comments and replies all show mentions. Someone suspended or deleted stays as plain text.
+- **Replies:** replying to a reply starts with a real mention of its author, so they're told. Before this, only the author of the comment that started the thread was told.
+- **Blocking (planned):** account blocking doesn't exist yet. When it's built, it plugs into `CommunityMentions::mentionable()` and `deliver()`, and the rest doesn't change.
+- **Code and tests:**
+  - Code: `CommunityMentions`, `CommunityMention`, `resources/js/utils/mentions.js`, `stores/mentions.js`, `MentionSuggestions.vue`, `MentionText.vue`.
+  - Tests: `tests/Feature/Api/CommunityMentionsTest.php`, `AfterCommitTest.php` and two caption tests in `CommunityVideoTest.php`.
+  - Configuration: none; no new environment variables.
+
+**Data:** `community_posts` (soft deletes, removal fields, like and comment counts, `likes_notified_at`), `community_post_media` (photos, and videos with their R2 key, size, dimensions and status), `community_video_uploads` (uploads in progress), `community_comments` (`parent_id` for replies), `community_post_likes`, `community_post_saves`, `follows`, and `reports.community_post_id` / `community_comment_id`, `community_mentions` and `community_mention_alerts`.
 
 ---
 
@@ -385,7 +414,7 @@ The blue tick is separate from document checks and is awarded **automatically**.
 - **Notification list (the bell) ✅:** every automatic notification is also saved for the account (`user_notifications`) and listed at **/notifications** (the bell in the header), newest first, grouped Today / This week / Earlier, so people with push off still see what happened. An unread notification with the same subject (for example one chat, or one post's likes) is updated and moved to the top rather than repeated. Tapping one marks it read and opens it; **Mark all as read**. The unread count comes back with the presence heartbeat, so the bell needs no polling of its own. Kept for 90 days.
 - **New jobs near you ✅** (`JobAlerts`): when a job is posted, approved providers with a skill in its profession who are within the wider search radius (`search.extended_km`) or list its place among the places they serve are told ("New plumbing job near you"), closest first: at most 40 providers per job and 10 alerts per provider a day. The customer's own business isn't told, and a retried post doesn't alert twice. A failure here never stops the job being posted.
 - **Posts from people you follow ✅:** followers are told when someone they follow shares a post, at most once every 3 hours per author.
-- **Choices per kind ✅:** Requests and jobs, New jobs near you (providers only), Messages, Comments and replies, Posts from people you follow, Likes, New followers can each be turned off (bell → settings, or **Account → What you're notified about**); off stops both the push and the list entry. Account and safety notices (application and document decisions, reports, warnings, removed posts) always arrive. Stored in `users.notification_preferences`.
+- **Choices per kind ✅:** Requests and jobs, New jobs near you (providers only), Messages, Comments and replies, Mentions, Posts from people you follow, Likes, New followers can each be turned off (bell → settings, or **Account → What you're notified about**); off stops both the push and the list entry. Account and safety notices (application and document decisions, reports, warnings, removed posts) always arrive. Stored in `users.notification_preferences`.
 - Administrators with `comms.send` send announcements from **Communications → Push Announcements**. Sending happens after the response, with no queue worker; devices that unsubscribed are removed automatically.
 - **Signing out stops a device's notifications ✅:** sign-out removes this device's subscription (matched by its push address, or by the session it was created in), and a device that opens WorkMate signed out releases any subscription left on it. `php artisan workmate:push-prune-signed-out` (a dry run; add `--apply` to delete) removes subscriptions of accounts that are signed in nowhere; it needs `SESSION_DRIVER=database`.
 - Requires VAPID keys in `.env` (see [Environment variables](#environment-variables)). Without them the switch is hidden.

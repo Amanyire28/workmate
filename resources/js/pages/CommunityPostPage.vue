@@ -18,7 +18,7 @@
 
       <template v-else-if="post">
         <PostCard class="mt-3" :post="post" full @edit="editing = $event" @delete="remove" @report="reporting = { about: 'post', postId: $event.id }" @comment="focusComment" />
-        <CommentThread v-if="!post.removed" class="mt-4" :post="post" @report="reporting = { about: 'comment', commentId: $event.id }" />
+        <CommentThread v-if="!post.removed" class="mt-4" :post="post" :focus-id="focusId" @report="reporting = { about: 'comment', commentId: $event.id }" />
       </template>
     </div>
 
@@ -28,7 +28,7 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import BackLink from '@/components/BackLink.vue';
 import EmptyState from '@/components/EmptyState.vue';
@@ -50,6 +50,11 @@ const missing = ref(false);
 const error = ref('');
 const editing = ref(null);
 const reporting = ref(null);
+// #comment-123 (from a mention notification): that comment is shown
+const focusId = computed(() => {
+  const m = /^#comment-(\d+)$/.exec(route.hash || '');
+  return m ? Number(m[1]) : null;
+});
 
 async function load() {
   const id = route.params.id;
