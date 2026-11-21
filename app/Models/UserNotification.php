@@ -12,5 +12,9 @@ class UserNotification extends Model
     protected $casts = [
         'user_id' => 'integer',
         'read_at' => 'datetime',
+        'group_started_at' => 'datetime',
+        'group_count' => 'integer',
+        'subject_id' => 'integer',
+        'actor_id' => 'integer',
     ];
 }

@@ -53,6 +53,12 @@ return [
             'view_permission' => 'admin.manage',
             'change_permission' => 'admin.manage',
         ],
+        // Smart notifications (Step 5)
+        'notifications' => [
+            'label' => 'Notifications',
+            'view_permission' => 'admin.manage',
+            'change_permission' => 'admin.manage',
+        ],
         // Invite Friends (Admin → Invitations)
         'referrals' => [
             'label' => 'Invitations',
@@ -232,6 +238,12 @@ return [
             'label' => 'Coins needed before cashing out',
             'description' => 'The fewest coins a member can exchange for cash at once. Used when cashing out is switched on.',
             'type' => 'integer', 'min' => 0, 'max' => 10000000, 'default' => 2000,
+        ],
+        'notifications.smart_push' => [
+            'group' => 'notifications',
+            'label' => 'Smart push for likes and follows, and quiet hours',
+            'description' => 'Groups like and follow pushes, applies quiet hours and retries failed pushes. Needs the Laravel scheduler (php artisan schedule:run every minute) running on the server. Booking, message and mention notifications are not affected either way.',
+            'type' => 'boolean', 'default' => false,
         ],
         'community.video_max_mb' => [
             'group' => 'community',

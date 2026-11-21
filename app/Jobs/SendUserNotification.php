@@ -22,16 +22,20 @@ class SendUserNotification
     /** @var array */
     private $message;
 
-    public function __construct(array $userIds, array $message)
+    /** @var string */
+    private $urgency;
+
+    public function __construct(array $userIds, array $message, string $urgency = 'normal')
     {
         $this->userIds = $userIds;
         $this->message = $message;
+        $this->urgency = $urgency;
     }
 
     public function handle(PushNotifications $push, WebPush $client): void
     {
         try {
-            $push->deliverToUsers($this->userIds, $this->message, $client);
+            $push->deliverToUsers($this->userIds, $this->message, $client, $this->urgency);
         } catch (\Throwable $e) {
             Log::warning('Push notification not sent: '.$e->getMessage(), ['tag' => $this->message['tag'] ?? null]);
         }

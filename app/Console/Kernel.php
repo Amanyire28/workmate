@@ -19,6 +19,9 @@ class Kernel extends ConsoleKernel
         $schedule->command('workmate:reminders')->everyFifteenMinutes()->withoutOverlapping(30);
         // Unfinished video uploads and deleted posts' videos (Cloudflare R2)
         $schedule->command('workmate:video-cleanup')->hourly()->withoutOverlapping(60);
+        // Grouped like and follow pushes, quiet-hours summaries and push retries (only while notifications.smart_push is on).
+        // Without this running, a like or follow anywhere on the site still nudges a small flush, just later.
+        $schedule->command('workmate:notifications-flush')->everyMinute()->withoutOverlapping(5);
     }
 
     /**

@@ -285,16 +285,6 @@ class EventNotifications
 
     // A post's notifications share a tag, so a phone shows the latest one instead of a pile
 
-    public function newFollower(User $follower, int $followedId): void
-    {
-        $this->send('community_follows', [$followedId], [
-            'title' => 'New follower',
-            'body' => $this->communityName($follower).' started following you on WorkMate.',
-            'url' => '/community/people/'.$follower->id,
-            'tag' => 'community-followers',
-        ]);
-    }
-
     /** Someone you follow shared a post (Community::publish limits how often) */
     public function followedPosted(CommunityPost $post, User $author, iterable $followerIds): void
     {
@@ -315,13 +305,13 @@ class EventNotifications
         $toParent = $comment->parent_id ? optional($comment->parent)->user_id : null;
 
         if ($toParent && $toParent !== $by->id) {
-            $this->send('community_comments', [$toParent], ['title' => 'New reply', 'body' => $name.' replied to your comment.', 'url' => $url, 'tag' => $tag.'-reply']);
+            $this->send('community_comments', [$toParent], ['title' => 'New reply', 'body' => $name.' replied to your comment.', 'url' => $url, 'tag' => $tag.'-reply', 'actor_id' => $by->id]);
         }
         if ($post->user_id !== $by->id && $post->user_id !== $toParent) {
             $this->send('community_comments', [$post->user_id], [
                 'title' => $post->category === 'question' ? 'New answer' : 'New comment',
                 'body' => $name.($post->category === 'question' ? ' answered your question.' : ' commented on your post.'),
-                'url' => $url, 'tag' => $tag,
+                'url' => $url, 'tag' => $tag, 'actor_id' => $by->id,
             ]);
         }
     }
@@ -338,21 +328,7 @@ class EventNotifications
             'body' => $this->communityName($by).' mentioned you in '.$where.'.',
             'url' => '/community/post/'.$post->uuid.($comment ? '#comment-'.$comment->id : ''),
             'tag' => 'community-mention-'.($comment ? 'comment-'.$comment->id : 'post-'.$post->uuid),
-        ]);
-    }
-
-    /** At most once an hour per post (CommunityPost::likes_notified_at) */
-    public function liked(CommunityPost $post, User $by, int $likes): void
-    {
-        if ($post->user_id === $by->id) {
-            return;
-        }
-        $others = $likes - 1;
-        $this->send('community_likes', [$post->user_id], [
-            'title' => 'Your post was liked',
-            'body' => $this->communityName($by).($others > 0 ? ' and '.$others.' '.($others === 1 ? 'other' : 'others') : '').' liked your post.',
-            'url' => '/community/post/'.$post->uuid,
-            'tag' => 'community-post-'.$post->uuid.'-likes',
+            'actor_id' => $by->id,
         ]);
     }
 

@@ -42,7 +42,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onBeforeUnmount } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useRoute } from 'vue-router';
 import BottomSheet from './BottomSheet.vue';
 import { push, refreshPush, enablePush, reminderDue, reminderShown } from '@/stores/push.js';
@@ -53,30 +53,61 @@ import { auth } from '@/stores/auth.js';
  * Reminds signed-in people whose notifications are off on this device to
  * turn them on. Only when the browser can still ask (not blocked), never over
  * the rating pop-up, and at most once a week, three times per device.
+ *
+ * It never cuts in on what someone is doing: only on calm pages (not while
+ * writing a post, a comment or a message, or booking), never while a field has
+ * focus or another sheet is open, and only after a few quiet seconds without
+ * touching the screen. If the moment isn't right it waits and looks again a
+ * few times, then leaves it for another visit.
  */
-const DELAY_MS = 6000;
+const FIRST_DELAY_MS = 10000;
+const RETRY_MS = 6000;
+const MAX_TRIES = 8;
+const IDLE_MS = 5000;
+const CALM_PAGES = ['/', '/explore', '/workers', '/browse', '/activity', '/saved', '/notifications', '/account'];
 
 const route = useRoute();
 const open = ref(false);
 const done = ref(false);
 let timer = null;
+let lastTouch = Date.now();
 
-function schedule() {
+function touched() { lastTouch = Date.now(); }
+
+/** Typing, a sheet already open, or a recent touch: not a good moment */
+function busy() {
+  const el = document.activeElement;
+  const typing = !!el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable);
+  return typing || !!document.querySelector('[role="dialog"]') || Date.now() - lastTouch < IDLE_MS;
+}
+
+function schedule(tries = 0) {
   clearTimeout(timer);
-  if (!auth.user || !reminderDue()) return;
+  if (!auth.user || !reminderDue() || open.value) return;
   timer = setTimeout(async () => {
-    await refreshPush();
     // Checked again after the wait: things may have changed meanwhile
-    if (!auth.user || push.state !== 'off' || !reminderDue() || route.path.startsWith('/admin')) return;
-    if (ratePrompt.current) { schedule(); return; }   // after the rating pop-up closes
+    if (!auth.user || !CALM_PAGES.includes(route.path)) return;   // looked at again on the next page
+    if (busy() || ratePrompt.current) {                            // the rating pop-up goes first
+      if (tries < MAX_TRIES) schedule(tries + 1);
+      return;
+    }
+    await refreshPush();
+    if (!auth.user || push.state !== 'off' || !reminderDue() || busy()) return;
     done.value = false;
     open.value = true;
     reminderShown();
-  }, DELAY_MS);
+  }, tries ? RETRY_MS : FIRST_DELAY_MS);
 }
 
 watch(() => auth.user?.id, (id) => { if (id) schedule(); else { clearTimeout(timer); open.value = false; } }, { immediate: true });
-onBeforeUnmount(() => clearTimeout(timer));
+watch(() => route.path, () => schedule());
+onMounted(() => {
+  ['pointerdown', 'keydown', 'input', 'scroll'].forEach(e => window.addEventListener(e, touched, { passive: true, capture: true }));
+});
+onBeforeUnmount(() => {
+  clearTimeout(timer);
+  ['pointerdown', 'keydown', 'input', 'scroll'].forEach(e => window.removeEventListener(e, touched, { capture: true }));
+});
 
 async function turnOn() {
   await enablePush();

@@ -165,8 +165,9 @@ class PushNotifications
      *
      * @param  iterable<int>  $userIds
      * @param  array{title: string, body: string, url: string, tag: string}  $message
+     * @param  string  $urgency  very-low | low | normal | high (Web Push Urgency: how hard the phone tries to wake up for it)
      */
-    public function toUsers(iterable $userIds, array $message): void
+    public function toUsers(iterable $userIds, array $message, string $urgency = 'normal'): void
     {
         $ids = collect($userIds)->filter()->map(function ($id) {
             return (int) $id;
@@ -177,26 +178,40 @@ class PushNotifications
         }
 
         // Sent once the response has gone back, by which time the change is saved
-        SendUserNotification::dispatchAfterResponse($ids, $message);
+        SendUserNotification::dispatchAfterResponse($ids, $message, $urgency);
     }
 
-    /** @param int[] $userIds */
-    public function deliverToUsers(array $userIds, array $message, WebPush $client): void
+    /**
+     * @param  int[]  $userIds
+     * @return int[] [delivered, failed, expired]
+     */
+    public function deliverToUsers(array $userIds, array $message, WebPush $client, string $urgency = 'normal'): array
     {
-        $this->send(PushSubscription::whereIn('user_id', $userIds), $message, $client);
+        return $this->send(PushSubscription::whereIn('user_id', $userIds), $message, $client, $urgency);
+    }
+
+    /** Sends right now, in this process (for the scheduled flush). [0, 0, 0] when push isn't set up. */
+    public function deliverNow(array $userIds, array $message, string $urgency = 'normal'): array
+    {
+        if (! self::configured()) {
+            return [0, 0, 0];
+        }
+
+        return $this->deliverToUsers($userIds, $message, app(WebPush::class), $urgency);
     }
 
     /** @return int[] [delivered, failed, expired] */
-    private function send($subscriptions, array $message, WebPush $client): array
+    private function send($subscriptions, array $message, WebPush $client, string $urgency = 'normal'): array
     {
         $payload = json_encode($message);
         $delivered = $failed = $expired = 0;
+        $forgetAfter = (int) config('notification_policy.forget_device_after_failures', 8);
 
-        $subscriptions->chunkById(self::BATCH, function ($batch) use ($client, $payload, &$delivered, &$failed, &$expired) {
+        $subscriptions->chunkById(self::BATCH, function ($batch) use ($client, $payload, $urgency, $forgetAfter, &$delivered, &$failed, &$expired) {
             $byEndpoint = [];
             foreach ($batch as $s) {
                 $byEndpoint[$s->endpoint] = $s;
-                $client->queueNotification(new Subscription($s->endpoint, $s->public_key, $s->auth_token, $s->content_encoding), $payload, ['TTL' => 86400]);
+                $client->queueNotification(new Subscription($s->endpoint, $s->public_key, $s->auth_token, $s->content_encoding), $payload, ['TTL' => 86400, 'urgency' => $urgency]);
             }
 
             foreach ($client->flush() as $report) {
@@ -204,7 +219,7 @@ class PushNotifications
                 if ($report->isSuccess()) {
                     $delivered++;
                     if ($subscription) {
-                        $subscription->forceFill(['last_success_at' => now()])->save();
+                        $subscription->forceFill(['last_success_at' => now(), 'failure_count' => 0])->save();
                     }
                 } elseif ($report->isSubscriptionExpired()) {
                     $expired++;
@@ -213,6 +228,14 @@ class PushNotifications
                     }
                 } else {
                     $failed++;
+                    // A device that keeps failing is forgotten (it can turn notifications on again)
+                    if ($subscription) {
+                        if ($subscription->failure_count + 1 >= $forgetAfter) {
+                            $subscription->delete();
+                        } else {
+                            $subscription->forceFill(['failure_count' => $subscription->failure_count + 1])->save();
+                        }
+                    }
                 }
             }
         });

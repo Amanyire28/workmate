@@ -2,16 +2,24 @@
 
 namespace App\Services;
 
+use App\Exceptions\BusinessRuleException;
 use App\Models\User;
 use App\Models\UserNotification;
+use App\Support\AfterCommit;
+use App\Support\QuietHours;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Delivers what EventNotifications writes: into each account's notification
  * list (the bell), and as a push to devices that turned notifications on.
- * Each account chooses which kinds it wants; account and safety notices
- * always arrive. An unread notification with the same tag is updated and
- * moved to the top instead of repeated, as phones do with push.
+ * Each account chooses which kinds it wants in the bell, and separately
+ * whether each kind may also push; account and safety notices always arrive.
+ * An unread notification with the same tag is updated and moved to the top
+ * instead of repeated, as phones do with push.
+ *
+ * Priority decides how pushes are treated while smart push is on
+ * (notifications.smart_push): high is never held back, medium and low wait
+ * for the end of the account's quiet hours (then arrive as one summary).
  */
 class UserNotifications
 {
@@ -31,20 +39,50 @@ class UserNotifications
     /** Decisions, documents, reports, warnings and removals: always sent */
     public const ACCOUNT = 'account';
 
+    public const HIGH = 'high';
+    public const MEDIUM = 'medium';
+    public const LOW = 'low';
+
+    /** How urgent each kind is. Anything not listed is medium. */
+    private const PRIORITY = [
+        'requests' => self::HIGH,
+        'messages' => self::HIGH,
+        self::ACCOUNT => self::HIGH,
+        'job_alerts' => self::MEDIUM,
+        'community_comments' => self::MEDIUM,
+        'community_mentions' => self::MEDIUM,
+        'community_posts' => self::MEDIUM,
+        'referrals' => self::MEDIUM,
+        'community_likes' => self::LOW,
+        'community_follows' => self::LOW,
+    ];
+
+    /** Web Push "Urgency" for each priority */
+    private const URGENCY = [self::HIGH => 'high', self::MEDIUM => 'normal', self::LOW => 'low'];
+
     // Older notifications are cleared as new ones arrive
     private const KEEP_DAYS = 90;
 
     /** @var PushNotifications */
     private $push;
 
-    public function __construct(PushNotifications $push)
+    /** @var AfterCommit */
+    private $afterCommit;
+
+    public function __construct(PushNotifications $push, AfterCommit $afterCommit)
     {
         $this->push = $push;
+        $this->afterCommit = $afterCommit;
+    }
+
+    public static function priority(string $kind): string
+    {
+        return self::PRIORITY[$kind] ?? self::MEDIUM;
     }
 
     /**
      * @param  iterable<int>  $userIds
-     * @param  array{title: string, body: string, url: string, tag: ?string, important?: bool, push?: bool}  $message
+     * @param  array{title: string, body: string, url: string, tag: ?string, important?: bool, push?: bool, actor_id?: int}  $message
      *         push false: the bell only (for things the person just did in the app)
      */
     public function send(string $kind, iterable $userIds, array $message): void
@@ -67,11 +105,55 @@ class UserNotifications
             $this->record($id, $kind, $message);
         }
         if ($push) {
-            $this->push->toUsers($wanted, $message);
+            $this->pushOnly($kind, $wanted, $message);
         }
     }
 
-    /** @return array<string, array{label: string, hint: string, on: bool}> */
+    /**
+     * Pushes to devices without writing a bell row (the row was written already).
+     * Per person: a kind they set to "bell only" isn't pushed, and while smart
+     * push is on, medium and low priority wait out their quiet hours (one
+     * summary push when those end). Sent once the outermost transaction commits.
+     *
+     * @param  iterable<int>  $userIds
+     */
+    public function pushOnly(string $kind, iterable $userIds, array $message): void
+    {
+        $ids = collect($userIds)->map(function ($id) {
+            return (int) $id;
+        })->unique()->values();
+        if ($ids->isEmpty() || ! PushNotifications::configured()) {
+            return;
+        }
+
+        $priority = self::priority($kind);
+        $smart = $priority !== self::HIGH && app(PushDelivery::class)->smartEnabled();
+        $now = now();
+        $immediate = [];
+        $people = User::whereIn('id', $ids->all())->get(['id', 'notification_preferences', 'quiet_hours_start', 'quiet_hours_end', 'timezone'])->keyBy('id');
+        foreach ($ids as $id) {
+            $user = $people->get($id);
+            if (! $user || ($kind !== self::ACCOUNT && (($user->notification_preferences['push:'.$kind] ?? true) === false))) {
+                continue;
+            }
+            $quiet = $smart ? QuietHours::forUser($user) : null;
+            if ($quiet && $quiet->isQuiet($now)) {
+                app(PushDelivery::class)->deferDigest($user, $quiet->endsAt($now));
+
+                continue;
+            }
+            $immediate[] = $id;
+        }
+
+        if ($immediate) {
+            $urgency = self::URGENCY[$priority];
+            $this->afterCommit->run(function () use ($immediate, $message, $urgency) {
+                $this->push->toUsers($immediate, $message, $urgency);
+            });
+        }
+    }
+
+    /** @return array<string, array{label: string, hint: string, on: bool, push: bool, priority: string}> */
     public function choices(User $user): array
     {
         $prefs = $user->notification_preferences ?: [];
@@ -81,14 +163,23 @@ class UserNotifications
             if ($kind === 'job_alerts' && ! $user->isProvider()) {
                 continue;
             }
-            $out[$kind] = ['label' => $label, 'hint' => $hint, 'on' => ($prefs[$kind] ?? true) !== false];
+            $out[$kind] = [
+                'label' => $label, 'hint' => $hint,
+                'on' => ($prefs[$kind] ?? true) !== false,
+                // Whether it may also push to this account's devices (the bell keeps it either way)
+                'push' => ($prefs['push:'.$kind] ?? true) !== false,
+                'priority' => self::priority($kind),
+            ];
         }
 
         return $out;
     }
 
-    /** @param array<string, bool> $changes */
-    public function choose(User $user, array $changes): void
+    /**
+     * @param array<string, bool> $changes  kinds to turn on or off in the bell
+     * @param array<string, bool> $push     kinds to allow or stop pushing to devices
+     */
+    public function choose(User $user, array $changes, array $push = []): void
     {
         $prefs = $user->notification_preferences ?: [];
         foreach ($changes as $kind => $on) {
@@ -101,12 +192,67 @@ class UserNotifications
                 }
             }
         }
+        foreach ($push as $kind => $on) {
+            if (isset(self::CHOICES[$kind])) {
+                if ($on) {
+                    unset($prefs['push:'.$kind]);
+                } else {
+                    $prefs['push:'.$kind] = false;
+                }
+            }
+        }
         $user->forceFill(['notification_preferences' => $prefs ?: null])->save();
     }
 
+    /** @return array{enabled: bool, start: ?string, end: ?string, timezone: string} */
+    public function quietHours(User $user): array
+    {
+        return [
+            'enabled' => QuietHours::forUser($user) !== null,
+            'start' => $user->quiet_hours_start,
+            'end' => $user->quiet_hours_end,
+            'timezone' => QuietHours::validZone($user->timezone) ? $user->timezone : config('notification_policy.default_timezone'),
+        ];
+    }
+
+    /**
+     * @param  array{enabled: bool, start?: ?string, end?: ?string, timezone?: ?string}  $data
+     *
+     * @throws BusinessRuleException
+     */
+    public function setQuietHours(User $user, array $data): void
+    {
+        if (empty($data['enabled'])) {
+            // Switching off clears the times (the settings page remembers the last ones for turning it on again)
+            $user->forceFill(['timezone' => QuietHours::validZone($data['timezone'] ?? null) ? $data['timezone'] : $user->timezone])
+                ->forceFill(['quiet_hours_start' => null, 'quiet_hours_end' => null])->save();
+
+            return;
+        }
+        $start = $data['start'] ?? null;
+        $end = $data['end'] ?? null;
+        if (! QuietHours::validTime($start) || ! QuietHours::validTime($end) || $start === $end) {
+            throw new BusinessRuleException('quiet_hours_invalid', 'Choose a start and an end time that are different.', 422);
+        }
+        $user->forceFill([
+            'quiet_hours_start' => $start,
+            'quiet_hours_end' => $end,
+            'timezone' => QuietHours::validZone($data['timezone'] ?? null) ? $data['timezone'] : $user->timezone,
+        ])->save();
+    }
+
+    /** Unread notifications (a like or follow group with no one left in it isn't counted) */
     public function unreadCount(User $user): int
     {
-        return UserNotification::where('user_id', $user->getKey())->whereNull('read_at')->count();
+        return $this->visible(UserNotification::where('user_id', $user->getKey())->whereNull('read_at'))->count();
+    }
+
+    /** Leaves out groups whose people have all taken their like or follow back */
+    public function visible($query)
+    {
+        return $query->where(function ($q) {
+            $q->whereNull('group_count')->orWhere('group_count', '>', 0);
+        });
     }
 
     /** Marks one notification, or all of them, as read */
@@ -143,11 +289,12 @@ class UserNotifications
             'title' => mb_substr($message['title'], 0, 120),
             'body' => mb_substr($message['body'], 0, 300),
             'url' => mb_substr($message['url'], 0, 300),
+            'actor_id' => isset($message['actor_id']) ? (int) $message['actor_id'] : null,
         ];
         $tag = $message['tag'] ?? null;
 
         DB::transaction(function () use ($userId, $fields, $tag) {
-            $same = $tag ? UserNotification::where('user_id', $userId)->where('tag', $tag)->whereNull('read_at')->lockForUpdate()->first() : null;
+            $same = $tag ? UserNotification::where('user_id', $userId)->where('tag', $tag)->whereNull('read_at')->whereNull('group_key')->lockForUpdate()->first() : null;
             if ($same) {
                 // Moved to the top with the newest wording
                 $same->forceFill($fields + ['created_at' => now()])->save();

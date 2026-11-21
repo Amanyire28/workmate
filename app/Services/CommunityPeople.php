@@ -24,9 +24,13 @@ class CommunityPeople
     /** @var EventNotifications */
     private $notify;
 
-    public function __construct(EventNotifications $notify)
+    /** @var EngagementNotifications */
+    private $engagement;
+
+    public function __construct(EventNotifications $notify, EngagementNotifications $engagement)
     {
         $this->notify = $notify;
+        $this->engagement = $engagement;
     }
 
     /** Active accounts that are listed providers or have a visible post */
@@ -222,14 +226,15 @@ class CommunityPeople
                 throw new BusinessRuleException('person_not_found', 'This person isn’t in the community.', 404);
             }
             // Only a real change counts, so tapping twice can't follow twice
-            if (DB::table('follows')->insertOrIgnore($where + ['created_at' => now()])) {
-                // Following, unfollowing and following again doesn't keep notifying them
-                if (Cache::add('community:followed:'.$viewer->getKey().':'.$person->getKey(), 1, now()->addDays(7))) {
-                    $this->notify->newFollower($viewer, $person->getKey());
-                }
+            $at = now()->startOfSecond();   // the follow's own moment: its notification group starts here
+            if (DB::table('follows')->insertOrIgnore($where + ['created_at' => $at])) {
+                // Grouped in their bell (people are counted once, however often they follow again)
+                $this->engagement->followAdded($viewer, $person->getKey(), $at);
             }
         } else {
-            DB::table('follows')->where($where)->delete();
+            if (DB::table('follows')->where($where)->delete()) {
+                $this->engagement->followRemoved($viewer, $person->getKey());
+            }
         }
 
         return DB::table('follows')->where('followed_id', $person->getKey())->count();

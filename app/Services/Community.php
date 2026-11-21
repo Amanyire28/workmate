@@ -34,8 +34,12 @@ class Community
     /** @var CommunityMentions */
     private $mentions;
 
-    public function __construct(AuditLogger $audit, PhotoVariants $photos, EventNotifications $notify, CommunityMentions $mentions)
+    /** @var EngagementNotifications */
+    private $engagement;
+
+    public function __construct(AuditLogger $audit, PhotoVariants $photos, EventNotifications $notify, CommunityMentions $mentions, EngagementNotifications $engagement)
     {
+        $this->engagement = $engagement;
         $this->audit = $audit;
         $this->photos = $photos;
         $this->notify = $notify;
@@ -190,10 +194,16 @@ class Community
         $this->guardVisible($post);
 
         return DB::transaction(function () use ($user, $post, $on) {
+            // Likes on one post queue here, one at a time. (Adding a like takes a shared lock on the post through
+            // its foreign key, and two of those then deadlock on the counter update below: most of a crowd
+            // liking one post at once failed.) The notification group is written under this same lock.
+            CommunityPost::whereKey($post->id)->lockForUpdate()->first(['id']);
             $where = ['community_post_id' => $post->id, 'user_id' => $user->getKey()];
+            // The like's own moment: its notification group starts here, so the like is always inside it
+            $at = now()->startOfSecond();
             // Only a real change moves the count, so repeated taps can't inflate it
             $changed = $on
-                ? DB::table('community_post_likes')->insertOrIgnore($where + ['created_at' => now()])
+                ? DB::table('community_post_likes')->insertOrIgnore($where + ['created_at' => $at])
                 : DB::table('community_post_likes')->where($where)->delete();
 
             if ($changed) {
@@ -203,18 +213,17 @@ class Community
             }
             $count = (int) CommunityPost::withTrashed()->whereKey($post->id)->value('likes_count');
 
-            // The author hears about likes at most once an hour per post
-            if ($changed && $on && $post->user_id !== $user->getKey()) {
-                $claimed = CommunityPost::whereKey($post->id)->where(function ($q) {
-                    $q->whereNull('likes_notified_at')->orWhere('likes_notified_at', '<', now()->subHour());
-                })->update(['likes_notified_at' => now()]);
-                if ($claimed) {
-                    $this->notify->liked($post, $user, $count);
+            // The author's bell groups everyone who liked it; whether a push is sent is EngagementNotifications' rule
+            if ($changed && $post->user_id !== $user->getKey()) {
+                if ($on) {
+                    $this->engagement->likeAdded($post, $user, $at);
+                } else {
+                    $this->engagement->likeRemoved($post, $user);
                 }
             }
 
             return $count;
-        });
+        }, 3);
     }
 
     /**

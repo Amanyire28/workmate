@@ -193,25 +193,40 @@ class CommunityPeopleTest extends ApiTestCase
     {
         $notify = $this->spy(EventNotifications::class);
 
+        config(['services.webpush.public_key' => 'test-public-key', 'services.webpush.private_key' => 'test-private-key']);
+        \Illuminate\Support\Facades\Bus::fake();
+        $pushes = function () {
+            return \Illuminate\Support\Facades\Bus::dispatchedAfterResponse(\App\Jobs\SendUserNotification::class)->count();
+        };
+        $bell = function (string $kind) use (&$author) {
+            return \App\Models\UserNotification::where('user_id', $author->id)->where('kind', $kind)->get();
+        };
+
         $author = $this->provider();
         $post = $this->publish('My work');
 
         $fan = $this->member('Grace Achieng');
-        // Follow, unfollow and follow again: told once
+        // Follow, unfollow and follow again: one notification and one push, one follower counted
         $this->postJson("/api/v1/community/people/{$author->id}/follow");
         $this->deleteJson("/api/v1/community/people/{$author->id}/follow");
         $this->postJson("/api/v1/community/people/{$author->id}/follow");
-        $notify->shouldHaveReceived('newFollower')->once();
+        $this->assertCount(1, $bell('community_follows'));
+        $this->assertSame(1, $bell('community_follows')[0]->group_count);
+        $this->assertSame(1, $pushes());
 
-        // Likes: at most once an hour per post
+        // Likes: grouped in one notification, pushed at most once an hour per post (smart push is off)
         $this->postJson("/api/v1/community/posts/{$post}/like");
+        $this->assertSame(2, $pushes());
         $this->member('Moses Kato');
         $this->postJson("/api/v1/community/posts/{$post}/like");
-        $notify->shouldHaveReceived('liked')->once();
+        $this->assertSame(2, $pushes());
+        $this->assertCount(1, $bell('community_likes'));
+        $this->assertSame(2, $bell('community_likes')[0]->group_count);
         $this->travel(61)->minutes();
         $this->member('Third Fan');
         $this->postJson("/api/v1/community/posts/{$post}/like");
-        $notify->shouldHaveReceived('liked')->twice();
+        $this->assertSame(3, $pushes());
+        $this->assertSame(3, $bell('community_likes')[0]->group_count);
 
         // Every comment and reply
         $this->signIn($fan);
@@ -222,6 +237,7 @@ class CommunityPeopleTest extends ApiTestCase
         $this->signIn($author);
         $this->travel(2)->hours();
         $this->postJson("/api/v1/community/posts/{$post}/like");
-        $notify->shouldHaveReceived('liked')->twice();
+        $this->assertSame(3, $pushes());
+        $this->assertSame(3, $bell('community_likes')[0]->group_count);
     }
 }
