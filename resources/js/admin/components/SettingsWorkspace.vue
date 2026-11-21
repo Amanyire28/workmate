@@ -98,7 +98,7 @@
     <ActionDialog
       :open="reviewing"
       :title="`Save ${changes.length} ${changes.length === 1 ? 'change' : 'changes'} to ${item.label}?`"
-      :message="changeSummary"
+      :message="reviewMessage"
       confirm-label="Save changes"
       :fields="[{ key: 'reason', label: 'Reason for the change', type: 'textarea', required: true, minLength: 5, help: 'Recorded in the audit log with your name.' }]"
       :busy="saving"
@@ -174,6 +174,11 @@ const isDefault = computed(() => values.value && fields.value.every(f => norm(f,
 
 const show = (f, v) => (f.type === 'toggle' ? (v ? 'On' : 'Off') : f.type === 'select' ? (f.options.find(o => o[0] === v)?.[1] ?? v) : `${v}${f.unit ? ` ${f.unit}` : ''}`);
 const changeSummary = computed(() => changes.value.map(f => `${f.label}: ${show(f, saved.value[f.key])} → ${show(f, norm(f, values.value[f.key]))}`).join('; '));
+// A setting can carry a warning (confirmOn) that is shown in the confirmation when it is being turned on
+const reviewMessage = computed(() => {
+  const warnings = changes.value.filter(f => f.confirmOn && norm(f, values.value[f.key]) === true).map(f => f.confirmOn);
+  return warnings.length ? `${changeSummary.value}. ${warnings.join(' ')}` : changeSummary.value;
+});
 
 function validate() {
   for (const k of Object.keys(errors)) delete errors[k];

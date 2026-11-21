@@ -89,6 +89,13 @@ export default {
             { title: 'Community videos', description: 'Anyone who can post in the community can add one video to a post. Videos are stored in Cloudflare R2, not on the WorkMate server.', fields: [
                 { key: 'videoMaxMb', label: 'Largest video', type: 'number', unit: 'MB', min: 1, max: 100 },
             ] },
+            { title: 'Notifications', description: 'Likes and follows are always grouped in people’s notification lists. This switch is only about the phone notifications for them.', fields: [
+                {
+                    key: 'smartPush', label: 'Smart push for likes and follows, and quiet hours', type: 'toggle',
+                    help: 'On: like and follow pushes are grouped and limited (a wait of 15 minutes or 3 different people, at most 2 like pushes a day), people’s quiet hours apply, and a push no device accepted is tried again. Off (the default): pushes follow the older, simpler rules. Booking, message, mention and comment notifications are never affected either way.',
+                    confirmOn: 'Before turning this on, check on the server that the scheduler is running (php artisan workmate:notifications-status shows a recent flush). Without it, grouped pushes go out late.',
+                },
+            ] },
         ],
         validate: (v) => ({
             ...(!v.supportEmail || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.supportEmail) ? {} : { supportEmail: 'Enter a valid email address, or leave it empty.' }),

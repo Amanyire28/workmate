@@ -54,6 +54,71 @@ class PlatformSettingsTest extends ApiTestCase
         $this->assertFalse(app(\App\Services\PlatformSettings::class)->get('platform.maintenance_mode'));
     }
 
+    public function test_smart_push_is_off_by_default_and_only_those_who_manage_the_platform_can_see_or_change_it()
+    {
+        $key = 'notifications.smart_push';
+        $this->assertFalse(app(PlatformSettings::class)->get($key));
+        $this->assertFalse(app(\App\Services\PushDelivery::class)->smartEnabled());
+
+        // Not signed in, and an ordinary member
+        $this->setting($key, true)->assertUnauthorized();
+        $this->signIn(User::factory()->create());
+        $this->getJson('/api/v1/admin/settings')->assertOk()->assertExactJson(['data' => []]);   // sees no settings at all
+        $this->setting($key, true)->assertNotFound();
+
+        // Staff without platform management don't see it, and can't change it by naming it
+        foreach (['support', 'finance', 'technical', 'provider_review'] as $role) {
+            $this->signIn($this->userWithRoles([$role]));
+            $this->assertNotContains($key, array_column($this->getJson('/api/v1/admin/settings')->assertOk()->json('data'), 'key'), $role);
+            $this->setting($key, true)->assertNotFound();
+        }
+        $this->assertFalse(app(\App\Services\PushDelivery::class)->smartEnabled());
+
+        // The administrator sees it, off, and may change it
+        $this->signIn($this->userWithRoles(['super_admin']));
+        $mine = collect($this->getJson('/api/v1/admin/settings')->assertOk()->json('data'))->firstWhere('key', $key);
+        $this->assertFalse($mine['value']);
+        $this->assertFalse($mine['default']);
+        $this->assertTrue($mine['can_change']);
+        $this->assertSame('boolean', $mine['type']);
+        $this->assertSame('notifications', $mine['group']);
+
+        // It is not handed to every visitor of the site with the public settings
+        $this->assertArrayNotHasKey($key, $this->getJson('/api/v1/catalog')->assertOk()->json('data.settings'));
+    }
+
+    public function test_switching_smart_push_is_validated_audited_and_takes_effect_at_once()
+    {
+        $key = 'notifications.smart_push';
+        $admin = $this->signIn($this->userWithRoles(['super_admin']));
+        $others = function () use ($key) {
+            return collect($this->getJson('/api/v1/admin/settings')->json('data'))->where('key', '!=', $key)->pluck('value', 'key')->all();
+        };
+        $before = $others();
+
+        // Only a true or false
+        $this->patchJson("/api/v1/admin/settings/{$key}", ['value' => 'maybe', 'reason' => 'Testing'])->assertStatus(422);
+        $this->patchJson("/api/v1/admin/settings/{$key}", ['reason' => 'Testing'])->assertStatus(422);
+        $this->assertFalse(app(\App\Services\PushDelivery::class)->smartEnabled());
+
+        // On: the answer, the delivery code and the audit trail all agree
+        $this->patchJson("/api/v1/admin/settings/{$key}", ['value' => true, 'reason' => 'Scheduler confirmed on the server'])
+            ->assertOk()->assertJsonPath('data.value', true)->assertJsonPath('data.default', false);
+        $this->assertTrue(app(\App\Services\PushDelivery::class)->smartEnabled());
+        $log = \App\Models\AuditLog::where('action', 'settings.updated')->latest('id')->first();
+        $this->assertSame('Scheduler confirmed on the server', $log->reason);
+        $this->assertSame($admin->id, $log->actor_id);
+        $this->assertSame([$key => false], $log->before);
+        $this->assertSame([$key => true], $log->after);
+
+        // And off again at once
+        $this->patchJson("/api/v1/admin/settings/{$key}", ['value' => false, 'reason' => 'Pausing'])->assertOk()->assertJsonPath('data.value', false);
+        $this->assertFalse(app(\App\Services\PushDelivery::class)->smartEnabled());
+
+        // No other setting moved
+        $this->assertSame($before, $others());
+    }
+
     public function test_maintenance_mode_pauses_new_work_but_not_messages()
     {
         $owner = User::factory()->create();

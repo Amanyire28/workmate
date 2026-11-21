@@ -641,6 +641,7 @@ const SETTINGS_DEFAULTS = {
         platformName: 'WorkMate', supportPhone: '', supportEmail: '',
         defaultArea: 'kampala', currency: 'UGX', languages: 'English', maintenanceMode: false, providerSignups: true,
         videoMaxMb: 25,
+        smartPush: false,
         ...PRESENCE_DEFAULTS,
     }),
     rules: () => ({
@@ -667,6 +668,7 @@ export const SERVER_SETTINGS = {
         presenceOnlineMin: 'presence.online_minutes', presenceRecentMin: 'presence.recent_minutes',
         presenceHeartbeatSec: 'presence.heartbeat_seconds',
         videoMaxMb: 'community.video_max_mb',
+        smartPush: 'notifications.smart_push',
     },
 };
 
