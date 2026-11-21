@@ -2,43 +2,35 @@
 
 /*
 |--------------------------------------------------------------------------
-| Smart push policy (Step 5)
+| Push delivery policy
 |--------------------------------------------------------------------------
 |
 | Used only while the platform setting notifications.smart_push is on.
-| Likes and follows are low priority: they are grouped in the bell always, and
-| pushed (at most a few times a day) only under these rules. Bookings,
-| messages and account notices are never held back by any of this.
+|
+| Nothing here makes a notification wait. Likes, follows, comments and mentions are
+| saved in the notification list at once and a push is tried at once after the
+| change is committed. The limits below only keep a phone from being buzzed
+| over and over: past them, a push is still delivered, but silently (it replaces
+| the one already on the screen), and the notification list is never affected.
 |
 */
 
 return [
-    // Likes on one post or video, for its author
-    'likes' => [
-        'window_minutes' => 15,     // wait this long after the first like before pushing
-        'early_at' => 3,            // ...or push as soon as this many different people liked
-        'cooldown_hours' => 3,      // no further like push about the same content within this time
-        'max_per_day' => 2,         // like pushes per person per local day, all content together
-    ],
+    // Phone alerts that make a sound for one person: after this many in an hour, further ones arrive silently
+    'audible_per_hour' => 30,
+    // Anti-abuse: most pushes tried for one person in a minute (their list still gets everything)
+    'pushes_per_minute' => 60,
+    // A push still not delivered this long after it was made is dropped as stale (an old like is not news)
+    'stale_after_minutes' => 180,
 
-    // New followers
-    'follows' => [
-        'window_minutes' => 30,
-        'early_at' => 5,
-        'cooldown_hours' => 6,
-        'max_per_day' => 1,
-    ],
-
-    // Delivery: bounded retries with growing waits (minutes), then given up
-    'retry_minutes' => [1, 5, 30],
+    // Retries when no device took a push: seconds to wait after each failed try, then given up
+    'retry_seconds' => [20, 60, 300, 1800],
     // A push claimed but never finished (the process died) is made ready again after this
     'claim_recovery_minutes' => 10,
-    // A push still waiting this long after it was due is dropped as stale
-    'stale_after_hours' => 24,
     // A device that failed this many times in a row is forgotten
     'forget_device_after_failures' => 8,
-    // At most this many pushes per flush run, and finished rows are kept this long
-    'flush_batch' => 100,
+    // At most this many waiting pushes per scheduler run, and finished rows are kept this long
+    'flush_batch' => 200,
     'keep_days' => 30,
 
     // Quiet hours when an account has not chosen a timezone

@@ -66,10 +66,12 @@ import WhatsNew from '@/components/WhatsNew.vue';
 import LegalGate from '@/components/LegalGate.vue';
 import { catalog, loadCatalog, appSettings, refreshSettings } from '@/stores/catalog.js';
 import { startPresence } from '@/stores/presence.js';
+import { startLiveNotifications } from '@/stores/live.js';
 import { useCurrentLocation } from '@/stores/location.js';
 
 // While the app is open, a signed-in account checks in (Admin → Settings → presence)
 startPresence();
+startLiveNotifications();
 
 // Settings changed in the admin (maintenance mode, support contact…) reach open
 // apps within a minute, and straight away when the app comes back on screen

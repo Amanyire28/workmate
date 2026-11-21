@@ -128,27 +128,57 @@ async function syncBuild(keep, save) {
 
 /* ---------- Push notifications ---------- */
 
+/**
+ * What to do with a push, given the WorkMate windows this device has open (a plain function, so it can
+ * be tested on its own). A phone alert is skipped only when a window is both visible AND in focus:
+ * the person is looking at the app, which updates itself. Anything else, including not being able to
+ * look at the windows at all, shows the notification: a notification too many is better than a lost one.
+ * Every open window is told, visible or not, so an open tab keeps its list and bell current.
+ */
+function planPush(windows) {
+    if (!Array.isArray(windows)) return { show: true, tell: [] };
+    const watching = windows.some(w => w.visibilityState === 'visible' && w.focused === true);
+    return { show: !watching, tell: windows };
+}
+
 self.addEventListener('push', (event) => {
     let data = {};
     try { data = event.data ? event.data.json() : {}; } catch (e) { data = { body: event.data && event.data.text() }; }
 
     // Only WorkMate pages open from a notification
     const url = typeof data.url === 'string' && data.url.startsWith('/') && !data.url.startsWith('//') ? data.url : '/';
-    event.waitUntil(self.registration.showNotification(data.title || 'WorkMate', {
-        body: data.body || '',
-        // Large picture beside the text
-        icon: '/icons/icon-192.png',
-        // Small status-bar icon: Android paints it white, so it must be a white shape on transparent
-        badge: '/icons/badge-96.png',
-        tag: data.tag,
-        // A newer notification with the same tag (e.g. another message in a chat) alerts again
-        renotify: !!data.tag,
-        vibrate: [200, 100, 200],
-        // Important ones (requests, replies, decisions) stay until dismissed where the device allows
-        requireInteraction: data.important === true,
-        timestamp: Date.now(),
-        data: { url },
-    }));
+    // An update to something already on the screen (more likes, quiet hours): replace it without a sound
+    const silent = data.silent === true;
+
+    event.waitUntil((async () => {
+        let windows = null;
+        try { windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true }); } catch (e) { windows = null; }
+        const plan = planPush(windows);
+
+        for (const w of plan.tell) {
+            try { w.postMessage({ type: 'wm-notification', tag: data.tag || null }); } catch (e) { /* that window is gone */ }
+        }
+        if (!plan.show) return;
+
+        const options = {
+            body: data.body || '',
+            // Large picture beside the text
+            icon: '/icons/icon-192.png',
+            // Small status-bar icon: Android paints it white, so it must be a white shape on transparent
+            badge: '/icons/badge-96.png',
+            // The same tag replaces the notification already shown (one per group, not a pile)
+            tag: data.tag,
+            // A newer notification with the same tag alerts again, unless it is a quiet update
+            renotify: !!data.tag && !silent,
+            silent,
+            // Important ones (requests, replies, decisions) stay until dismissed where the device allows
+            requireInteraction: data.important === true,
+            timestamp: Date.now(),
+            data: { url },
+        };
+        if (!silent) options.vibrate = [200, 100, 200];
+        await self.registration.showNotification(data.title || 'WorkMate', options);
+    })());
 });
 
 self.addEventListener('notificationclick', (event) => {

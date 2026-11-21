@@ -228,6 +228,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         });
 
         Route::get('me/notifications', [NotificationController::class, 'index'])->name('me.notifications');
+        Route::get('me/notifications/unread-count', [NotificationController::class, 'unreadCount'])->name('me.notifications.unread');
         Route::post('me/notifications/read', [NotificationController::class, 'read'])->name('me.notifications.read-all');
         Route::post('me/notifications/{notification}/read', [NotificationController::class, 'read'])->whereNumber('notification')->name('me.notifications.read');
         Route::get('me/notification-settings', [NotificationController::class, 'settings'])->name('me.notification-settings');

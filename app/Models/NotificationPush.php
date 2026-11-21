@@ -15,6 +15,8 @@ class NotificationPush extends Model
     public const TYPE_LIKES = 'like_group';
     public const TYPE_FOLLOWS = 'follow_group';
     public const TYPE_DIGEST = 'digest';
+    /** An event pushed as it happened (a comment, a mention): its wording is in the payload until it is sent */
+    public const TYPE_DIRECT = 'direct';
 
     public const PENDING = 'pending';
     public const SENDING = 'sending';
@@ -28,6 +30,7 @@ class NotificationPush extends Model
         'user_id' => 'integer',
         'user_notification_id' => 'integer',
         'attempts' => 'integer',
+        'silent' => 'boolean',
         'send_after' => 'datetime',
         'next_attempt_at' => 'datetime',
         'claimed_at' => 'datetime',

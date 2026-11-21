@@ -82,7 +82,9 @@ class EngagementNotifications
         $count = $this->count($row);
 
         if ($this->delivery->smartEnabled()) {
-            $this->delivery->scheduleGroup($row, \App\Models\NotificationPush::TYPE_LIKES, $count);
+            // Immediately: the push goes out as the like is committed; later likes update the same group
+            // and the same phone notification (silently), they don't wait for more people
+            $this->delivery->enqueueGroup($row, \App\Models\NotificationPush::TYPE_LIKES);
 
             return;
         }
@@ -123,7 +125,7 @@ class EngagementNotifications
         $count = $this->count($row);
 
         if ($this->delivery->smartEnabled()) {
-            $this->delivery->scheduleGroup($row, \App\Models\NotificationPush::TYPE_FOLLOWS, $count);
+            $this->delivery->enqueueGroup($row, \App\Models\NotificationPush::TYPE_FOLLOWS);
 
             return;
         }

@@ -6,12 +6,14 @@ use App\Services\PushDelivery;
 use Illuminate\Console\Command;
 
 /**
- * Sends the pushes that are due (grouped likes and follows, the summary after
- * quiet hours), retries ones no device accepted, makes ready again any that a
- * dead process had claimed, and tidies old rows. Run every minute by the
- * scheduler. Safe to run by hand, twice, or overlapping: each push is claimed
- * with one atomic update before it is sent. With smart push off it only skips
- * what is waiting.
+ * The push outbox's safety net: sends the pushes the immediate attempt did not
+ * finish (a lost after-response call, a restart), retries ones no device
+ * accepted, makes ready again any that a dead process had claimed, sends the
+ * summary pushes, and tidies old rows. Run every minute by the scheduler. Safe
+ * to run by hand, twice, or overlapping: each push is claimed with one atomic
+ * update before it is sent. It keeps working while smart push is switched off:
+ * the setting stops NEW events using the outbox, and what is already saved is
+ * still delivered.
  */
 class FlushNotifications extends Command
 {

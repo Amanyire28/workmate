@@ -80,6 +80,12 @@ class NotificationController extends Controller
         ]);
     }
 
+    /** Just the number for the bell (a window asks for it when a push arrives) */
+    public function unreadCount(Request $request): JsonResponse
+    {
+        return response()->json(['data' => ['unread' => $this->notifications->unreadCount($request->user())]]);
+    }
+
     /** One notification as read, or all of them when no id is given */
     public function read(Request $request, ?int $notification = null): JsonResponse
     {

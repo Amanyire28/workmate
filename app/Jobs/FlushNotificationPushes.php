@@ -7,9 +7,10 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Support\Facades\Log;
 
 /**
- * A small flush of due pushes after a like or follow has been answered, so
- * grouped pushes still go out if the scheduler isn't running. Runs in the same
- * process (no queue worker); a failure is logged and affects no one.
+ * Tries waiting pushes after a response has gone back: the particular ones an event just saved
+ * (the immediate attempt), or a small flush of whatever is due. Runs in the same process (no
+ * queue worker). The pushes are saved before this runs, so if it never does (the process dies),
+ * the scheduler's next run finds them: this is a shortcut, not the safety.
  */
 class FlushNotificationPushes
 {
@@ -18,17 +19,25 @@ class FlushNotificationPushes
     /** @var int */
     private $limit;
 
-    public function __construct(int $limit)
+    /** @var int[] */
+    private $ids;
+
+    public function __construct(int $limit, array $ids = [])
     {
         $this->limit = $limit;
+        $this->ids = $ids;
     }
 
     public function handle(PushDelivery $delivery): void
     {
         try {
-            $delivery->flushDue($this->limit);
+            if ($this->ids) {
+                $delivery->processIds($this->ids);
+            } else {
+                $delivery->flushDue($this->limit);
+            }
         } catch (\Throwable $e) {
-            Log::warning('Notification flush failed: '.$e->getMessage());
+            Log::warning('Notification push attempt failed: '.get_class($e).': '.$e->getMessage());
         }
     }
 }

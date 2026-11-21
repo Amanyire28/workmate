@@ -127,13 +127,25 @@ class UserNotifications
         }
 
         $priority = self::priority($kind);
-        $smart = $priority !== self::HIGH && app(PushDelivery::class)->smartEnabled();
+        $delivery = app(PushDelivery::class);
+        $smart = $priority !== self::HIGH && $delivery->smartEnabled();
+        // Likes, follows, comments and mentions go through the push outbox (saved with the event, tried
+        // at once after the commit, retried by the scheduler); quiet hours make those silent, not later
+        $outbox = $delivery->usesOutbox($kind);
         $now = now();
         $immediate = [];
+        $queued = [];
         $people = User::whereIn('id', $ids->all())->get(['id', 'notification_preferences', 'quiet_hours_start', 'quiet_hours_end', 'timezone'])->keyBy('id');
         foreach ($ids as $id) {
             $user = $people->get($id);
             if (! $user || ($kind !== self::ACCOUNT && (($user->notification_preferences['push:'.$kind] ?? true) === false))) {
+                continue;
+            }
+            if ($outbox) {
+                if ($pushId = $delivery->enqueueDirect($id, $kind, $message)) {
+                    $queued[] = $pushId;
+                }
+
                 continue;
             }
             $quiet = $smart ? QuietHours::forUser($user) : null;
@@ -145,6 +157,7 @@ class UserNotifications
             $immediate[] = $id;
         }
 
+        $delivery->attempt($queued);
         if ($immediate) {
             $urgency = self::URGENCY[$priority];
             $this->afterCommit->run(function () use ($immediate, $message, $urgency) {

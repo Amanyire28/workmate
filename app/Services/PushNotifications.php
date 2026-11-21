@@ -200,6 +200,74 @@ class PushNotifications
         return $this->deliverToUsers($userIds, $message, app(WebPush::class), $urgency);
     }
 
+    /**
+     * Sends to these devices and says how it went for EACH one, so a retry can go only to the
+     * devices that have not taken it. Per device:
+     *   accepted  the push service took it (that is not the same as the phone showing it)
+     *   expired   the push service no longer knows the device (404/410): it is removed
+     *   rejected  refused for good (e.g. 400/401/403): trying again would not help
+     *   failed    could not be done now (no answer, 408, 429, 5xx): worth another try
+     * The device's own record is kept up to date (success clears its failures; a device that
+     * keeps failing is forgotten).
+     *
+     * @param  iterable<PushSubscription>  $subscriptions
+     * @return array<int, array{status: string, http: ?int}> by subscription id
+     */
+    public function sendToSubscriptions(iterable $subscriptions, array $message, string $urgency = 'normal', ?WebPush $client = null): array
+    {
+        $client = $client ?: app(WebPush::class);
+        $payload = json_encode($message);
+        $byEndpoint = [];
+        foreach ($subscriptions as $s) {
+            $byEndpoint[$s->endpoint] = $s;
+            $client->queueNotification(new Subscription($s->endpoint, $s->public_key, $s->auth_token, $s->content_encoding), $payload, ['TTL' => 86400, 'urgency' => $urgency]);
+        }
+
+        $results = [];
+        foreach ($client->flush() as $report) {
+            $subscription = $byEndpoint[$report->getEndpoint()] ?? null;
+            if (! $subscription) {
+                continue;
+            }
+            $http = $report->getResponse() ? (int) $report->getResponse()->getStatusCode() : null;
+            if ($report->isSuccess()) {
+                $status = 'accepted';
+            } elseif ($report->isSubscriptionExpired()) {
+                $status = 'expired';
+            } elseif ($http === null || $http === 408 || $http === 429 || $http >= 500) {
+                $status = 'failed';
+            } else {
+                $status = 'rejected';
+            }
+            $results[$subscription->id] = ['status' => $status, 'http' => $http];
+            $this->noteResult($subscription, $status);
+        }
+        // A device the client gave no answer for at all counts as a failure to try again
+        foreach ($byEndpoint as $subscription) {
+            if (! isset($results[$subscription->id])) {
+                $results[$subscription->id] = ['status' => 'failed', 'http' => null];
+                $this->noteResult($subscription, 'failed');
+            }
+        }
+
+        return $results;
+    }
+
+    /** Keeps a device's record up to date after a send */
+    private function noteResult(PushSubscription $subscription, string $status): void
+    {
+        $forgetAfter = (int) config('notification_policy.forget_device_after_failures', 8);
+        if ($status === 'accepted') {
+            $subscription->forceFill(['last_success_at' => now(), 'failure_count' => 0])->save();
+        } elseif ($status === 'expired') {
+            $subscription->delete();
+        } elseif ($subscription->failure_count + 1 >= $forgetAfter) {
+            $subscription->delete();
+        } else {
+            $subscription->forceFill(['failure_count' => $subscription->failure_count + 1])->save();
+        }
+    }
+
     /** @return int[] [delivered, failed, expired] */
     private function send($subscriptions, array $message, WebPush $client, string $urgency = 'normal'): array
     {
