@@ -94,6 +94,16 @@ class CommunityPeople
             });
     }
 
+    /**
+     * The two accounts are locked in id order before anything is written, so followers of one
+     * account queue (one notification group, not two) and two people following each other at
+     * the same moment can't deadlock. Call inside the transaction.
+     */
+    private function lockPair(User $a, User $b): void
+    {
+        User::withTrashed()->whereIn('id', [$a->getKey(), $b->getKey()])->orderBy('id')->lockForUpdate()->get(['id']);
+    }
+
     /** Relations and counts a person card needs */
     public function withCard(Builder $query): Builder
     {
@@ -227,14 +237,20 @@ class CommunityPeople
             }
             // Only a real change counts, so tapping twice can't follow twice
             $at = now()->startOfSecond();   // the follow's own moment: its notification group starts here
-            if (DB::table('follows')->insertOrIgnore($where + ['created_at' => $at])) {
-                // Grouped in their bell (people are counted once, however often they follow again)
-                $this->engagement->followAdded($viewer, $person->getKey(), $at);
-            }
+            DB::transaction(function () use ($viewer, $person, $where, $at) {
+                $this->lockPair($viewer, $person);
+                if (DB::table('follows')->insertOrIgnore($where + ['created_at' => $at])) {
+                    // Grouped in their bell (people are counted once, however often they follow again)
+                    $this->engagement->followAdded($viewer, $person->getKey(), $at);
+                }
+            }, 3);
         } else {
-            if (DB::table('follows')->where($where)->delete()) {
-                $this->engagement->followRemoved($viewer, $person->getKey());
-            }
+            DB::transaction(function () use ($viewer, $person, $where) {
+                $this->lockPair($viewer, $person);
+                if (DB::table('follows')->where($where)->delete()) {
+                    $this->engagement->followRemoved($viewer, $person->getKey());
+                }
+            }, 3);
         }
 
         return DB::table('follows')->where('followed_id', $person->getKey())->count();

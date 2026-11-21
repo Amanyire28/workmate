@@ -34,6 +34,9 @@ class Community
     /** @var CommunityMentions */
     private $mentions;
 
+    /** A write that loses a real deadlock is run again this many times in all, then the error is shown */
+    private const DEADLOCK_ATTEMPTS = 3;
+
     /** @var EngagementNotifications */
     private $engagement;
 
@@ -223,7 +226,7 @@ class Community
             }
 
             return $count;
-        }, 3);
+        }, self::DEADLOCK_ATTEMPTS);
     }
 
     /**
@@ -241,6 +244,8 @@ class Community
         $this->guardVisible($comment->post);
 
         return DB::transaction(function () use ($user, $comment, $on) {
+            // Likes on one comment queue here (same reason as the post: the foreign key's shared lock, then the counter)
+            CommunityComment::withTrashed()->whereKey($comment->id)->lockForUpdate()->first(['id']);
             $where = ['community_comment_id' => $comment->id, 'user_id' => $user->getKey()];
             // Only a real change moves the count, so repeated taps can't inflate it
             $changed = $on
@@ -253,7 +258,7 @@ class Community
             }
 
             return (int) CommunityComment::withTrashed()->whereKey($comment->id)->value('likes_count');
-        });
+        }, self::DEADLOCK_ATTEMPTS);
     }
 
     public function save(User $user, CommunityPost $post, bool $on): void
@@ -280,6 +285,16 @@ class Community
         [$body, $mentions] = $this->mentions->expand($body, $user, CommunityComment::MAX_BODY);
 
         return DB::transaction(function () use ($user, $post, $body, $parentId, $mentions) {
+            // Lock order for everything that writes a post's comments: the post first, then its comments.
+            // (Adding a comment takes a shared lock on the post through its foreign key; two of those then
+            // deadlock on the counter below, and most of a crowd commenting at once failed.) The post is
+            // looked at again under the lock, as it may have been removed or deleted in the meantime.
+            $locked = CommunityPost::whereKey($post->id)->lockForUpdate()->first();
+            if (! $locked) {
+                throw new BusinessRuleException('post_not_found', 'This post isn’t there any more.', 404);
+            }
+            $this->guardVisible($locked);
+
             $parent = null;
             if ($parentId) {
                 $parent = CommunityComment::where('community_post_id', $post->id)->whereKey($parentId)->first();
@@ -306,7 +321,7 @@ class Community
                 array_values(array_filter([$post->user_id, $parent ? $parent->user_id : null])));
 
             return $comment;
-        });
+        }, self::DEADLOCK_ATTEMPTS);
     }
 
     /** By the comment's author, or the author of the post it's on */
@@ -318,13 +333,19 @@ class Community
         }
 
         DB::transaction(function () use ($user, $comment) {
-            $counted = $comment->status === CommunityComment::STATUS_PUBLISHED;
-            $comment->delete();
-            if ($counted) {
-                CommunityPost::withTrashed()->whereKey($comment->community_post_id)->update(['comments_count' => DB::raw('GREATEST(comments_count, 1) - 1')]);
+            // The post first, then the comment, as when adding one (see comment())
+            CommunityPost::withTrashed()->whereKey($comment->community_post_id)->lockForUpdate()->first(['id']);
+            $current = CommunityComment::withTrashed()->whereKey($comment->id)->lockForUpdate()->first();
+            if (! $current || $current->trashed()) {
+                return;   // already deleted (a second tap, or the post's author at the same moment): nothing to count twice
             }
-            $this->audit->record('community.comment_deleted', $comment, [], [], null, $user);
-        });
+            $counted = $current->status === CommunityComment::STATUS_PUBLISHED;
+            $current->delete();
+            if ($counted) {
+                CommunityPost::withTrashed()->whereKey($current->community_post_id)->update(['comments_count' => DB::raw('GREATEST(comments_count, 1) - 1')]);
+            }
+            $this->audit->record('community.comment_deleted', $current, [], [], null, $user);
+        }, self::DEADLOCK_ATTEMPTS);
     }
 
     /* ---------------- Moderators ---------------- */
@@ -361,6 +382,7 @@ class Community
     public function removeComment(CommunityComment $comment, User $admin, string $reason): CommunityComment
     {
         return DB::transaction(function () use ($comment, $admin, $reason) {
+            CommunityPost::withTrashed()->whereKey($comment->community_post_id)->lockForUpdate()->first(['id']);
             $comment = CommunityComment::withTrashed()->whereKey($comment->id)->lockForUpdate()->firstOrFail();
             if ($comment->status === CommunityComment::STATUS_REMOVED) {
                 throw new BusinessRuleException('already_removed', 'This comment is already removed.', 409);
@@ -373,7 +395,7 @@ class Community
             $this->notify->communityContentRemoved($comment->user_id, 'comment', '/community/post/'.optional($comment->post)->uuid);
 
             return $comment;
-        });
+        }, self::DEADLOCK_ATTEMPTS);
     }
 
     /* ---------------- Helpers ---------------- */

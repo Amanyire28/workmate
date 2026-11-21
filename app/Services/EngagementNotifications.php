@@ -65,8 +65,8 @@ class EngagementNotifications
      * Someone liked a post. Call after a like was really added, with the moment
      * it was stamped ($at): a new group starts at that moment, so the like is
      * always inside it (taking "now" here instead could land a second later).
-     * Concurrent likes on one post are already queued by the lock Community::like
-     * holds on the post row, so two can't start two groups.
+     * Concurrent likes on one post are queued by the lock Community::like takes on
+     * the post row first, so two can't start two groups.
      */
     public function likeAdded(CommunityPost $post, User $by, Carbon $at): void
     {
@@ -115,8 +115,7 @@ class EngagementNotifications
         if ($followedId === $follower->getKey() || ! $this->notifications->wants($followedId, self::FOLLOWS)) {
             return;
         }
-        // Followers of one account are queued by this lock, so two can't start two groups
-        User::whereKey($followedId)->lockForUpdate()->first(['id']);
+        // (CommunityPeople::follow holds the followed account's row lock around this, so followers queue)
         $row = $this->touch(self::FOLLOWS, 'account', $followedId, $followedId, $follower, '/community/people/'.$follower->getKey(), 'community-followers', $at);
         if ($row->read_at !== null) {
             return;
