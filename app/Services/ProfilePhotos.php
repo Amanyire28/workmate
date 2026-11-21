@@ -21,6 +21,7 @@ class ProfilePhotos
     /** Small versions a page may ask for (?s=96): a list of people needs 40 pixels, not 512 */
     public const THUMBNAIL_SIZES = [64, 96, 128, 192];
     private const SIZE = 512;
+    private const MAX_SOURCE_SIDE = 2048;
 
     /** @var AuditLogger */
     private $audit;
@@ -36,7 +37,13 @@ class ProfilePhotos
             return null;
         }
         $bytes = \Illuminate\Support\Facades\Storage::disk('local')->get($path);
-        $source = $bytes ? @imagecreatefromstring($bytes) : false;
+        // Stored photos are 512 px squares. Anything far bigger is not decoded (a huge picture would need
+        // hundreds of megabytes to open): it is served as it is
+        $info = $bytes ? @getimagesizefromstring($bytes) : false;
+        if (! $info || $info[0] > self::MAX_SOURCE_SIDE || $info[1] > self::MAX_SOURCE_SIDE) {
+            return null;
+        }
+        $source = @imagecreatefromstring($bytes);
         if (! $source) {
             return null;
         }

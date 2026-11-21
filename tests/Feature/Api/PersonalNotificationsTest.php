@@ -466,6 +466,26 @@ class PersonalNotificationsTest extends ApiTestCase
         $this->assertSame(6, $list['meta']['unread']);
     }
 
+    public function test_the_sixth_comment_groups_at_59_seconds_but_not_at_exactly_60()
+    {
+        $author = $this->member('Grace Akello');
+        $at59 = $this->newPost($author, 'video');
+        $at60 = $this->newPost($author, 'video');
+        foreach ([[$at59, 59], [$at60, 60]] as [$post, $sixth]) {
+            foreach ([0, 10, 20, 30, 40, $sixth] as $i => $second) {
+                $this->travelTo(Carbon::parse('2026-11-24 09:00:00', 'UTC')->addSeconds($second));
+                $this->comment($this->member('Window'.$post->id.'Fan'.$i), $post, 'At '.$second);
+            }
+        }
+
+        $rows = collect($this->list($author)['data']);
+        $this->assertSame(1, $rows->where('grouped', true)->count());                         // the 59 s post: one group…
+        $this->assertSame(6, $rows->firstWhere('grouped', true)['comments']);                  // …of six
+        $this->assertSame(6, $rows->where('grouped', false)->count());                         // the 60 s post: five, and the sixth alone in a new window
+        $this->assertSame(1, UserNotification::where('subject_type', 'burst')->count());
+        $this->assertSame(12, UserNotification::where('user_id', $author->id)->where('subject_type', 'comment')->count());   // every comment keeps its own record
+    }
+
     public function test_six_in_the_second_window_group_on_their_own_and_the_first_stays_individual()
     {
         $author = $this->member('Grace Akello');
@@ -813,6 +833,43 @@ class PersonalNotificationsTest extends ApiTestCase
         $base = $response->baseResponse;
 
         return $base instanceof \Symfony\Component\HttpFoundation\BinaryFileResponse ? (string) file_get_contents($base->getFile()->getPathname()) : (string) $response->getContent();
+    }
+
+    public function test_comment_pushes_respect_the_phone_choice_and_quiet_hours()
+    {
+        $this->smart();
+        $off = $this->member('Grace Akello', ['notification_preferences' => ['push:community_comments' => false]]);
+        $this->device($off);
+        $this->comment($this->member('Alice Person'), $this->newPost($off, 'video'), 'Hello');
+        $this->flushNow();
+        $this->assertCount(0, $this->pushed);                                         // the phone is not told…
+        $this->assertCount(1, $this->list($off)['data']);                              // …the list still is
+
+        $quiet = $this->member('Quiet Person', ['quiet_hours_start' => '22:00', 'quiet_hours_end' => '07:00']);
+        $this->device($quiet);
+        $this->travelTo(Carbon::parse('2026-11-24 20:30:00', 'UTC'));                  // 23:30 in Kampala
+        $this->comment($this->member('Brian Person'), $this->newPost($quiet, 'video'), 'Hello');
+        $this->flushNow();
+        $this->assertCount(1, $this->pushed);                                         // delivered at once…
+        $this->assertTrue($this->pushed[0]['payload']['silent']);                      // …but quietly
+        $this->assertStringNotContainsString('Hello', json_encode($this->pushed[0]['payload']));
+    }
+
+    public function test_a_failed_push_is_retried_and_a_comment_group_never_sends_two_for_one_comment()
+    {
+        $this->smart();
+        $author = $this->member('Grace Akello');
+        $this->device($author);
+        $post = $this->newPost($author, 'video');
+        $this->travelTo(Carbon::parse('2026-11-24 09:00:00', 'UTC'));
+        foreach (range(1, 7) as $i) {
+            $this->comment($this->member('Fan Number'.$i), $post, 'x'.$i);
+        }
+        $this->assertSame(7, NotificationPush::where('type', 'direct')->count());       // one saved push per comment, grouping or not
+        $this->flushNow();
+        $this->flushNow();                                                              // the safety net running again changes nothing
+        $this->assertCount(7, $this->pushed);
+        $this->assertSame(1, count(array_unique(array_column(array_column($this->pushed, 'payload'), 'tag'))));
     }
 
     /** Tries what the after-response step would (in these tests nothing runs it after a service call) */

@@ -99,6 +99,12 @@ class RouteServiceProvider extends ServiceProvider
             return Limit::perMinute(30)->by(optional($request->user())->id ?: $request->ip());
         });
 
+        // Profile pictures: a list of people loads dozens at once (browsers then keep them for a year), so they
+        // must not use up the 60 requests a minute the app's own calls share. Generous, as phones share addresses.
+        RateLimiter::for('avatars', function (Request $request) {
+            return Limit::perMinute(1200)->by($request->ip());
+        });
+
         // Anonymous search and profile-view counts; generous, as many phones share one mobile network address
         RateLimiter::for('app-counts', function (Request $request) {
             return Limit::perMinute(120)->by($request->ip());

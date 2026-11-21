@@ -201,7 +201,6 @@ class CommentNotifications
         ]);
     }
 
-    /** Comments by other people on the post within the window (published, from active accounts) */
     /** Unread individual comment notifications of this window (what a new group would gather up) */
     private function unreadIndividuals(int $postId, int $recipient, Carbon $start): int
     {
@@ -209,6 +208,7 @@ class CommentNotifications
             ->where('group_started_at', $start)->whereNull('read_at')->whereNull('parent_id')->count();
     }
 
+    /** Comments by other people on the post within the window (published, from active accounts) */
     private function commentsInWindow(int $postId, int $recipient, Carbon $start): int
     {
         return (int) DB::table('community_comments as c')->join('users as u', 'u.id', '=', 'c.user_id')
@@ -276,11 +276,12 @@ class CommentNotifications
             ->where('u.status', User::STATUS_ACTIVE)->whereNull('u.deleted_at')
             ->orderByDesc('c.created_at')->orderByDesc('c.id')->limit($limit)->get(['c.id', 'c.user_id', 'c.body', 'c.created_at']);
         $people = $this->engagement->users($rows->pluck('user_id')->all());
+        $uuid = $rows->isEmpty() ? '' : $this->postUuid((int) $burst->context_id);   // once, not once per comment
 
-        return $rows->map(function ($r) use ($people, $burst) {
+        return $rows->map(function ($r) use ($people, $uuid) {
             return [
                 'id' => (int) $r->id, 'actor' => $people[$r->user_id] ?? null, 'preview' => self::preview($r->body),
-                'url' => '/community/post/'.$this->postUuid((int) $burst->context_id).'#comment-'.$r->id, 'at' => Carbon::parse($r->created_at)->toIso8601String(),
+                'url' => '/community/post/'.$uuid.'#comment-'.$r->id, 'at' => Carbon::parse($r->created_at)->toIso8601String(),
             ];
         })->filter(function ($c) {
             return $c['actor'] !== null;

@@ -86,6 +86,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::get('catalog', [DirectoryController::class, 'catalog'])->name('catalog');
     Route::get('avatars/{file}', [ProfilePhotoController::class, 'show'])
         ->where('file', '[0-9a-f-]{36}\.jpg')
+        ->withoutMiddleware('throttle:api')->middleware('throttle:avatars')
         ->name('avatars.show');
     Route::get('covers/{file}', [ProviderCoverController::class, 'show'])
         ->where('file', '[0-9a-f-]{36}\.jpg')
