@@ -43,9 +43,13 @@ class Marketplace
     /** @var Pricing */
     private $pricing;
 
-    public function __construct(AuditLogger $audit, EventNotifications $notify, PhotoVariants $photos, JobAlerts $alerts, Scheduling $scheduling, Messaging $messaging, Pricing $pricing)
+    /** @var PriceAgreements */
+    private $prices;
+
+    public function __construct(AuditLogger $audit, EventNotifications $notify, PhotoVariants $photos, JobAlerts $alerts, Scheduling $scheduling, Messaging $messaging, Pricing $pricing, PriceAgreements $prices)
     {
         $this->pricing = $pricing;
+        $this->prices = $prices;
         $this->audit = $audit;
         $this->notify = $notify;
         $this->photos = $photos;
@@ -369,6 +373,7 @@ class Marketplace
             $before = $request->status;
             $request->forceFill(['status' => ServiceRequest::STATUS_CANCELLED, 'cancelled_by' => 'customer', 'proposed_start_at' => null, 'proposed_duration_minutes' => null])->save();
             $this->audit->record('marketplace.request_cancelled', $request, ['status' => $before], ['status' => ServiceRequest::STATUS_CANCELLED], $this->text($reason, 300), $customer);
+            $this->prices->closeOpenForRequest($request, 'request_cancelled', $customer);
             $this->notify->requestCancelled($request, 'customer');
 
             return $request;
@@ -408,6 +413,10 @@ class Marketplace
             ] + $extra)->save();
 
             $this->audit->record($action, $request, ['status' => $before], ['status' => $to], $note, $user);
+            // A price still being talked about can't be accepted once the job is finished or cancelled
+            if (in_array($to, [ServiceRequest::STATUS_CANCELLED, ServiceRequest::STATUS_COMPLETED], true)) {
+                $this->prices->closeOpenForRequest($request, $to === ServiceRequest::STATUS_COMPLETED ? 'job_completed' : 'request_cancelled', $user);
+            }
 
             $notices = [
                 'marketplace.request_accepted' => 'requestAccepted',

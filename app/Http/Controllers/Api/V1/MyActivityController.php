@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\JobResource;
 use App\Models\Quotation;
 use App\Models\ServiceRequest;
+use App\Exceptions\BusinessRuleException;
 use App\Services\Marketplace;
+use App\Services\PriceAgreements;
+use App\Services\Pricing;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -16,7 +19,7 @@ class MyActivityController extends Controller
     public function requests(Request $request)
     {
         $requests = ServiceRequest::where('customer_id', $request->user()->getKey())
-            ->with(['category', 'area', 'provider', 'review', 'photos'])
+            ->with(['category', 'area', 'provider', 'review', 'photos', 'agreedAgreement', 'openAgreement', 'latestAgreement'])
             ->withCount('quotations')
             ->latest()
             ->limit(200)
@@ -32,6 +35,57 @@ class MyActivityController extends Controller
         $updated = $marketplace->answerProposal($request->user(), $id, (bool) $data['accept']);
 
         return new JobResource($updated->fresh(['category', 'area', 'provider', 'review', 'photos']));
+    }
+
+    /**
+     * "Accept price": the customer accepts the version they are looking at. They send its amount, and it has to
+     * be the one still open; if it changed meanwhile they are asked to look again (409), never agreed silently.
+     */
+    public function acceptPrice(Request $request, PriceAgreements $agreements, int $id, int $agreement)
+    {
+        $data = $request->validate(['amount' => ['required', 'integer']], ['amount.required' => 'The price you are accepting is missing. Please look at it again.']);
+        $agreements->accept($request->user(), $id, $agreement, $data['amount']);
+
+        return $this->priceDone($id, $request);
+    }
+
+    /** "No thanks": turns the price down; nothing is agreed */
+    public function rejectPrice(Request $request, PriceAgreements $agreements, int $id, int $agreement)
+    {
+        $data = $request->validate(['note' => ['nullable', 'string', 'max:'.PriceAgreements::MAX_NOTE]]);
+        $agreements->reject($request->user(), $id, $agreement, $data['note'] ?? null);
+
+        return $this->priceDone($id, $request);
+    }
+
+    /** "Request a change": asks for another price; an amount, if given, is only what the customer would like */
+    public function requestPriceChange(Request $request, PriceAgreements $agreements, int $id, int $agreement)
+    {
+        $data = $request->validate([
+            'note' => ['nullable', 'string', 'max:'.PriceAgreements::MAX_NOTE],
+            'suggested_amount' => ['nullable', 'integer', 'min:'.Pricing::MIN_AMOUNT, 'max:'.Pricing::MAX_AMOUNT],
+        ], ['suggested_amount.min' => 'Enter an amount of at least UGX '.number_format(Pricing::MIN_AMOUNT).', or leave it empty.']);
+        $agreements->requestChange($request->user(), $id, $agreement, $data['note'] ?? null, $data['suggested_amount'] ?? null);
+
+        return $this->priceDone($id, $request);
+    }
+
+    /** Every version and step of the customer's own request's price */
+    public function pricing(Request $request, PriceAgreements $agreements, Pricing $pricing, int $id): JsonResponse
+    {
+        if (! $pricing->enabled()) {
+            throw new BusinessRuleException('pricing_unavailable', 'This is not available right now.', 409);
+        }
+        $found = ServiceRequest::where('customer_id', $request->user()->getKey())->findOrFail($id);
+
+        return response()->json(['data' => $agreements->history($found)]);
+    }
+
+    private function priceDone(int $id, Request $request): JobResource
+    {
+        $found = ServiceRequest::where('customer_id', $request->user()->getKey())->with(['category', 'area', 'provider', 'review', 'photos', 'agreedAgreement', 'openAgreement', 'latestAgreement'])->findOrFail($id);
+
+        return new JobResource($found);
     }
 
     /** Cancel a request still waiting, or a confirmed booking */

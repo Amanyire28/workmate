@@ -19,6 +19,11 @@
       <i class="bi bi-calendar3 text-muted" aria-hidden="true"></i>{{ req.preferred_time }}
     </p>
 
+    <!-- The proposed and agreed price (Phase B2): only "Accept price" makes it the agreed price -->
+    <PriceCard v-if="req.pricing" :pricing="req.pricing" role="customer" />
+    <PriceDecision :req="req" :provider-name="req.provider && req.provider.display_name" @updated="emit('updated', $event)" @refresh="emit('refresh')" />
+    <PriceHistory v-if="req.pricing" :path="`/me/requests/${req.id}/pricing`" />
+
     <!-- A time the provider suggested -->
     <div v-if="status.key === 'proposed'" class="flex flex-col gap-2 rounded-xl border border-[#F59E0B]/30 bg-[#FFFBEB] p-3">
       <p class="text-[14px] text-ink">Suggested time: <strong>{{ formatDay(req.schedule.proposed_start) }}, {{ formatTime(req.schedule.proposed_start) }}</strong></p>
@@ -47,12 +52,15 @@
 import { ref, computed } from 'vue';
 import { api } from '@/api/client.js';
 import { customerStatus, formatDay, formatTime } from '@/utils/booking.js';
+import PriceCard from '@/components/pricing/PriceCard.vue';
+import PriceDecision from '@/components/pricing/PriceDecision.vue';
+import PriceHistory from '@/components/pricing/PriceHistory.vue';
 
 const props = defineProps({
   // The request as the API returns it (status, schedule, preferred_time)
   req: { type: Object, required: true },
 });
-const emit = defineEmits(['updated']);
+const emit = defineEmits(['updated', 'refresh']);
 
 const TONES = {
   info: 'bg-primary-tint text-primary',

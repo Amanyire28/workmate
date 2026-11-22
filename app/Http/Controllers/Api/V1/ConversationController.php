@@ -118,7 +118,7 @@ class ConversationController extends Controller
         $this->messaging->markRead($conversation, $user);
         $conversation->load(['provider.owner:id,name,avatar_path', 'customer:id,name,avatar_path']);
 
-        $messages = $conversation->messages()->with(['attachments', 'serviceRequest.category', 'serviceRequest.provider:id,display_name'])
+        $messages = $conversation->messages()->with(['attachments', 'serviceRequest.category', 'serviceRequest.provider:id,display_name', 'serviceRequest.agreedAgreement', 'serviceRequest.openAgreement', 'serviceRequest.latestAgreement'])
             ->latest('id')->limit(200)->get()->reverse()->values();
         $asCustomer = $conversation->isCustomer($user);
 
@@ -150,6 +150,8 @@ class ConversationController extends Controller
             'budget_min' => $r->budget_min,
             'budget_max' => $r->budget_max,
             'inspection_required' => $r->needsInspection(),
+            // The proposed and agreed price: the same for both sides of the chat (null while pricing is off)
+            'pricing' => \App\Services\PriceAgreements::summary($r),
             'preferred_time' => $r->preferred_time,
             'status' => $r->trashed() ? 'cancelled' : $r->status,
             'schedule' => $details['schedule'],

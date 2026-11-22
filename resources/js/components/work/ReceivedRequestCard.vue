@@ -1,6 +1,6 @@
 <template>
   <!-- One request a customer sent this provider, with what they can do next -->
-  <li class="wm-card flex flex-col gap-3">
+  <li :id="`request-${req.id}`" class="wm-card flex flex-col gap-3">
     <div class="flex items-start justify-between gap-3">
       <div class="flex items-center gap-3 min-w-0">
         <UserAvatar :name="req.customer.name" :src="req.customer.avatar_url || ''" :size="44" />
@@ -43,6 +43,10 @@
       <span v-if="budget.main" class="inline-flex items-center gap-1"><i class="bi bi-cash" aria-hidden="true"></i>Budget {{ budget.main }}<template v-if="appSettings.pricingEnabled && budget.basis"> · {{ budget.basis }}</template></span>
       <span>Received {{ sentLabel(req.received_at) }}</span>
     </p>
+    <!-- The proposed and agreed price (Phase B2): the customer decides; only the owner or a manager proposes -->
+    <PriceCard v-if="req.pricing" :pricing="req.pricing" role="provider" />
+    <PriceHistory v-if="req.pricing" :path="`/me/received-requests/${req.id}/pricing`" />
+
     <!-- Inspection first: said by the business owner or a manager; nothing is priced by it -->
     <p v-if="req.inspection_required" class="flex items-start gap-2 rounded-xl bg-[#FFFBEB] px-3 py-2 text-[13.5px] text-[#92400E]">
       <i class="bi bi-search mt-0.5" aria-hidden="true"></i>
@@ -113,6 +117,13 @@
         <i class="bi bi-check2-all" aria-hidden="true"></i>Mark as done
       </button>
 
+      <div v-if="canProposePrice" class="flex flex-wrap gap-2">
+        <button type="button" class="wm-btn wm-btn-primary !min-h-11 flex-1" :disabled="busy" @click="proposing = true">
+          <i class="bi bi-cash-coin" aria-hidden="true"></i>{{ priceActionLabel }}
+        </button>
+        <button v-if="canTakeBack" type="button" class="wm-btn wm-btn-ghost !min-h-11" :disabled="busy" @click="send(`agreements/${req.pricing.open.id}/withdraw`)">Take it back</button>
+      </div>
+
       <div v-if="canMarkInspection" class="flex flex-wrap gap-2">
         <button v-if="!req.inspection_required" type="button" class="wm-btn wm-btn-secondary !min-h-11 flex-1" :disabled="busy" @click="mode = 'inspect'">
           <i class="bi bi-search" aria-hidden="true"></i>I need to see the job first
@@ -134,6 +145,8 @@
     </div>
 
     <p v-if="error" class="wm-notice wm-notice-error" role="alert"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>{{ error }}</span></p>
+
+    <ProposePriceSheet v-if="canProposePrice" :open="proposing" :req="req" @close="proposing = false" @updated="emit('updated', $event)" />
   </li>
 </template>
 
@@ -146,6 +159,9 @@ import { api } from '@/api/client.js';
 import { categoryLabel } from '@/utils/ui.js';
 import { appSettings } from '@/stores/catalog.js';
 import { budgetParts, budgetFromApi } from '@/utils/pricing.js';
+import PriceCard from '@/components/pricing/PriceCard.vue';
+import PriceHistory from '@/components/pricing/PriceHistory.vue';
+import ProposePriceSheet from '@/components/pricing/ProposePriceSheet.vue';
 import { formatDay, formatTime, formatShort, providerStatus, directionsUrl, TIME_SLOTS, DURATIONS, durationLabel, todayInUganda } from '@/utils/booking.js';
 
 const props = defineProps({
@@ -167,6 +183,21 @@ const budget = computed(() => budgetParts(budgetFromApi(props.req), appSettings.
 // "I need to see the job first": the owner or a manager, on a job that is still to be done, once pricing options are on
 const canMarkInspection = computed(() => appSettings.pricingEnabled && props.req.can_manage_pricing && !props.req.is_legacy
   && ['open', 'scheduled', 'in_progress'].includes(props.req.status));
+
+// Proposing a price (Phase B2): the owner or a manager, on a job still to be done. A new version replaces one still
+// waiting; while a price is agreed it is an amendment the customer has to accept.
+const proposing = ref(false);
+const canProposePrice = computed(() => appSettings.pricingEnabled && !!props.req.pricing && props.req.can_manage_pricing && !props.req.is_legacy
+  && ['open', 'scheduled', 'in_progress'].includes(props.req.status));
+const canTakeBack = computed(() => !!(props.req.pricing && props.req.pricing.open && ['pending_customer', 'revision_requested'].includes(props.req.pricing.open.status)));
+const priceActionLabel = computed(() => {
+  const p = props.req.pricing;
+  if (p.agreed && !p.open) return 'Change the agreed price';
+  if (p.open && p.open.status === 'expired') return 'Send the price again';
+  if (p.open) return 'Send a new price';
+
+  return 'Propose a price';
+});
 
 const tone = computed(() => ({ open: 'info', scheduled: 'success', in_progress: 'info', completed: 'success', cancelled: 'neutral' }[props.req.status] || 'neutral'));
 

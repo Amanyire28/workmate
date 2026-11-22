@@ -146,6 +146,30 @@ class ServiceRequest extends Model
         return $this->hasMany(Quotation::class);
     }
 
+    /** Every version of every price proposed for this request (Phase B2) */
+    public function agreements()
+    {
+        return $this->hasMany(JobPriceAgreement::class);
+    }
+
+    /** The agreed price in force: at most one (the database refuses a second) */
+    public function agreedAgreement()
+    {
+        return $this->hasOne(JobPriceAgreement::class)->where('agreed_slot', 1);
+    }
+
+    /** The version still being talked about: at most one */
+    public function openAgreement()
+    {
+        return $this->hasOne(JobPriceAgreement::class)->where('open_slot', 1);
+    }
+
+    /** The newest version of any kind, so a closed negotiation (declined, expired, withdrawn) can still be shown */
+    public function latestAgreement()
+    {
+        return $this->hasOne(JobPriceAgreement::class)->latestOfMany('revision_no');
+    }
+
     public function photos()
     {
         return $this->hasMany(ServiceRequestPhoto::class)->orderBy('position');

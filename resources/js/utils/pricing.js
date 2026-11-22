@@ -175,3 +175,89 @@ export function estimateBody(e) {
 export function rangeLabel(service, unitWords = '') {
     return `${ugx(service.price)} – ${ugx(service.price_max)}${unitWords ? ` ${unitWords}` : ''}`;
 }
+
+/* ---------------- Price proposals and the agreed price (Phase B2) ---------------- */
+
+/**
+ * Where a request's price stands, from the `pricing` block the server sends ({ agreed, open }) and whether the
+ * provider said they must inspect first. One of:
+ *   none | inspection | proposed | change_requested | expired | agreed | closed
+ *   amendment_proposed | amendment_change_requested | amendment_expired   (a price is agreed AND a newer one is open)
+ * Only "agreed" (with or without an amendment waiting) means a price is agreed; nothing here is ever inferred.
+ */
+export function priceState(pricing, inspection = false) {
+    const agreed = pricing && pricing.agreed;
+    const open = pricing && pricing.open;
+    const openKind = !open ? '' : open.status === 'pending_customer' ? 'proposed' : open.status === 'revision_requested' ? 'change_requested' : 'expired';
+    if (agreed) return open ? `amendment_${openKind}` : 'agreed';
+    if (open) return openKind;
+    // Nothing open or agreed, but a price was proposed once: it ended (declined, expired, taken back)
+    if (pricing && pricing.latest) return 'closed';
+
+    return inspection ? 'inspection' : 'none';
+}
+
+/** The simple words shown for each state, for the customer and for the provider */
+export const PRICE_WORDS = {
+    none: { title: '', tone: 'neutral' },
+    inspection: { title: 'Inspection needed', tone: 'warning', customer: 'The price isn’t set yet. The provider needs to see the job first.', provider: 'You need to see the job before pricing it.' },
+    proposed: { title: 'Proposed price', tone: 'info', customer: 'Look at it, then accept it or ask for a change.', provider: 'Waiting for the customer to answer.' },
+    change_requested: { title: 'Change requested', tone: 'warning', customer: 'You asked for a change. The provider will send a new price.', provider: 'The customer asked for a change. Send a new price.' },
+    expired: { title: 'Price offer ended', tone: 'neutral', customer: 'This price offer ended without an answer. Ask the provider for a new one.', provider: 'It wasn’t answered in time. You can send it again.' },
+    closed: { title: 'Price offer ended', tone: 'neutral', customer: 'Ask the provider for a new price.', provider: 'You can send a new price.' },
+    agreed: { title: 'Price agreed', tone: 'success', customer: 'You and the provider agreed this price.', provider: 'You and the customer agreed this price.' },
+};
+
+/** The state of the newer price while an agreed one stands, in the same words */
+export const openKind = (state) => (state.startsWith('amendment_') ? state.slice('amendment_'.length) : state);
+
+/** "Answer by Fri 28 Nov": when a waiting offer ends */
+export function shortDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+
+    return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-UG', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+export const MIN_SCOPE = 10;
+
+export const blankProposal = (amount = '') => ({ amount: amount === null ? '' : String(amount), scope: '', exclusions: '' });
+
+/** What is wrong with a price proposal, field by field ('' when fine); the server checks it all again */
+export function validateProposal(p) {
+    const errors = { amount: '', scope: '', exclusions: '' };
+    const amount = String(p.amount ?? '').trim();
+    if (!/^\d+$/.test(amount) || Number(amount) < MIN_AMOUNT || Number(amount) > 100000000) errors.amount = `Enter the price in UGX, from ${ugx(MIN_AMOUNT)} to ${ugx(100000000)}.`;
+    if (String(p.scope ?? '').trim().length < MIN_SCOPE) errors.scope = 'Say what the price includes (a few words).';
+    if (String(p.scope ?? '').trim().length > 2000) errors.scope = 'Keep it under 2,000 characters.';
+    if (String(p.exclusions ?? '').trim().length > 1000) errors.exclusions = 'Keep it under 1,000 characters.';
+
+    return errors;
+}
+
+/** The fields to send; `token` is one per try, so a retry after a dropped connection can't send it twice */
+export function proposalBody(p, token) {
+    const exclusions = String(p.exclusions ?? '').trim();
+
+    return { amount: Number(String(p.amount).trim()), scope: String(p.scope).trim(), exclusions: exclusions || null, client_token: token };
+}
+
+/** The error codes that mean "the price changed meanwhile": the app reloads and shows the latest */
+export const PRICE_STALE_CODES = ['stale_proposal', 'proposal_expired', 'already_decided', 'request_status_conflict'];
+
+/** What each step of the history is called, in plain words (by is provider | customer | system) */
+export function eventWords(e) {
+    const who = e.by === 'customer' ? 'You' : e.by === 'provider' ? 'Provider' : 'WorkMate';
+    switch (e.event) {
+        case 'proposed': return `${who === 'You' ? 'You' : 'Provider'} proposed ${ugx(e.amount)}`;
+        case 'revised': return `New price proposed: ${ugx(e.amount)}`;
+        case 'superseded': return `Version ${e.revision_no} was replaced`;
+        case 'change_requested': return 'A change was requested';
+        case 'accepted': return `Price agreed: ${ugx(e.amount)}`;
+        case 'rejected': return 'Price declined';
+        case 'withdrawn': return 'Provider took the price back';
+        case 'expired': return 'Offer ended without an answer';
+        case 'cancelled': return 'Closed because the job ended';
+        default: return e.event;
+    }
+}

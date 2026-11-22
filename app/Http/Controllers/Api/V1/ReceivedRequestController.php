@@ -2,11 +2,13 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Models\Conversation;
 use App\Models\ProviderProfile;
 use App\Models\ServiceRequest;
 use App\Services\Marketplace;
+use App\Services\PriceAgreements;
 use App\Services\Pricing;
 use App\Services\RequestDetails;
 use App\Services\Messaging;
@@ -33,7 +35,7 @@ class ReceivedRequestController extends Controller
     public function index(Request $request): JsonResponse
     {
         $requests = ServiceRequest::receivedBy($request->user())
-            ->with(['category', 'area', 'customer:id,name,avatar_path', 'photos'])
+            ->with(['category', 'area', 'customer:id,name,avatar_path', 'photos', 'agreedAgreement', 'openAgreement', 'latestAgreement'])
             ->latest()
             ->limit(200)
             ->get();
@@ -71,6 +73,49 @@ class ReceivedRequestController extends Controller
         ], ['required.required' => 'Say whether you need to inspect the job first.']);
 
         return $this->done($pricing->setInspection($request->user(), $this->find($id), (bool) $data['required'], $data['note'] ?? null));
+    }
+
+    /**
+     * Proposes a price: the business owner or a manager. A new version replaces one still waiting; the customer
+     * decides. While a price is agreed, this is an amendment that only counts once the customer accepts it.
+     */
+    public function proposePrice(Request $request, PriceAgreements $agreements, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'amount' => ['required', 'integer', 'min:'.Pricing::MIN_AMOUNT, 'max:'.Pricing::MAX_AMOUNT],
+            'scope' => ['required', 'string', 'min:'.PriceAgreements::MIN_SCOPE, 'max:'.PriceAgreements::MAX_SCOPE],
+            'exclusions' => ['nullable', 'string', 'max:'.PriceAgreements::MAX_EXCLUSIONS],
+            // One per try, so a retry after a dropped connection can't create a copy
+            'client_token' => ['nullable', 'uuid'],
+        ], [
+            'amount.required' => 'Enter the price in UGX.',
+            'amount.integer' => 'Enter the price in whole UGX.',
+            'amount.min' => 'Enter a price of at least UGX '.number_format(Pricing::MIN_AMOUNT).'.',
+            'amount.max' => 'That price is too high. Check the amount.',
+            'scope.required' => 'Say what the price includes.',
+            'scope.min' => 'Say a little more about what the price includes.',
+        ]);
+        $version = $agreements->propose($request->user(), $id, $data);
+
+        return $this->done($this->find($id), $version->wasRecentlyCreated ? 201 : 200);
+    }
+
+    /** Takes a proposal back while the customer hasn't accepted it */
+    public function withdrawPrice(Request $request, PriceAgreements $agreements, int $id, int $agreement): JsonResponse
+    {
+        $agreements->withdraw($request->user(), $id, $agreement);
+
+        return $this->done($this->find($id));
+    }
+
+    /** Every version and step of this request's price, for the provider business (any member) */
+    public function pricing(Request $request, PriceAgreements $agreements, Pricing $pricing, int $id): JsonResponse
+    {
+        if (! $pricing->enabled()) {
+            throw new BusinessRuleException('pricing_unavailable', 'This isn’t available right now.', 409);
+        }
+
+        return response()->json(['data' => $agreements->history($this->find($id))]);
     }
 
     /** Arrived and started a confirmed booking */
@@ -135,9 +180,9 @@ class ReceivedRequestController extends Controller
         return ServiceRequest::receivedBy(request()->user())->findOrFail($id);
     }
 
-    private function done(ServiceRequest $serviceRequest): JsonResponse
+    private function done(ServiceRequest $serviceRequest, int $status = 200): JsonResponse
     {
-        return response()->json(['data' => $this->present($serviceRequest->fresh(['category', 'area', 'customer', 'photos']), null)]);
+        return response()->json(['data' => $this->present($serviceRequest->fresh(['category', 'area', 'customer', 'photos', 'agreedAgreement', 'openAgreement', 'latestAgreement']), null)], $status);
     }
 
     /** No email or phone number: the provider replies through WorkMate */
@@ -165,6 +210,8 @@ class ReceivedRequestController extends Controller
         ] + Pricing::budgetFields($r) + Pricing::inspectionFields($r) + [
             // Only the business owner or a manager marks a job as needing inspection: the app shows the control to them
             'can_manage_pricing' => $this->canManagePricing((int) $r->provider_profile_id),
+            // The proposed and the agreed price (null while pricing options are off)
+            'pricing' => PriceAgreements::summary($r),
             'status' => $r->status,
             'received_at' => $r->created_at->toIso8601String(),
             'responded_at' => optional($r->responded_at)->toIso8601String(),

@@ -129,3 +129,99 @@ test('a listed price range reads as a guide with its unit', () => {
     assert.equal(rangeLabel({ price: 20000, price_max: 45000 }, 'per visit'), 'UGX 20,000 – UGX 45,000 per visit');
     assert.equal(rangeLabel({ price: 20000, price_max: 45000 }), 'UGX 20,000 – UGX 45,000');
 });
+
+/* ---------------- Price proposals and the agreed price (Phase B2) ---------------- */
+
+import {
+    priceState, PRICE_WORDS, openKind, shortDate, blankProposal, validateProposal, proposalBody, eventWords, PRICE_STALE_CODES, MIN_SCOPE,
+} from '../../resources/js/utils/pricing.js';
+
+const version = (status, extra = {}) => ({ id: 1, revision_no: 1, amount: 150000, scope: 'Replace the pipes.', status, ...extra });
+
+test('a price is only "agreed" when the server says an agreed version exists, never inferred', () => {
+    assert.equal(priceState(null), 'none');
+    assert.equal(priceState({ agreed: null, open: null, latest: null }), 'none');
+    assert.equal(priceState({ agreed: null, open: version('pending_customer') }), 'proposed');
+    assert.equal(priceState({ agreed: null, open: version('revision_requested') }), 'change_requested');
+    assert.equal(priceState({ agreed: null, open: version('expired') }), 'expired');
+    assert.equal(priceState({ agreed: version('agreed'), open: null }), 'agreed');
+    // A proposal alone, however it looks, is not an agreement
+    assert.notEqual(priceState({ agreed: null, open: version('pending_customer') }), 'agreed');
+});
+
+test('while a price is agreed, a newer one is an amendment and the agreed price still stands', () => {
+    assert.equal(priceState({ agreed: version('agreed'), open: version('pending_customer') }), 'amendment_proposed');
+    assert.equal(priceState({ agreed: version('agreed'), open: version('revision_requested') }), 'amendment_change_requested');
+    assert.equal(priceState({ agreed: version('agreed'), open: version('expired') }), 'amendment_expired');
+    assert.equal(openKind('amendment_proposed'), 'proposed');
+    assert.equal(openKind('proposed'), 'proposed');
+});
+
+test('a negotiation that ended is said as ended, and inspection shows only when nothing else does', () => {
+    assert.equal(priceState({ agreed: null, open: null, latest: version('rejected') }), 'closed');
+    assert.equal(priceState({ agreed: null, open: null, latest: null }, true), 'inspection');
+    assert.equal(priceState({ agreed: null, open: version('pending_customer') }, true), 'proposed');
+    assert.equal(priceState({ agreed: version('agreed'), open: null }, true), 'agreed');
+});
+
+test('each state has simple words for both sides, with no financial jargon', () => {
+    for (const key of ['inspection', 'proposed', 'change_requested', 'expired', 'agreed', 'closed']) {
+        assert.ok(PRICE_WORDS[key].title, key);
+        assert.ok(PRICE_WORDS[key].customer && PRICE_WORDS[key].provider, key);
+    }
+    assert.equal(PRICE_WORDS.proposed.title, 'Proposed price');
+    assert.equal(PRICE_WORDS.agreed.title, 'Price agreed');
+    assert.equal(PRICE_WORDS.inspection.title, 'Inspection needed');
+    const all = JSON.stringify(PRICE_WORDS).toLowerCase();
+    for (const word of ['ledger', 'commission', 'invoice', 'settlement', 'escrow']) assert.equal(all.includes(word), false, word);
+});
+
+test('the date an offer ends reads short, and a bad date reads as nothing', () => {
+    assert.equal(shortDate(''), '');
+    assert.equal(shortDate(null), '');
+    assert.equal(shortDate('not a date'), '');
+    assert.match(shortDate('2026-11-28T10:00:00+03:00'), /28/);
+});
+
+test('a price proposal is checked field by field', () => {
+    const ok = { amount: '150000', scope: 'Replace the pipes and fit a tap.', exclusions: '' };
+    assert.equal(hasErrors(validateProposal(ok)), false);
+    assert.ok(validateProposal({ ...ok, amount: '' }).amount);
+    assert.ok(validateProposal({ ...ok, amount: '999' }).amount);
+    assert.ok(validateProposal({ ...ok, amount: '100000001' }).amount);
+    assert.ok(validateProposal({ ...ok, amount: '12.5' }).amount);
+    assert.ok(validateProposal({ ...ok, amount: '-5000' }).amount);
+    assert.ok(validateProposal({ ...ok, amount: '150k' }).amount);
+    assert.equal(validateProposal({ ...ok, amount: '1000' }).amount, '');
+    assert.equal(validateProposal({ ...ok, amount: '100000000' }).amount, '');
+    assert.ok(validateProposal({ ...ok, scope: 'x'.repeat(MIN_SCOPE - 1) }).scope);
+    assert.equal(validateProposal({ ...ok, scope: 'x'.repeat(MIN_SCOPE) }).scope, '');
+    assert.ok(validateProposal({ ...ok, scope: 'x'.repeat(2001) }).scope);
+    assert.ok(validateProposal({ ...ok, exclusions: 'x'.repeat(1001) }).exclusions);
+});
+
+test('a proposal is sent as whole UGX with one key per try, and an empty exclusion is sent as none', () => {
+    assert.deepEqual(blankProposal(), { amount: '', scope: '', exclusions: '' });
+    assert.deepEqual(blankProposal(150000), { amount: '150000', scope: '', exclusions: '' });
+    assert.deepEqual(blankProposal(null), { amount: '', scope: '', exclusions: '' });
+    assert.deepEqual(proposalBody({ amount: ' 150000 ', scope: '  Replace the pipes.  ', exclusions: '   ' }, 'tok'),
+        { amount: 150000, scope: 'Replace the pipes.', exclusions: null, client_token: 'tok' });
+    assert.deepEqual(proposalBody({ amount: '90000', scope: 'Fit a tap.', exclusions: ' Tiles ' }, 't2'),
+        { amount: 90000, scope: 'Fit a tap.', exclusions: 'Tiles', client_token: 't2' });
+});
+
+test('the history is told in plain words', () => {
+    assert.equal(eventWords({ event: 'proposed', by: 'provider', amount: 150000 }), 'Provider proposed UGX 150,000');
+    assert.equal(eventWords({ event: 'revised', by: 'provider', amount: 130000 }), 'New price proposed: UGX 130,000');
+    assert.equal(eventWords({ event: 'accepted', by: 'customer', amount: 130000 }), 'Price agreed: UGX 130,000');
+    assert.equal(eventWords({ event: 'change_requested', by: 'customer' }), 'A change was requested');
+    assert.equal(eventWords({ event: 'rejected', by: 'customer' }), 'Price declined');
+    assert.equal(eventWords({ event: 'expired', by: 'system' }), 'Offer ended without an answer');
+    assert.equal(eventWords({ event: 'superseded', by: 'provider', revision_no: 1 }), 'Version 1 was replaced');
+    assert.equal(eventWords({ event: 'something_new', by: 'system' }), 'something_new');
+});
+
+test('answers that mean the price changed meanwhile make the app look again', () => {
+    for (const code of ['stale_proposal', 'proposal_expired', 'already_decided', 'request_status_conflict']) assert.ok(PRICE_STALE_CODES.includes(code), code);
+    assert.equal(PRICE_STALE_CODES.includes('amount_invalid'), false);
+});

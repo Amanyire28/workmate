@@ -179,6 +179,12 @@ return [
             'description' => 'Lets customers give a fixed, range or negotiable budget, providers give a fixed, range or “inspection first” estimate and list a price range, and providers mark a job as needing inspection. Off: everything works as before. This only records what people say; it never charges or collects anything.',
             'type' => 'boolean', 'default' => false, 'public' => true,
         ],
+        'finance.agreement_expiry_days' => [
+            'group' => 'finance',
+            'label' => 'Days a price offer waits for the customer',
+            'description' => 'A price a provider proposed expires if the customer hasn’t answered in this time. An expired offer is never an agreement: the provider has to propose it again.',
+            'type' => 'integer', 'min' => 1, 'max' => 60, 'default' => 7,
+        ],
         'presence.heartbeat_seconds' => [
             'group' => 'presence',
             'label' => 'Heartbeat interval (seconds)',

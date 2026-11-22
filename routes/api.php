@@ -253,6 +253,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
         // Requests customers sent to the provider business the account belongs to
         Route::get('me/received-requests', [ReceivedRequestController::class, 'index'])->name('me.received-requests');
+        // Phase B2: the whole negotiation of one request's price (each side reads only its own request)
+        Route::get('me/received-requests/{id}/pricing', [ReceivedRequestController::class, 'pricing'])->whereNumber('id')->name('me.received-requests.pricing');
+        Route::get('me/requests/{id}/pricing', [MyActivityController::class, 'pricing'])->whereNumber('id')->name('me.requests.pricing');
         Route::middleware('throttle:marketplace-write')->group(function () {
             Route::post('me/received-requests/{id}/accept', [ReceivedRequestController::class, 'accept'])->whereNumber('id')->name('me.received-requests.accept');
             // Bookings: start, suggest another time, cancel
@@ -261,6 +264,13 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::post('me/received-requests/{id}/start', [ReceivedRequestController::class, 'start'])->whereNumber('id')->name('me.received-requests.start');
             Route::post('me/received-requests/{id}/propose', [ReceivedRequestController::class, 'propose'])->whereNumber('id')->name('me.received-requests.propose');
             Route::post('me/received-requests/{id}/cancel', [ReceivedRequestController::class, 'cancel'])->whereNumber('id')->name('me.received-requests.cancel');
+            // Phase B2: the provider business proposes a price (owner or manager) or takes it back
+            Route::post('me/received-requests/{id}/agreements', [ReceivedRequestController::class, 'proposePrice'])->whereNumber('id')->name('me.received-requests.agreements.store');
+            Route::post('me/received-requests/{id}/agreements/{agreement}/withdraw', [ReceivedRequestController::class, 'withdrawPrice'])->whereNumber('id')->whereNumber('agreement')->name('me.received-requests.agreements.withdraw');
+            // Phase B2: the customer accepts the price, turns it down, or asks for a change
+            Route::post('me/requests/{id}/agreements/{agreement}/accept', [MyActivityController::class, 'acceptPrice'])->whereNumber('id')->whereNumber('agreement')->name('me.requests.agreements.accept');
+            Route::post('me/requests/{id}/agreements/{agreement}/reject', [MyActivityController::class, 'rejectPrice'])->whereNumber('id')->whereNumber('agreement')->name('me.requests.agreements.reject');
+            Route::post('me/requests/{id}/agreements/{agreement}/changes', [MyActivityController::class, 'requestPriceChange'])->whereNumber('id')->whereNumber('agreement')->name('me.requests.agreements.changes');
             // The customer's side: answer a suggested time, cancel
             Route::post('me/requests/{id}/proposal', [MyActivityController::class, 'answerProposal'])->whereNumber('id')->name('me.requests.proposal');
             Route::post('me/requests/{id}/cancel', [MyActivityController::class, 'cancel'])->whereNumber('id')->name('me.requests.cancel');
@@ -348,6 +358,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::get('data', AdminDataController::class)->middleware('can:admin-access')->name('data');
             // Live updates: a cheap fingerprint the admin checks every few seconds
             Route::get('pulse', AdminPulseController::class)->middleware(['can:admin-access', 'throttle:admin-pulse'])->name('pulse');
+            // Phase B2: a request's price negotiation, read-only
+            Route::get('requests/{id}/pricing', [\App\Http\Controllers\Api\V1\Admin\RequestPricingController::class, 'show'])->whereNumber('id')->middleware('can:marketplace.view')->name('requests.pricing');
 
             Route::middleware('can:trust.view')->group(function () {
                 Route::post('users/{user}/suspend', [AdminActionController::class, 'suspendAccount'])->name('users.suspend');

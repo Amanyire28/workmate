@@ -84,7 +84,7 @@
       <!-- Service requests sent to providers -->
       <template v-else-if="activeTab === 'requests'">
         <ul v-if="requests.length" class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-          <li v-for="req in requests" :key="req.id" class="wm-card flex flex-col gap-3">
+          <li v-for="req in requests" :id="`request-${req.id}`" :key="req.id" class="wm-card flex flex-col gap-3">
             <div class="flex items-start justify-between gap-3">
               <div class="flex items-center gap-3 min-w-0">
                 <UserAvatar :name="req.providerName" :src="providerPhoto(req.providerId)" :size="44" />
@@ -94,7 +94,7 @@
                 </div>
               </div>
             </div>
-            <CustomerRequestStatus :req="req.raw" @updated="onRequestUpdated" />
+            <CustomerRequestStatus :req="req.raw" @updated="onRequestUpdated" @refresh="load({ quiet: true })" />
             <p class="text-sm text-ink line-clamp-2">{{ req.details }}</p>
             <RequestPhotos :photos="req.photos" label="Your photos of the job" />
             <p v-if="req.status === 'request_declined' && req.providerNote" class="text-sm text-muted">
@@ -138,7 +138,7 @@
       <!-- Posted jobs -->
       <template v-else-if="activeTab === 'posted'">
         <ul v-if="postedJobs.length" class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-          <li v-for="job in postedJobs" :key="job.id" class="wm-card flex flex-col gap-3">
+          <li v-for="job in postedJobs" :id="`request-${job.id}`" :key="job.id" class="wm-card flex flex-col gap-3">
             <div class="flex items-start justify-between gap-3">
               <h2 class="text-base font-semibold text-ink leading-snug">{{ job.title }}</h2>
               <StatusBadge :status="job.status" class="shrink-0" />
@@ -154,6 +154,12 @@
               </span>
               <span class="text-muted">Your rating</span>
             </p>
+            <!-- The proposed and agreed price of the job someone was hired for (Phase B2) -->
+            <div v-if="job.workerId && job.raw.pricing" class="flex flex-col gap-2">
+              <PriceCard :pricing="job.raw.pricing" role="customer" />
+              <PriceDecision :req="job.raw" :provider-name="job.workerName" @updated="onPostedUpdated" @refresh="load({ quiet: true })" />
+              <PriceHistory :path="`/me/requests/${job.id}/pricing`" />
+            </div>
             <div class="mt-auto pt-3 border-t border-line flex flex-wrap items-center justify-between gap-2 text-sm text-ink">
               <template v-if="job.workerId">
                 <router-link :to="`/provider/${job.workerId}`" class="inline-flex items-center min-h-11">
@@ -229,7 +235,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import FormField from '@/components/FormField.vue';
 import JobApplicantsSheet from '@/components/JobApplicantsSheet.vue';
 import ReportSheet from '@/components/ReportSheet.vue';
@@ -245,6 +251,9 @@ import SuggestionCard from '@/components/engagement/SuggestionCard.vue';
 import RecommendedForYou from '@/components/engagement/RecommendedForYou.vue';
 import ReceivedRequestCard from '@/components/work/ReceivedRequestCard.vue';
 import CustomerRequestStatus from '@/components/work/CustomerRequestStatus.vue';
+import PriceCard from '@/components/pricing/PriceCard.vue';
+import PriceDecision from '@/components/pricing/PriceDecision.vue';
+import PriceHistory from '@/components/pricing/PriceHistory.vue';
 import { agoLabel, providers, appSettings } from '@/stores/catalog.js';
 import { api } from '@/api/client.js';
 import { formatPrice, categoryLabel } from '@/utils/ui.js';
@@ -335,6 +344,7 @@ function toPostedJob(j) {
     applicants: j.applicants,
     review: j.review || null,
     photos: j.photos || [],
+    raw: j,
   };
 }
 
@@ -371,8 +381,9 @@ const RECEIVED_STATUS = { open: 'new_request', in_progress: 'accepted', cancelle
 const waitingCount = computed(() => received.value.filter(r => r.status === 'open').length);
 const JOB_STATUS = { open: 'waiting' };
 
-async function load() {
-  state.value = 'loading';
+// quiet: reload the lists without the loading skeleton, so a message on a card (a price that changed) stays readable
+async function load({ quiet = false } = {}) {
+  if (!quiet) state.value = 'loading';
   try {
     const [mine, applied, incoming] = await Promise.all([
       api('/me/requests'), api('/me/applications'),
@@ -395,9 +406,21 @@ async function load() {
     }));
 
     state.value = 'ready';
+    showLinkedRequest();
   } catch {
     state.value = 'error';
   }
+}
+
+// A notification opens the tab with ?request=ID: bring that request into view, once
+let linkedShown = false;
+async function showLinkedRequest() {
+  const id = Number(route.query.request);
+  if (linkedShown || !id) return;
+  linkedShown = true;
+  await nextTick();
+  const el = document.getElementById(`request-${id}`);
+  if (el) el.scrollIntoView({ block: 'center' });
 }
 
 onMounted(load);
@@ -407,6 +430,10 @@ const reportFor = ref(null);   // { about, name, providerId?, requestId }
 
 /* ---------------- Choosing someone for a posted job ---------------- */
 const applicantsFor = ref(null);
+// An answer to a price on a posted job comes back as the whole job
+function onPostedUpdated(job) {
+  postedJobs.value = postedJobs.value.map(j => (j.id === job.id ? toPostedJob(job) : j));
+}
 function onHired(job) {
   postedJobs.value = postedJobs.value.map(j => (j.id === job.id ? toPostedJob(job) : j));
 }

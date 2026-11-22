@@ -8,6 +8,7 @@ use App\Models\CommunityComment;
 use App\Models\CommunityPost;
 use App\Models\Conversation;
 use App\Models\DocumentVerification;
+use App\Models\JobPriceAgreement;
 use App\Models\Message;
 use App\Models\ProviderApplication;
 use App\Models\ProviderMember;
@@ -127,6 +128,67 @@ class EventNotifications
     public function inspectionRequired(ServiceRequest $request): void
     {
         $this->toCustomer($request, 'Inspection needed', $this->providerName($request).' needs to see your '.$this->service($request).' job before giving a final price. Message them to arrange it.');
+    }
+
+    /* ---------------- Price proposals (Phase B2) ---------------- */
+
+    // Amounts and scope stay in WorkMate: a lock screen only says that there is something to look at. A request's
+    // notifications share a tag, so a phone shows the latest one instead of a pile.
+
+    public function priceProposed(JobPriceAgreement $a, ServiceRequest $request, User $by, bool $revised): void
+    {
+        $this->priceToCustomer($request, $by, $revised ? 'Price changed' : 'New price proposed',
+            $this->providerName($request).($revised ? ' sent you a new price' : ' proposed a price').' for your '.$this->service($request).' job. Look at it and accept or ask for a change.');
+    }
+
+    public function priceWithdrawn(JobPriceAgreement $a, ServiceRequest $request, User $by): void
+    {
+        $this->priceToCustomer($request, $by, 'Price offer withdrawn', $this->providerName($request).' took back their price for your '.$this->service($request).' job.');
+    }
+
+    public function priceChangeRequested(JobPriceAgreement $a, ServiceRequest $request, User $customer): void
+    {
+        $this->priceToProvider($request, $customer, 'Change requested', $this->firstName($request->customer).' asked for a change to your price for the '.$this->service($request).' job.');
+    }
+
+    public function priceAgreed(JobPriceAgreement $a, ServiceRequest $request, User $customer): void
+    {
+        $this->priceToProvider($request, $customer, 'Price agreed', $this->firstName($request->customer).' accepted your price for the '.$this->service($request).' job.');
+    }
+
+    public function priceRejected(JobPriceAgreement $a, ServiceRequest $request, User $customer): void
+    {
+        $this->priceToProvider($request, $customer, 'Price declined', $this->firstName($request->customer).' didn’t accept your price for the '.$this->service($request).' job.');
+    }
+
+    /** Nobody answered in time (system); only the provider needs to know */
+    public function priceExpired(JobPriceAgreement $a, ServiceRequest $request): void
+    {
+        $this->priceToProvider($request, null, 'Price offer expired', 'Your price for the '.$this->service($request).' job wasn’t answered in time. You can send it again.');
+    }
+
+    private function priceToCustomer(ServiceRequest $request, User $by, string $title, string $body): void
+    {
+        $owner = optional($request->provider)->owner;
+        $this->send('requests', [$request->customer_id], [
+            'title' => $title,
+            'body' => $body,
+            'url' => ($request->isPostedJob() ? '/activity?tab=posted' : '/activity?tab=requests').'&request='.$request->id,
+            'tag' => 'price-'.$request->id,
+            'important' => true,
+            'actor_id' => $by->id, 'icon' => ($owner ?: $by)->avatarPath(128),
+        ]);
+    }
+
+    private function priceToProvider(ServiceRequest $request, ?User $customer, string $title, string $body): void
+    {
+        $this->toProvider('requests', $request->provider_profile_id, $customer ? $customer->id : null, [
+            'title' => $title,
+            'body' => $body,
+            'url' => '/activity?tab=received&request='.$request->id,
+            'tag' => 'price-'.$request->id,
+            'important' => true,
+        ] + ($customer ? ['actor_id' => $customer->id, 'icon' => $customer->avatarPath(128)] : []));
     }
 
     /* ---------------- Posted jobs ---------------- */
