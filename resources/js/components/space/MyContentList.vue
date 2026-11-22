@@ -63,6 +63,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import { auth } from '@/stores/auth.js';
 import EmptyState from '@/components/EmptyState.vue';
 import PostCard from '@/components/community/PostCard.vue';
 import PostComposer from '@/components/community/PostComposer.vue';
@@ -115,6 +116,9 @@ function reset() {
 }
 
 watch([status, category, () => props.type], () => load(true), { immediate: true });
+
+// A different account (or none): start from nothing, and ignore anything still on its way
+watch(() => auth.user && auth.user.id, (id) => { ticket++; items.value = []; cursor.value = null; error.value = ''; loading.value = false; if (id) load(true); });
 
 function updated(p) {
   const found = items.value.find(x => x.id === p.id);

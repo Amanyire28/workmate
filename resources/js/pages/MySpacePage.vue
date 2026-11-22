@@ -37,7 +37,7 @@
     </div>
 
     <!-- A tab is built the first time it is opened, then kept (so going back doesn't reload it) -->
-    <div class="mt-4">
+    <div :key="user ? user.id : 'none'" class="mt-4">
       <div v-for="t in tabs" v-show="active === t.id" :id="`space-panel-${t.id}`" :key="t.id" role="tabpanel" :aria-labelledby="`space-tab-${t.id}`" tabindex="0" class="focus:outline-none">
         <template v-if="visited.has(t.id)">
           <MyContentList v-if="t.id === 'posts'" type="all" />

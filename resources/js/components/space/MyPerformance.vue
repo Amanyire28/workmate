@@ -29,15 +29,19 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import StatTile from '@/components/space/StatTile.vue';
 import { auth } from '@/stores/auth.js';
 import { stats, loadDetail } from '@/stores/communityStats.js';
 
-loadDetail();
-
 const d = computed(() => stats.detail);
-const loading = computed(() => stats.detailLoading);
+
+// Same rule as on Account: ask whenever there is nothing for the signed-in account and nothing failed or pending
+watch(() => [auth.user && auth.user.id, !!stats.detail], () => {
+  if (auth.user && !stats.detail && !stats.detailLoading && !stats.detailError) loadDetail();
+}, { immediate: true });
+
+const loading = computed(() => !d.value && !stats.detailError);
 const error = computed(() => stats.detailError);
 
 const profile = computed(() => (auth.user ? `/community/people/${auth.user.id}` : '/community/people'));

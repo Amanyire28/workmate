@@ -29,11 +29,15 @@ import StatTile from '@/components/space/StatTile.vue';
 import { auth } from '@/stores/auth.js';
 import { stats, loadSummary } from '@/stores/communityStats.js';
 
-// Fetched for whoever is signed in now (and again if the account changes)
-watch(() => auth.user && auth.user.id, (id) => { if (id) loadSummary(); }, { immediate: true });
-
 const s = computed(() => stats.summary);
-const loading = computed(() => !s.value && stats.summaryLoading);
+
+// Fetched for whoever is signed in now. The store drops everything when the account changes (or after a
+// delete), so whenever it is empty and nothing failed or is on its way, ask again, never show anyone else's.
+watch(() => [auth.user && auth.user.id, !!stats.summary], () => {
+  if (auth.user && !stats.summary && !stats.summaryLoading && !stats.summaryError) loadSummary();
+}, { immediate: true });
+
+const loading = computed(() => !s.value && !stats.summaryError);
 const error = computed(() => !s.value && !!stats.summaryError);
 const isEmpty = computed(() => !!s.value && s.value.posts === 0 && s.value.likes_received === 0 && s.value.followers === 0);
 
