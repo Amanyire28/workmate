@@ -309,6 +309,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         });
         Route::get('community/saved', [CommunityController::class, 'saved'])->name('community.saved');
         Route::get('community/me', [CommunityPeopleController::class, 'me'])->name('community.me');
+        // My Space: the member's own numbers and own posts (only ever their own)
+        Route::get('me/community/stats', [CommunityController::class, 'myStats'])->name('me.community.stats');
+        Route::get('me/community/posts', [CommunityController::class, 'myPosts'])->name('me.community.posts');
         Route::get('community/mention-suggestions', [CommunityPeopleController::class, 'mentionSuggestions'])->middleware('throttle:mention-search')->name('community.mentions.suggest');
         Route::middleware('throttle:community-post')->group(function () {
             Route::post('community/posts', [CommunityController::class, 'store'])->name('community.store');

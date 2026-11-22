@@ -13,6 +13,7 @@ use App\Models\CommunityPostMedia;
 use App\Models\User;
 use App\Services\Community;
 use App\Services\CommunityPeople;
+use App\Services\CommunityStats;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -112,6 +113,55 @@ class CommunityController extends Controller
         return response()->json([
             'data' => CommunityPostResource::collection($this->withViewerFlags(collect($page->items()), $viewer)),
             'meta' => ['next_page' => $page->hasMorePages() ? $page->currentPage() + 1 : null],
+        ]);
+    }
+
+    /**
+     * The signed-in member's own numbers for Account (and, with ?detail=1, for My Space): counted from
+     * real records, only for them, in a fixed number of queries. See CommunityStats for what each means.
+     */
+    public function myStats(Request $request, CommunityStats $stats): JsonResponse
+    {
+        $request->validate(['detail' => ['nullable', 'boolean']]);
+        $user = $request->user();
+
+        return response()->json(['data' => $request->boolean('detail') ? $stats->detail($user) : $stats->summary($user)]);
+    }
+
+    /**
+     * The signed-in member's own posts for My Space, newest first, including ones WorkMate removed (which
+     * the public feed never shows; the post says why, to its owner only). type=video: only posts with a video.
+     * Deleted posts stay deleted. Nobody else's post can come back from here.
+     */
+    public function myPosts(Request $request): JsonResponse
+    {
+        $filters = $request->validate([
+            'type' => ['nullable', Rule::in(['all', 'video'])],
+            'status' => ['nullable', Rule::in(['all', CommunityPost::STATUS_PUBLISHED, CommunityPost::STATUS_REMOVED])],
+            'category' => ['nullable', Rule::in(array_keys(CommunityPost::CATEGORIES))],
+            'cursor' => ['nullable', 'string', 'max:500'],
+        ]);
+        $viewer = $request->user();
+
+        $query = CommunityPost::where('user_id', $viewer->getKey())->with(CommunityPostResource::RELATIONS);
+        if (($filters['type'] ?? 'all') === 'video') {
+            $query->whereExists(function ($m) {
+                $m->select(DB::raw(1))->from('community_post_media as m')
+                    ->whereColumn('m.community_post_id', 'community_posts.id')->where('m.type', CommunityPostMedia::TYPE_VIDEO);
+            });
+        }
+        if (($filters['status'] ?? 'all') !== 'all') {
+            $query->where('status', $filters['status']);
+        }
+        if (! empty($filters['category'])) {
+            $query->where('category', $filters['category']);
+        }
+
+        $page = $query->orderByDesc('created_at')->orderByDesc('id')->cursorPaginate(self::PER_PAGE);
+
+        return response()->json([
+            'data' => CommunityPostResource::collection($this->withViewerFlags(collect($page->items()), $viewer)),
+            'meta' => ['next_cursor' => optional($page->nextCursor())->encode()],
         ]);
     }
 
