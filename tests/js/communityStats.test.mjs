@@ -1,6 +1,6 @@
 // The member's own numbers belong to ONE account: switching accounts without reloading the page must never
 // show, keep or accept another account's numbers.
-//   node --import ./tests/js/register.mjs --test "tests/js/*.test.mjs"
+//   node --import ./tests/js/register.mjs --test --test-timeout=20000 "tests/js/*.test.mjs"
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { auth } from '@/stores/auth.js';

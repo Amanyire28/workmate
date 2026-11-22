@@ -34,6 +34,6 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
 
-      # Any failing test makes this step, and so the workflow, fail
+      # Any failing test makes this step, and so the workflow, fail (a test that hangs fails after 20 seconds)
       - name: Run the store tests
-        run: node --import ./tests/js/register.mjs --test "tests/js/*.test.mjs"
+        run: node --import ./tests/js/register.mjs --test --test-timeout=20000 "tests/js/*.test.mjs"
