@@ -1,0 +1,39 @@
+name: JavaScript tests
+
+# Runs the front-end store tests (tests/js, Node's built-in test runner, no extra packages) on every push and pull
+# request. This is a separate workflow from "Deploy WorkMate to VPS": it only tests, it never deploys, and it needs
+# no secrets. A failing test fails this check (red cross on the commit or pull request).
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: js-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  js-tests:
+    name: Store tests (account isolation)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # The project's own locked dependencies (package-lock.json): nothing new is added
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+
+      # Any failing test makes this step, and so the workflow, fail
+      - name: Run the store tests
+        run: node --import ./tests/js/register.mjs --test "tests/js/*.test.mjs"
