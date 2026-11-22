@@ -9,6 +9,7 @@ use App\Models\ProviderProfile;
 use App\Models\Quotation;
 use App\Models\ServiceRequest;
 use App\Models\User;
+use App\Services\Concerns\LocksPricedRequests;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -34,6 +35,8 @@ use Illuminate\Support\Facades\DB;
  */
 class PriceAgreements
 {
+    use LocksPricedRequests;
+
     public const MIN_SCOPE = 10;
     public const MAX_SCOPE = 2000;
     public const MAX_EXCLUSIONS = 1000;
@@ -54,8 +57,12 @@ class PriceAgreements
     /** @var PlatformSettings */
     private $settings;
 
-    public function __construct(Pricing $pricing, AuditLogger $audit, EventNotifications $notify, PlatformSettings $settings)
+    /** @var FinalPrices */
+    private $finalPrices;
+
+    public function __construct(Pricing $pricing, AuditLogger $audit, EventNotifications $notify, PlatformSettings $settings, FinalPrices $finalPrices)
     {
+        $this->finalPrices = $finalPrices;
         $this->pricing = $pricing;
         $this->audit = $audit;
         $this->notify = $notify;
@@ -221,6 +228,8 @@ class PriceAgreements
                 $this->move($previous, JobPriceAgreement::SUPERSEDED, ['closed_reason' => 'amended'], 'superseded', $customer, 'customer', 'Replaced by version '.$a->revision_no);
             }
             $this->move($a, JobPriceAgreement::AGREED, ['responded_by_user_id' => $customer->getKey(), 'responded_at' => now()], 'accepted', $customer, 'customer', null);
+            // A final price already locked follows the accepted amendment as a new version (never edited)
+            $this->finalPrices->followAgreement($request, $customer);
             $this->notify->priceAgreed($a, $request, $customer);
 
             return $a;
@@ -392,51 +401,6 @@ class PriceAgreements
 
     /* ---------------- Internals ---------------- */
 
-    private function guardEnabled(): void
-    {
-        if (! $this->pricing->enabled()) {
-            throw new BusinessRuleException('pricing_unavailable', 'This isn’t available right now.', 409);
-        }
-    }
-
-    /** A request this provider business received, locked, for someone who may speak for it on prices */
-    private function lockForProvider(User $user, int $requestId): ServiceRequest
-    {
-        $request = ServiceRequest::receivedBy($user)->whereKey($requestId)->lockForUpdate()->first();
-        if (! $request) {
-            throw new BusinessRuleException('not_found', 'The requested item was not found.', 404);
-        }
-        $provider = $request->provider;
-        if (! $provider || $provider->status !== ProviderProfile::STATUS_APPROVED) {
-            throw new BusinessRuleException('provider_not_active', 'Your provider account isn’t active, so you can’t answer requests.', 403);
-        }
-        if (! $provider->canManageFinances($user)) {
-            throw new BusinessRuleException('not_authorised', 'Only the business owner or a manager can do this.', 403);
-        }
-        $this->guardNotLegacy($request);
-
-        return $request;
-    }
-
-    /** The customer's own request, locked; anyone else's is "not found" */
-    private function lockForCustomer(User $customer, int $requestId): ServiceRequest
-    {
-        $request = ServiceRequest::where('customer_id', $customer->getKey())->whereKey($requestId)->lockForUpdate()->first();
-        if (! $request) {
-            throw new BusinessRuleException('not_found', 'The requested item was not found.', 404);
-        }
-        $this->guardNotLegacy($request);
-
-        return $request;
-    }
-
-    private function guardNotLegacy(ServiceRequest $request): void
-    {
-        if ($request->isLegacy()) {
-            throw new BusinessRuleException('legacy_request', 'This request was made before bookings existed, so it keeps its original steps.', 409);
-        }
-    }
-
     /** One of this request's versions, locked; one that belongs to another request is "not found" */
     private function find(ServiceRequest $request, int $agreementId): JobPriceAgreement
     {
@@ -578,22 +542,5 @@ class PriceAgreements
         }
 
         return (int) $value;
-    }
-
-    /** Trimmed, with runs of spaces collapsed and blank lines limited; line breaks are kept */
-    private function text($value, int $max): string
-    {
-        $value = str_replace(["\r\n", "\r"], "\n", (string) $value);
-        $value = preg_replace('/[ \t]+/u', ' ', $value);
-        $value = preg_replace("/\n{3,}/", "\n\n", $value);
-
-        return mb_substr(trim($value), 0, $max);
-    }
-
-    private function note(?string $note): ?string
-    {
-        $note = $this->text($note ?? '', self::MAX_NOTE);
-
-        return $note === '' ? null : $note;
     }
 }

@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api\V1;
 use App\Exceptions\BusinessRuleException;
 use App\Http\Controllers\Controller;
 use App\Models\Conversation;
+use App\Models\JobPaymentReport;
 use App\Models\ProviderProfile;
 use App\Models\ServiceRequest;
 use App\Services\Marketplace;
+use App\Services\PaymentReports;
 use App\Services\PriceAgreements;
 use App\Services\Pricing;
 use App\Services\RequestDetails;
@@ -35,7 +37,7 @@ class ReceivedRequestController extends Controller
     public function index(Request $request): JsonResponse
     {
         $requests = ServiceRequest::receivedBy($request->user())
-            ->with(['category', 'area', 'customer:id,name,avatar_path', 'photos', 'agreedAgreement', 'openAgreement', 'latestAgreement'])
+            ->with(['category', 'area', 'customer:id,name,avatar_path', 'photos', 'agreedAgreement', 'openAgreement', 'latestAgreement', 'paymentReports', 'currentFinalPrice'])
             ->latest()
             ->limit(200)
             ->get();
@@ -98,6 +100,52 @@ class ReceivedRequestController extends Controller
         $version = $agreements->propose($request->user(), $id, $data);
 
         return $this->done($this->find($id), $version->wasRecentlyCreated ? 201 : 200);
+    }
+
+    /** Reports a payment received directly from the customer: the owner or a manager. It counts only once the customer confirms it. */
+    public function reportPayment(Request $request, PaymentReports $payments, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'amount' => ['required', 'integer', 'min:'.PaymentReports::MIN_AMOUNT, 'max:'.PaymentReports::MAX_AMOUNT],
+            'method' => ['required', 'in:'.implode(',', JobPaymentReport::METHODS)],
+            'paid_on' => ['nullable', 'date_format:Y-m-d'],
+            'reference' => ['nullable', 'string', 'max:'.PaymentReports::MAX_REFERENCE],
+            'note' => ['nullable', 'string', 'max:'.PaymentReports::MAX_NOTE],
+            // A report this one corrects: one the provider already withdrew
+            'corrects' => ['nullable', 'integer'],
+            // One per try, so a retry after a dropped connection can't create a copy
+            'client_token' => ['nullable', 'uuid'],
+        ], [
+            'amount.required' => 'Enter the amount the customer paid, in UGX.',
+            'amount.integer' => 'Enter the amount in whole UGX.',
+            'amount.min' => 'Enter an amount of at least UGX '.number_format(PaymentReports::MIN_AMOUNT).'.',
+            'amount.max' => 'That amount is too high. Check it.',
+            'method.required' => 'Choose how the customer paid.',
+            'method.in' => 'Choose how the customer paid.',
+            'paid_on.date_format' => 'Choose the date the customer paid.',
+        ]);
+        $report = $payments->report($request->user(), $id, $data);
+
+        return $this->done($this->find($id), $report->wasRecentlyCreated ? 201 : 200);
+    }
+
+    /** Takes back a payment report the customer has not confirmed, with a reason */
+    public function cancelPayment(Request $request, PaymentReports $payments, int $id, int $payment): JsonResponse
+    {
+        $data = $request->validate(['reason' => ['required', 'string', 'min:3', 'max:'.PaymentReports::MAX_NOTE]], ['reason.required' => 'Say why you are taking this report back.', 'reason.min' => 'Say why you are taking this report back.']);
+        $payments->cancel($request->user(), $id, $payment, $data['reason']);
+
+        return $this->done($this->find($id));
+    }
+
+    /** The final price, every payment report and each step, for the provider business (any member) */
+    public function payments(Request $request, PaymentReports $payments, Pricing $pricing, int $id): JsonResponse
+    {
+        if (! $pricing->enabled()) {
+            throw new BusinessRuleException('pricing_unavailable', 'This isn’t available right now.', 409);
+        }
+
+        return response()->json(['data' => $payments->history($this->find($id))]);
     }
 
     /** Takes a proposal back while the customer hasn't accepted it */
@@ -182,7 +230,7 @@ class ReceivedRequestController extends Controller
 
     private function done(ServiceRequest $serviceRequest, int $status = 200): JsonResponse
     {
-        return response()->json(['data' => $this->present($serviceRequest->fresh(['category', 'area', 'customer', 'photos', 'agreedAgreement', 'openAgreement', 'latestAgreement']), null)], $status);
+        return response()->json(['data' => $this->present($serviceRequest->fresh(['category', 'area', 'customer', 'photos', 'agreedAgreement', 'openAgreement', 'latestAgreement', 'paymentReports', 'currentFinalPrice']), null)], $status);
     }
 
     /** No email or phone number: the provider replies through WorkMate */
@@ -212,6 +260,8 @@ class ReceivedRequestController extends Controller
             'can_manage_pricing' => $this->canManagePricing((int) $r->provider_profile_id),
             // The proposed and the agreed price (null while pricing options are off)
             'pricing' => PriceAgreements::summary($r),
+            // The final price and the payments reported, with the customer's decisions (null while pricing options are off)
+            'payments' => PaymentReports::summary($r),
             'status' => $r->status,
             'received_at' => $r->created_at->toIso8601String(),
             'responded_at' => optional($r->responded_at)->toIso8601String(),

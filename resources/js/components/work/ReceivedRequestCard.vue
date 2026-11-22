@@ -47,6 +47,9 @@
     <PriceCard v-if="req.pricing" :pricing="req.pricing" role="provider" />
     <PriceHistory v-if="req.pricing" :path="`/me/received-requests/${req.id}/pricing`" />
 
+    <!-- The final price and the payments reported (Phase B3): a payment counts as paid only once the customer confirms it -->
+    <PaymentSummary v-if="req.payments" :payments="req.payments" role="provider" />
+
     <!-- Inspection first: said by the business owner or a manager; nothing is priced by it -->
     <p v-if="req.inspection_required" class="flex items-start gap-2 rounded-xl bg-[#FFFBEB] px-3 py-2 text-[13.5px] text-[#92400E]">
       <i class="bi bi-search mt-0.5" aria-hidden="true"></i>
@@ -117,6 +120,8 @@
         <i class="bi bi-check2-all" aria-hidden="true"></i>Mark as done
       </button>
 
+      <PaymentProviderActions :req="req" @updated="emit('updated', $event)" />
+
       <div v-if="canProposePrice" class="flex flex-wrap gap-2">
         <button type="button" class="wm-btn wm-btn-primary !min-h-11 flex-1" :disabled="busy" @click="proposing = true">
           <i class="bi bi-cash-coin" aria-hidden="true"></i>{{ priceActionLabel }}
@@ -162,6 +167,8 @@ import { budgetParts, budgetFromApi } from '@/utils/pricing.js';
 import PriceCard from '@/components/pricing/PriceCard.vue';
 import PriceHistory from '@/components/pricing/PriceHistory.vue';
 import ProposePriceSheet from '@/components/pricing/ProposePriceSheet.vue';
+import PaymentSummary from '@/components/pricing/PaymentSummary.vue';
+import PaymentProviderActions from '@/components/pricing/PaymentProviderActions.vue';
 import { formatDay, formatTime, formatShort, providerStatus, directionsUrl, TIME_SLOTS, DURATIONS, durationLabel, todayInUganda } from '@/utils/booking.js';
 
 const props = defineProps({

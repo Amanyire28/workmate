@@ -261,3 +261,103 @@ export function eventWords(e) {
         default: return e.event;
     }
 }
+
+/* ---------------- Final price and reported payments (Phase B3) ---------------- */
+
+export const PAYMENT_METHODS = [
+    { id: 'cash', label: 'Cash', hint: 'Paid in hand' },
+    { id: 'mobile_money', label: 'Mobile money', hint: 'MTN or Airtel' },
+    { id: 'bank_transfer', label: 'Bank transfer', hint: 'From a bank' },
+    { id: 'other', label: 'Other', hint: 'Something else' },
+];
+
+export const methodLabel = (id) => (PAYMENT_METHODS.find((m) => m.id === id) || { label: 'Other' }).label;
+
+export const MIN_PAYMENT = 100;
+export const MAX_PAYMENT = 100000000;
+
+/** Today's date in Uganda as "2026-11-27": the latest a payment can be dated */
+export const todayInKampala = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Africa/Kampala' });
+
+/** Plain words for each report's status, for the person reading it (role: customer | provider) */
+export function paymentWords(status, role) {
+    const provider = role === 'provider';
+    switch (status) {
+        case 'pending_confirmation': return { title: provider ? 'Waiting for the customer to confirm' : 'Please confirm this payment', tone: 'info' };
+        case 'confirmed': return { title: provider ? 'Confirmed by the customer' : 'You confirmed this payment', tone: 'success' };
+        case 'disputed': return { title: provider ? 'The customer says this isn’t right' : 'You said this isn’t right', tone: 'warning' };
+        case 'cancelled': return { title: provider ? 'You took this report back' : 'The provider took this report back', tone: 'neutral' };
+        default: return { title: '', tone: 'neutral' };
+    }
+}
+
+/**
+ * The lines of a job's payments in plain words, from the server's totals (never worked out here): only the ones that
+ * apply, said from the side of whoever is reading (role: customer | provider). Waiting and disputed amounts are never shown
+ * as paid; "left to pay" is what the customer has confirmed so far against the final price, and "paid more than the price"
+ * says plainly if it went over.
+ */
+export function paymentLines(payments, role = 'provider') {
+    if (!payments) return [];
+    const t = payments.totals;
+    const customer = role === 'customer';
+    const lines = [];
+    if (t.confirmed) lines.push({ key: 'confirmed', label: customer ? 'You confirmed' : 'Confirmed by the customer', amount: t.confirmed, tone: 'success' });
+    if (t.pending) lines.push({ key: 'pending', label: customer ? 'Waiting for you to confirm' : 'Waiting for the customer to confirm', amount: t.pending, tone: 'info' });
+    if (t.disputed) lines.push({ key: 'disputed', label: customer ? 'You said this isn’t right' : 'The customer says this isn’t right', amount: t.disputed, tone: 'warning' });
+    if (t.remaining !== null && t.remaining !== undefined && payments.final_price) lines.push({ key: 'remaining', label: 'Left to pay', amount: t.remaining, tone: 'neutral' });
+    if (t.over_by) lines.push({ key: 'over', label: 'Paid more than the price by', amount: t.over_by, tone: 'warning' });
+
+    return lines;
+}
+
+/** The price line: the final price once the job locked it, else the price the customer agreed, else nothing */
+export function priceLine(payments) {
+    if (!payments) return null;
+    if (payments.final_price) return { label: 'Final price', amount: payments.final_price.amount };
+    if (payments.agreed_amount !== null && payments.agreed_amount !== undefined) return { label: 'Agreed price', amount: payments.agreed_amount };
+
+    return null;
+}
+
+/** Reports waiting for the customer's answer */
+export const waitingReports = (payments) => ((payments && payments.reports) || []).filter((r) => r.status === 'pending_confirmation');
+
+/** Reports the provider can take back: waiting or disputed ones */
+export const withdrawableReports = (payments) => ((payments && payments.reports) || []).filter((r) => r.status === 'pending_confirmation' || r.status === 'disputed');
+
+/** Withdrawn reports nobody has corrected yet */
+export function uncorrectedReports(payments) {
+    const reports = (payments && payments.reports) || [];
+
+    return reports.filter((r) => r.status === 'cancelled' && !reports.some((x) => x.corrects_id === r.id));
+}
+
+export const blankPayment = (amount = '') => ({ amount: amount === null ? '' : String(amount), method: 'cash', paid_on: '', reference: '', note: '' });
+
+/** What is wrong with a payment report, field by field ('' when fine); the server checks it all again */
+export function validatePayment(p, today = todayInKampala()) {
+    const errors = { amount: '', method: '', paid_on: '', reference: '', note: '' };
+    const amount = String(p.amount ?? '').trim();
+    if (!/^\d+$/.test(amount) || Number(amount) < MIN_PAYMENT || Number(amount) > MAX_PAYMENT) errors.amount = `Enter the amount in UGX, from ${ugx(MIN_PAYMENT)}.`;
+    if (!PAYMENT_METHODS.some((m) => m.id === p.method)) errors.method = 'Choose how the customer paid.';
+    if (p.paid_on && (!/^\d{4}-\d{2}-\d{2}$/.test(p.paid_on) || p.paid_on > today)) errors.paid_on = 'The date can’t be in the future.';
+    const reference = String(p.reference ?? '').trim();
+    if (reference && (reference.length > 60 || !/^[A-Za-z0-9 ._/#:-]+$/.test(reference))) errors.reference = 'Use only letters, numbers and - . / (up to 60). Never type a PIN or password.';
+    if (String(p.note ?? '').trim().length > 300) errors.note = 'Keep it under 300 characters.';
+
+    return errors;
+}
+
+/** The fields to send; `token` is one per try, so a retry after a dropped connection can't report it twice */
+export function paymentBody(p, token, corrects = null) {
+    const text = (v) => { const s = String(v ?? '').trim(); return s === '' ? null : s; };
+
+    return {
+        amount: Number(String(p.amount).trim()), method: p.method, paid_on: text(p.paid_on), reference: text(p.reference), note: text(p.note),
+        client_token: token, ...(corrects ? { corrects } : {}),
+    };
+}
+
+/** The error codes that mean "this payment changed meanwhile": the app reloads and shows the latest */
+export const PAYMENT_STALE_CODES = ['stale_report', 'report_cancelled', 'already_decided', 'already_confirmed'];

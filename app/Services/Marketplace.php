@@ -46,10 +46,14 @@ class Marketplace
     /** @var PriceAgreements */
     private $prices;
 
-    public function __construct(AuditLogger $audit, EventNotifications $notify, PhotoVariants $photos, JobAlerts $alerts, Scheduling $scheduling, Messaging $messaging, Pricing $pricing, PriceAgreements $prices)
+    /** @var FinalPrices */
+    private $finalPrices;
+
+    public function __construct(AuditLogger $audit, EventNotifications $notify, PhotoVariants $photos, JobAlerts $alerts, Scheduling $scheduling, Messaging $messaging, Pricing $pricing, PriceAgreements $prices, FinalPrices $finalPrices)
     {
         $this->pricing = $pricing;
         $this->prices = $prices;
+        $this->finalPrices = $finalPrices;
         $this->audit = $audit;
         $this->notify = $notify;
         $this->photos = $photos;
@@ -416,6 +420,11 @@ class Marketplace
             // A price still being talked about can't be accepted once the job is finished or cancelled
             if (in_array($to, [ServiceRequest::STATUS_CANCELLED, ServiceRequest::STATUS_COMPLETED], true)) {
                 $this->prices->closeOpenForRequest($request, $to === ServiceRequest::STATUS_COMPLETED ? 'job_completed' : 'request_cancelled', $user);
+            }
+            // A finished job locks the price the customer agreed as its final price (only while pricing is on, and only if one was agreed).
+            // Finishing a job reports no payment and implies none.
+            if ($to === ServiceRequest::STATUS_COMPLETED && $this->pricing->enabled()) {
+                $this->finalPrices->lockIfAgreed($request, $user);
             }
 
             $notices = [

@@ -8,6 +8,7 @@ use App\Models\CommunityComment;
 use App\Models\CommunityPost;
 use App\Models\Conversation;
 use App\Models\DocumentVerification;
+use App\Models\JobPaymentReport;
 use App\Models\JobPriceAgreement;
 use App\Models\Message;
 use App\Models\ProviderApplication;
@@ -167,26 +168,50 @@ class EventNotifications
         $this->priceToProvider($request, null, 'Price offer expired', 'Your price for the '.$this->service($request).' job wasn’t answered in time. You can send it again.');
     }
 
-    private function priceToCustomer(ServiceRequest $request, User $by, string $title, string $body): void
+    /* ---------------- Payments reported by the provider (Phase B3) ---------------- */
+
+    // Never the amount or the method on a lock screen: a notification only says there is something to look at.
+
+    public function paymentReported(JobPaymentReport $report, ServiceRequest $request, User $by): void
+    {
+        $this->priceToCustomer($request, $by, 'Payment reported', $this->providerName($request).' says they received a payment for your '.$this->service($request).' job. Please confirm it, or tell us if it isn’t right.', 'payment');
+    }
+
+    public function paymentCancelled(JobPaymentReport $report, ServiceRequest $request, User $by, string $was): void
+    {
+        $this->priceToCustomer($request, $by, 'Payment report taken back', $this->providerName($request).' took back a payment report for your '.$this->service($request).' job.', 'payment');
+    }
+
+    public function paymentConfirmed(JobPaymentReport $report, ServiceRequest $request, User $customer): void
+    {
+        $this->priceToProvider($request, $customer, 'Payment confirmed', $this->firstName($request->customer).' confirmed a payment for the '.$this->service($request).' job.', 'payment');
+    }
+
+    public function paymentDisputed(JobPaymentReport $report, ServiceRequest $request, User $customer): void
+    {
+        $this->priceToProvider($request, $customer, 'Payment questioned', $this->firstName($request->customer).' says a payment you reported for the '.$this->service($request).' job isn’t right. Open the job to see why.', 'payment');
+    }
+
+    private function priceToCustomer(ServiceRequest $request, User $by, string $title, string $body, string $tag = 'price'): void
     {
         $owner = optional($request->provider)->owner;
         $this->send('requests', [$request->customer_id], [
             'title' => $title,
             'body' => $body,
             'url' => ($request->isPostedJob() ? '/activity?tab=posted' : '/activity?tab=requests').'&request='.$request->id,
-            'tag' => 'price-'.$request->id,
+            'tag' => $tag.'-'.$request->id,
             'important' => true,
             'actor_id' => $by->id, 'icon' => ($owner ?: $by)->avatarPath(128),
         ]);
     }
 
-    private function priceToProvider(ServiceRequest $request, ?User $customer, string $title, string $body): void
+    private function priceToProvider(ServiceRequest $request, ?User $customer, string $title, string $body, string $tag = 'price'): void
     {
         $this->toProvider('requests', $request->provider_profile_id, $customer ? $customer->id : null, [
             'title' => $title,
             'body' => $body,
             'url' => '/activity?tab=received&request='.$request->id,
-            'tag' => 'price-'.$request->id,
+            'tag' => $tag.'-'.$request->id,
             'important' => true,
         ] + ($customer ? ['actor_id' => $customer->id, 'icon' => $customer->avatarPath(128)] : []));
     }

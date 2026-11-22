@@ -8,6 +8,8 @@ use App\Models\Quotation;
 use App\Models\ServiceRequest;
 use App\Exceptions\BusinessRuleException;
 use App\Services\Marketplace;
+use App\Models\JobPaymentReport;
+use App\Services\PaymentReports;
 use App\Services\PriceAgreements;
 use App\Services\Pricing;
 use Illuminate\Http\JsonResponse;
@@ -19,7 +21,7 @@ class MyActivityController extends Controller
     public function requests(Request $request)
     {
         $requests = ServiceRequest::where('customer_id', $request->user()->getKey())
-            ->with(['category', 'area', 'provider', 'review', 'photos', 'agreedAgreement', 'openAgreement', 'latestAgreement'])
+            ->with(['category', 'area', 'provider', 'review', 'photos', 'agreedAgreement', 'openAgreement', 'latestAgreement', 'paymentReports', 'currentFinalPrice'])
             ->withCount('quotations')
             ->latest()
             ->limit(200)
@@ -70,6 +72,35 @@ class MyActivityController extends Controller
         return $this->priceDone($id, $request);
     }
 
+    /** "Confirm payment": the customer says the payment the provider reported happened. They send the amount they are looking at. */
+    public function confirmPayment(Request $request, PaymentReports $payments, int $id, int $payment)
+    {
+        $data = $request->validate(['amount' => ['required', 'integer']], ['amount.required' => 'The payment you are confirming is missing. Please look at it again.']);
+        $payments->confirm($request->user(), $id, $payment, $data['amount']);
+
+        return $this->priceDone($id, $request);
+    }
+
+    /** "It isn't right": the customer disputes the report; it stays disputed */
+    public function disputePayment(Request $request, PaymentReports $payments, int $id, int $payment)
+    {
+        $data = $request->validate(['note' => ['nullable', 'string', 'max:'.PaymentReports::MAX_NOTE]]);
+        $payments->dispute($request->user(), $id, $payment, $data['note'] ?? null);
+
+        return $this->priceDone($id, $request);
+    }
+
+    /** The final price, every payment report and each step of the customer's own request */
+    public function payments(Request $request, PaymentReports $payments, Pricing $pricing, int $id): JsonResponse
+    {
+        if (! $pricing->enabled()) {
+            throw new BusinessRuleException('pricing_unavailable', 'This is not available right now.', 409);
+        }
+        $found = ServiceRequest::where('customer_id', $request->user()->getKey())->findOrFail($id);
+
+        return response()->json(['data' => $payments->history($found)]);
+    }
+
     /** Every version and step of the customer's own request's price */
     public function pricing(Request $request, PriceAgreements $agreements, Pricing $pricing, int $id): JsonResponse
     {
@@ -83,7 +114,7 @@ class MyActivityController extends Controller
 
     private function priceDone(int $id, Request $request): JobResource
     {
-        $found = ServiceRequest::where('customer_id', $request->user()->getKey())->with(['category', 'area', 'provider', 'review', 'photos', 'agreedAgreement', 'openAgreement', 'latestAgreement'])->findOrFail($id);
+        $found = ServiceRequest::where('customer_id', $request->user()->getKey())->with(['category', 'area', 'provider', 'review', 'photos', 'agreedAgreement', 'openAgreement', 'latestAgreement', 'paymentReports', 'currentFinalPrice'])->findOrFail($id);
 
         return new JobResource($found);
     }

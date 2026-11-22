@@ -24,6 +24,10 @@
     <PriceDecision :req="req" :provider-name="req.provider && req.provider.display_name" @updated="emit('updated', $event)" @refresh="emit('refresh')" />
     <PriceHistory v-if="req.pricing" :path="`/me/requests/${req.id}/pricing`" />
 
+    <!-- Payments the provider reported (Phase B3): the customer confirms them, or says they are not right -->
+    <PaymentSummary v-if="req.payments" :payments="req.payments" role="customer" />
+    <PaymentAnswer :req="req" :provider-name="(req.provider && req.provider.display_name) || 'The provider'" @updated="emit('updated', $event)" @refresh="emit('refresh')" />
+
     <!-- A time the provider suggested -->
     <div v-if="status.key === 'proposed'" class="flex flex-col gap-2 rounded-xl border border-[#F59E0B]/30 bg-[#FFFBEB] p-3">
       <p class="text-[14px] text-ink">Suggested time: <strong>{{ formatDay(req.schedule.proposed_start) }}, {{ formatTime(req.schedule.proposed_start) }}</strong></p>
@@ -55,6 +59,8 @@ import { customerStatus, formatDay, formatTime } from '@/utils/booking.js';
 import PriceCard from '@/components/pricing/PriceCard.vue';
 import PriceDecision from '@/components/pricing/PriceDecision.vue';
 import PriceHistory from '@/components/pricing/PriceHistory.vue';
+import PaymentSummary from '@/components/pricing/PaymentSummary.vue';
+import PaymentAnswer from '@/components/pricing/PaymentAnswer.vue';
 
 const props = defineProps({
   // The request as the API returns it (status, schedule, preferred_time)

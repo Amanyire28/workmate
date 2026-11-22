@@ -56,6 +56,10 @@ class JobResource extends JsonResource
             'pricing' => $this->when($user !== null && $this->customer_id === (int) $user->getKey(), function () {
                 return \App\Services\PriceAgreements::summary($this->resource);
             }),
+            // The final price and the payments the provider reported, with the customer's decisions (null while pricing is off)
+            'payments' => $this->when($user !== null && $this->customer_id === (int) $user->getKey(), function () {
+                return \App\Services\PaymentReports::summary($this->resource);
+            }),
             'status' => $this->status,
             'posted_at' => $this->created_at->toIso8601String(),
             'applicants' => (int) ($this->quotations_count ?? $this->quotations()->count()),

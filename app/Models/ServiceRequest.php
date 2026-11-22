@@ -164,6 +164,18 @@ class ServiceRequest extends Model
         return $this->hasOne(JobPriceAgreement::class)->where('open_slot', 1);
     }
 
+    /** Payments the provider reported receiving (Phase B3), oldest first */
+    public function paymentReports()
+    {
+        return $this->hasMany(JobPaymentReport::class)->orderBy('id');
+    }
+
+    /** The final price in force: a snapshot of the agreed price, at most one */
+    public function currentFinalPrice()
+    {
+        return $this->hasOne(JobFinalPrice::class)->where('current_slot', 1);
+    }
+
     /** The newest version of any kind, so a closed negotiation (declined, expired, withdrawn) can still be shown */
     public function latestAgreement()
     {

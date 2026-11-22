@@ -256,6 +256,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // Phase B2: the whole negotiation of one request's price (each side reads only its own request)
         Route::get('me/received-requests/{id}/pricing', [ReceivedRequestController::class, 'pricing'])->whereNumber('id')->name('me.received-requests.pricing');
         Route::get('me/requests/{id}/pricing', [MyActivityController::class, 'pricing'])->whereNumber('id')->name('me.requests.pricing');
+        // Phase B3: the final price, the payments reported and each step (each side reads only its own request)
+        Route::get('me/received-requests/{id}/payments', [ReceivedRequestController::class, 'payments'])->whereNumber('id')->name('me.received-requests.payments');
+        Route::get('me/requests/{id}/payments', [MyActivityController::class, 'payments'])->whereNumber('id')->name('me.requests.payments');
         Route::middleware('throttle:marketplace-write')->group(function () {
             Route::post('me/received-requests/{id}/accept', [ReceivedRequestController::class, 'accept'])->whereNumber('id')->name('me.received-requests.accept');
             // Bookings: start, suggest another time, cancel
@@ -267,6 +270,12 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             // Phase B2: the provider business proposes a price (owner or manager) or takes it back
             Route::post('me/received-requests/{id}/agreements', [ReceivedRequestController::class, 'proposePrice'])->whereNumber('id')->name('me.received-requests.agreements.store');
             Route::post('me/received-requests/{id}/agreements/{agreement}/withdraw', [ReceivedRequestController::class, 'withdrawPrice'])->whereNumber('id')->whereNumber('agreement')->name('me.received-requests.agreements.withdraw');
+            // Phase B3: the provider business reports a payment it received (owner or manager) or takes a report back
+            Route::post('me/received-requests/{id}/payments', [ReceivedRequestController::class, 'reportPayment'])->whereNumber('id')->name('me.received-requests.payments.store');
+            Route::post('me/received-requests/{id}/payments/{payment}/cancel', [ReceivedRequestController::class, 'cancelPayment'])->whereNumber('id')->whereNumber('payment')->name('me.received-requests.payments.cancel');
+            // Phase B3: the customer confirms a reported payment or says it is not right
+            Route::post('me/requests/{id}/payments/{payment}/confirm', [MyActivityController::class, 'confirmPayment'])->whereNumber('id')->whereNumber('payment')->name('me.requests.payments.confirm');
+            Route::post('me/requests/{id}/payments/{payment}/dispute', [MyActivityController::class, 'disputePayment'])->whereNumber('id')->whereNumber('payment')->name('me.requests.payments.dispute');
             // Phase B2: the customer accepts the price, turns it down, or asks for a change
             Route::post('me/requests/{id}/agreements/{agreement}/accept', [MyActivityController::class, 'acceptPrice'])->whereNumber('id')->whereNumber('agreement')->name('me.requests.agreements.accept');
             Route::post('me/requests/{id}/agreements/{agreement}/reject', [MyActivityController::class, 'rejectPrice'])->whereNumber('id')->whereNumber('agreement')->name('me.requests.agreements.reject');
@@ -358,6 +367,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::get('data', AdminDataController::class)->middleware('can:admin-access')->name('data');
             // Live updates: a cheap fingerprint the admin checks every few seconds
             Route::get('pulse', AdminPulseController::class)->middleware(['can:admin-access', 'throttle:admin-pulse'])->name('pulse');
+            // Phase B3: a request's final price and reported payments, read-only (finance.view)
+            Route::get('requests/{id}/payments', [\App\Http\Controllers\Api\V1\Admin\RequestPaymentsController::class, 'show'])->whereNumber('id')->middleware('can:finance.view')->name('requests.payments');
             // Phase B2: a request's price negotiation, read-only
             Route::get('requests/{id}/pricing', [\App\Http\Controllers\Api\V1\Admin\RequestPricingController::class, 'show'])->whereNumber('id')->middleware('can:marketplace.view')->name('requests.pricing');
 

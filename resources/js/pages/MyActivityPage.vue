@@ -160,6 +160,11 @@
               <PriceDecision :req="job.raw" :provider-name="job.workerName" @updated="onPostedUpdated" @refresh="load({ quiet: true })" />
               <PriceHistory :path="`/me/requests/${job.id}/pricing`" />
             </div>
+            <!-- The final price and the payments the hired provider reported (Phase B3) -->
+            <div v-if="job.workerId && job.raw.payments" class="flex flex-col gap-2">
+              <PaymentSummary :payments="job.raw.payments" role="customer" />
+              <PaymentAnswer :req="job.raw" :provider-name="job.workerName || 'The provider'" @updated="onPostedUpdated" @refresh="load({ quiet: true })" />
+            </div>
             <div class="mt-auto pt-3 border-t border-line flex flex-wrap items-center justify-between gap-2 text-sm text-ink">
               <template v-if="job.workerId">
                 <router-link :to="`/provider/${job.workerId}`" class="inline-flex items-center min-h-11">
@@ -254,6 +259,8 @@ import CustomerRequestStatus from '@/components/work/CustomerRequestStatus.vue';
 import PriceCard from '@/components/pricing/PriceCard.vue';
 import PriceDecision from '@/components/pricing/PriceDecision.vue';
 import PriceHistory from '@/components/pricing/PriceHistory.vue';
+import PaymentSummary from '@/components/pricing/PaymentSummary.vue';
+import PaymentAnswer from '@/components/pricing/PaymentAnswer.vue';
 import { agoLabel, providers, appSettings } from '@/stores/catalog.js';
 import { api } from '@/api/client.js';
 import { formatPrice, categoryLabel } from '@/utils/ui.js';

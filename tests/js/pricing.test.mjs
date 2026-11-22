@@ -225,3 +225,106 @@ test('answers that mean the price changed meanwhile make the app look again', ()
     for (const code of ['stale_proposal', 'proposal_expired', 'already_decided', 'request_status_conflict']) assert.ok(PRICE_STALE_CODES.includes(code), code);
     assert.equal(PRICE_STALE_CODES.includes('amount_invalid'), false);
 });
+
+/* ---------------- Final price and reported payments (Phase B3) ---------------- */
+
+import {
+    PAYMENT_METHODS, methodLabel, paymentWords, paymentLines, priceLine, waitingReports, withdrawableReports, uncorrectedReports,
+    blankPayment, validatePayment, paymentBody, todayInKampala, PAYMENT_STALE_CODES, MIN_PAYMENT,
+} from '../../resources/js/utils/pricing.js';
+
+const report = (id, status, extra = {}) => ({ id, amount: 50000, method: 'cash', status, corrects_id: null, ...extra });
+const block = (totals, extra = {}) => ({ agreed_amount: 150000, final_price: { amount: 150000, revision_no: 1 }, totals: { reported: 0, confirmed: 0, pending: 0, disputed: 0, remaining: 150000, over_by: 0, ...totals }, reports: [], ...extra });
+
+test('the payment methods are the four WorkMate supports, in plain words', () => {
+    assert.deepEqual(PAYMENT_METHODS.map((m) => m.id), ['cash', 'mobile_money', 'bank_transfer', 'other']);
+    assert.equal(methodLabel('mobile_money'), 'Mobile money');
+    assert.equal(methodLabel('bank_transfer'), 'Bank transfer');
+    assert.equal(methodLabel('nonsense'), 'Other');
+});
+
+test('each status reads in simple words for the person reading it, with no accounting terms', () => {
+    assert.equal(paymentWords('pending_confirmation', 'provider').title, 'Waiting for the customer to confirm');
+    assert.equal(paymentWords('pending_confirmation', 'customer').title, 'Please confirm this payment');
+    assert.equal(paymentWords('confirmed', 'provider').title, 'Confirmed by the customer');
+    assert.equal(paymentWords('confirmed', 'customer').title, 'You confirmed this payment');
+    assert.equal(paymentWords('disputed', 'provider').title, 'The customer says this isn’t right');
+    assert.equal(paymentWords('disputed', 'customer').title, 'You said this isn’t right');
+    assert.equal(paymentWords('cancelled', 'provider').title, 'You took this report back');
+    assert.equal(paymentWords('cancelled', 'customer').title, 'The provider took this report back');
+    const all = JSON.stringify(['pending_confirmation', 'confirmed', 'disputed', 'cancelled'].flatMap((s) => [paymentWords(s, 'provider'), paymentWords(s, 'customer')])).toLowerCase();
+    for (const word of ['ledger', 'commission', 'invoice', 'settlement', 'receivable', 'reconcil']) assert.equal(all.includes(word), false, word);
+});
+
+test('the lines of a job use the server totals and never show a waiting or disputed amount as paid', () => {
+    assert.deepEqual(paymentLines(null), []);
+    assert.deepEqual(paymentLines(block({})), [{ key: 'remaining', label: 'Left to pay', amount: 150000, tone: 'neutral' }]);
+    const lines = paymentLines(block({ reported: 120000, confirmed: 50000, pending: 30000, disputed: 40000, remaining: 100000 }));
+    assert.deepEqual(lines.map((l) => [l.key, l.amount]), [['confirmed', 50000], ['pending', 30000], ['disputed', 40000], ['remaining', 100000]]);
+    // Only the confirmed line is called confirmed
+    assert.equal(lines.filter((l) => /^Confirmed/.test(l.label)).length, 1);
+    // The customer reads the same totals from their own side, and the amounts are the same
+    const mine = paymentLines(block({ reported: 120000, confirmed: 50000, pending: 30000, disputed: 40000, remaining: 100000 }), 'customer');
+    assert.deepEqual(mine.map((l) => [l.key, l.amount]), [['confirmed', 50000], ['pending', 30000], ['disputed', 40000], ['remaining', 100000]]);
+    assert.deepEqual(mine.map((l) => l.label), ['You confirmed', 'Waiting for you to confirm', 'You said this isn’t right', 'Left to pay']);
+    assert.equal(mine.some((l) => /customer/i.test(l.label)), false);
+    // Overpaid is said plainly; no final price means no "left to pay"
+    assert.ok(paymentLines(block({ confirmed: 140000, remaining: 0, over_by: 20000 })).some((l) => l.key === 'over' && l.amount === 20000));
+    assert.equal(paymentLines(block({ confirmed: 70000, remaining: null }, { final_price: null, agreed_amount: null })).some((l) => l.key === 'remaining'), false);
+});
+
+test('the price line is the final price once locked, else the agreed price, else nothing', () => {
+    assert.deepEqual(priceLine(block({})), { label: 'Final price', amount: 150000 });
+    assert.deepEqual(priceLine(block({}, { final_price: null })), { label: 'Agreed price', amount: 150000 });
+    assert.equal(priceLine(block({}, { final_price: null, agreed_amount: null })), null);
+    assert.equal(priceLine(null), null);
+});
+
+test('reports are sorted into what the customer answers, what the provider can take back and what was taken back', () => {
+    const payments = block({}, { reports: [report(1, 'pending_confirmation'), report(2, 'confirmed'), report(3, 'disputed'), report(4, 'cancelled'), report(5, 'cancelled'), report(6, 'pending_confirmation', { corrects_id: 5 })] });
+    assert.deepEqual(waitingReports(payments).map((r) => r.id), [1, 6]);
+    assert.deepEqual(withdrawableReports(payments).map((r) => r.id), [1, 3, 6]);
+    // A confirmed report is never withdrawable; a withdrawn one already corrected is not offered again
+    assert.equal(withdrawableReports(payments).some((r) => r.status === 'confirmed'), false);
+    assert.deepEqual(uncorrectedReports(payments).map((r) => r.id), [4]);
+    assert.deepEqual(waitingReports(null), []);
+});
+
+test('a payment report is checked field by field', () => {
+    const ok = { amount: '50000', method: 'cash', paid_on: '', reference: '', note: '' };
+    const today = '2026-11-27';
+    assert.equal(Object.values(validatePayment(ok, today)).some(Boolean), false);
+    assert.ok(validatePayment({ ...ok, amount: '' }, today).amount);
+    // The smallest payment that can be reported is UGX 100
+    assert.equal(MIN_PAYMENT, 100);
+    assert.ok(validatePayment({ ...ok, amount: '99' }, today).amount);
+    assert.equal(validatePayment({ ...ok, amount: '100' }, today).amount, '');
+    assert.ok(validatePayment({ ...ok, amount: String(MIN_PAYMENT - 1) }, today).amount);
+    assert.ok(validatePayment({ ...ok, amount: '100000001' }, today).amount);
+    assert.ok(validatePayment({ ...ok, amount: '12.5' }, today).amount);
+    assert.ok(validatePayment({ ...ok, amount: '-500' }, today).amount);
+    assert.equal(validatePayment({ ...ok, amount: String(MIN_PAYMENT) }, today).amount, '');
+    assert.ok(validatePayment({ ...ok, method: 'bitcoin' }, today).method);
+    assert.ok(validatePayment({ ...ok, paid_on: '2026-11-28' }, today).paid_on);
+    assert.equal(validatePayment({ ...ok, paid_on: '2026-11-27' }, today).paid_on, '');
+    assert.ok(validatePayment({ ...ok, paid_on: '27/11/2026' }, today).paid_on);
+    assert.ok(validatePayment({ ...ok, reference: 'PIN <1234>' }, today).reference);
+    assert.ok(validatePayment({ ...ok, reference: 'x'.repeat(61) }, today).reference);
+    assert.equal(validatePayment({ ...ok, reference: 'MP2611.1234/A5' }, today).reference, '');
+    assert.ok(validatePayment({ ...ok, note: 'x'.repeat(301) }, today).note);
+});
+
+test('a report is sent as whole UGX with one key per try, empty optional fields as none, and a correction names the one it replaces', () => {
+    assert.deepEqual(blankPayment(), { amount: '', method: 'cash', paid_on: '', reference: '', note: '' });
+    assert.equal(blankPayment(60000).amount, '60000');
+    assert.deepEqual(paymentBody({ amount: ' 50000 ', method: 'mobile_money', paid_on: '', reference: '  MP.001 ', note: '   ' }, 'tok'),
+        { amount: 50000, method: 'mobile_money', paid_on: null, reference: 'MP.001', note: null, client_token: 'tok' });
+    assert.deepEqual(paymentBody({ amount: '40000', method: 'cash', paid_on: '2026-11-20', reference: '', note: 'Deposit' }, 't2', 7),
+        { amount: 40000, method: 'cash', paid_on: '2026-11-20', reference: null, note: 'Deposit', client_token: 't2', corrects: 7 });
+});
+
+test('today in Kampala is a plain date, and the answers that mean a payment changed make the app look again', () => {
+    assert.match(todayInKampala(), /^\d{4}-\d{2}-\d{2}$/);
+    for (const code of ['stale_report', 'report_cancelled', 'already_decided', 'already_confirmed']) assert.ok(PAYMENT_STALE_CODES.includes(code), code);
+    assert.equal(PAYMENT_STALE_CODES.includes('amount_invalid'), false);
+});
