@@ -12,7 +12,7 @@
 
       <fieldset class="flex flex-col gap-2">
         <legend class="wm-label mb-1">How do you price it?</legend>
-        <div class="grid grid-cols-3 gap-2">
+        <div class="grid gap-2" :class="PRICING.length > 3 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'">
           <label v-for="o in PRICING" :key="o.id" class="flex cursor-pointer flex-col items-center justify-center gap-0.5 rounded-xl border px-2 py-2.5 text-center"
             :class="pricing === o.id ? 'border-primary bg-primary-tint text-primary' : 'border-line text-ink hover:bg-[#F8FAFC]'">
             <input v-model="pricing" type="radio" :value="o.id" class="sr-only" />
@@ -24,7 +24,9 @@
 
       <div v-if="pricing !== 'quote'" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <FormField v-model="price" type="number" inputmode="numeric" min="500" step="500" prefix="UGX"
-          :label="pricing === 'from' ? 'Starting price' : 'Price'" required placeholder="e.g. 30000" :error-message="errors.price" />
+          :label="pricing === 'from' ? 'Starting price' : pricing === 'range' ? 'Lowest price' : 'Price'" required placeholder="e.g. 30000" :error-message="errors.price" />
+        <FormField v-if="pricing === 'range'" v-model="priceMax" type="number" inputmode="numeric" min="500" step="500" prefix="UGX"
+          label="Highest price" required placeholder="e.g. 60000" :error-message="errors.price_max" />
         <div class="flex flex-col gap-1.5">
           <label :for="`${formId}-unit`" class="wm-label">Charged <span class="font-normal text-muted">(optional)</span></label>
           <select :id="`${formId}-unit`" v-model="unit" class="wm-input">
@@ -64,17 +66,19 @@
 </template>
 
 <script setup>
-import { ref, watch, useId } from 'vue';
+import { ref, computed, watch, useId } from 'vue';
 import BottomSheet from '@/components/BottomSheet.vue';
 import FormField from '@/components/FormField.vue';
 import { api, fieldErrors } from '@/api/client.js';
 import { showFlash } from '@/stores/flash.js';
+import { appSettings } from '@/stores/catalog.js';
 
-const PRICING = [
+const BASE_PRICING = [
   { id: 'from', label: 'From', hint: 'Starting price' },
   { id: 'fixed', label: 'Fixed', hint: 'Set price' },
   { id: 'quote', label: 'Quote', hint: 'Price on request' },
 ];
+const RANGE_PRICING = { id: 'range', label: 'Range', hint: 'From – to' };
 const UNITS = [
   { id: 'job', label: 'Per job' }, { id: 'visit', label: 'Per visit' }, { id: 'hour', label: 'Per hour' },
   { id: 'day', label: 'Per day' }, { id: 'item', label: 'Per item' },
@@ -94,10 +98,13 @@ const title = ref('');
 const category = ref('');
 const pricing = ref('from');
 const price = ref('');
+const priceMax = ref('');
 const unit = ref('');
 const description = ref('');
 const active = ref(true);
 const errors = ref({});
+// A price range is offered while pricing options are on (a service already listed as one keeps it)
+const PRICING = computed(() => (appSettings.pricingEnabled || props.item?.pricing_type === 'range' ? [BASE_PRICING[0], BASE_PRICING[1], RANGE_PRICING, BASE_PRICING[2]] : BASE_PRICING));
 const error = ref('');
 const busy = ref(false);
 
@@ -110,6 +117,7 @@ watch(() => props.open, (open) => {
   category.value = s?.category || props.categories[0]?.id || '';
   pricing.value = s?.pricing_type || 'from';
   price.value = s?.price ?? '';
+  priceMax.value = s?.price_max ?? '';
   unit.value = s?.price_unit || '';
   description.value = s?.description || '';
   active.value = s ? s.is_active !== false : true;
@@ -125,6 +133,7 @@ async function submit() {
   error.value = '';
   if (!title.value.trim()) { errors.value = { title: 'Give the service a name.' }; return; }
   if (pricing.value !== 'quote' && !(Number(price.value) >= 500)) { errors.value = { price: 'Enter your usual price in UGX (at least 500).' }; return; }
+  if (pricing.value === 'range' && !(Number(priceMax.value) > Number(price.value))) { errors.value = { price_max: 'Enter a highest price that is more than the lowest.' }; return; }
 
   const body = {
     title: title.value.trim(),
@@ -132,6 +141,7 @@ async function submit() {
     category: category.value || null,
     pricing_type: pricing.value,
     price: pricing.value === 'quote' ? null : Math.round(Number(price.value)),
+    price_max: pricing.value === 'range' ? Math.round(Number(priceMax.value)) : null,
     price_unit: pricing.value === 'quote' ? null : (unit.value || null),
   };
   if (props.item) body.is_active = active.value;

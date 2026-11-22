@@ -41,6 +41,17 @@ class JobResource extends JsonResource
             'workers_needed' => $this->workers_needed,
             'budget' => $this->budget,
             'budget_basis' => $this->budget_basis,
+            // The budget as the customer meant it (fixed, range, negotiable or none), for newer apps
+            'budget_type' => $this->resource->effectiveBudgetType(),
+            'budget_min' => $this->budget_min,
+            'budget_max' => $this->budget_max,
+            // The provider needs to see the job before pricing it: only the customer who sent it is told here
+            'inspection_required' => $this->when($user !== null && $this->customer_id === (int) $user->getKey(), function () {
+                return $this->resource->needsInspection();
+            }),
+            'inspection_note' => $this->when($user !== null && $this->customer_id === (int) $user->getKey(), function () {
+                return $this->resource->needsInspection() ? $this->inspection_note : null;
+            }),
             'status' => $this->status,
             'posted_at' => $this->created_at->toIso8601String(),
             'applicants' => (int) ($this->quotations_count ?? $this->quotations()->count()),

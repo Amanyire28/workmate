@@ -199,6 +199,16 @@ class ProviderProfile extends Model
         return $this->members()->where('user_id', $user->getKey())->exists();
     }
 
+    /**
+     * Whether the user may speak for the business on money matters (prices, inspection, later payments):
+     * its owner or a manager. An ordinary member can still work the job but doesn't make these statements.
+     */
+    public function canManageFinances(User $user): bool
+    {
+        return $this->members()->where('user_id', $user->getKey())
+            ->whereIn('role', [ProviderMember::ROLE_OWNER, ProviderMember::ROLE_MANAGER])->exists();
+    }
+
     /** The profession (category) of the first, main skill */
     public function mainCategoryId(): ?int
     {

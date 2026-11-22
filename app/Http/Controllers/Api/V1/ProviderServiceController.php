@@ -80,6 +80,8 @@ class ProviderServiceController extends Controller
             'category' => ['nullable', 'string', 'max:60'],
             'pricing_type' => ['required', Rule::in(ProviderService::PRICING_TYPES)],
             'price' => ['nullable', 'integer', 'min:'.ProviderService::MIN_PRICE, 'max:'.ProviderService::MAX_PRICE],
+            // The top of a price range (only for the "range" type)
+            'price_max' => ['nullable', 'integer', 'min:'.ProviderService::MIN_PRICE, 'max:'.ProviderService::MAX_PRICE],
             'price_unit' => ['nullable', Rule::in(ProviderService::UNITS)],
         ];
     }

@@ -120,6 +120,8 @@
         <!-- Step 3: Budget -->
         <fieldset v-else-if="currentStep === 3" class="flex flex-col gap-4">
           <legend class="sr-only">{{ stepTitles[2] }}</legend>
+          <BudgetField v-if="appSettings.pricingEnabled" v-model="budgetSpec" :errors="budgetErrors" with-basis />
+          <template v-else>
           <p class="text-sm text-muted">Not sure? Leave it empty and workers will suggest a price.</p>
           <FormField
             v-model="form.budget"
@@ -139,6 +141,7 @@
             <option value="per day">Per day</option>
             <option value="negotiable">Negotiable</option>
           </FormField>
+          </template>
         </fieldset>
 
         <!-- Step 4: Review -->
@@ -185,7 +188,9 @@ import PaymentNotice from '@/components/PaymentNotice.vue';
 import ServiceCategoryCard from '@/components/ServiceCategoryCard.vue';
 import PrimaryButton from '@/components/PrimaryButton.vue';
 import PhotoPicker from '@/components/PhotoPicker.vue';
-import { categories, areaLabel, refreshJobs } from '@/stores/catalog.js';
+import { categories, areaLabel, refreshJobs, appSettings } from '@/stores/catalog.js';
+import BudgetField from '@/components/pricing/BudgetField.vue';
+import { blankBudget, validateBudget, hasErrors, budgetBody, budgetFormText } from '@/utils/pricing.js';
 import JobLocationField from '@/components/booking/JobLocationField.vue';
 import WhenField from '@/components/booking/WhenField.vue';
 import { formatShort } from '@/utils/booking.js';
@@ -211,6 +216,9 @@ const blank = () => ({
 });
 const form = reactive(blank());
 const errors = reactive({ title: '', category: '', area: '', when: '', budget: '' });
+// Budget types (when switched on in Admin → Settings → Pricing): a set amount, a range, negotiable or none
+const budgetSpec = ref(blankBudget());
+const budgetErrors = reactive({ amount: '', min: '', max: '' });
 const photos = ref([]);
 const progress = ref(0);
 const preparing = computed(() => photos.value.some(p => p.preparing));
@@ -225,22 +233,25 @@ const reviewRows = computed(() => [
   { label: 'When',           value: form.when.timing === 'asap' ? 'As soon as possible'
     : form.when.timing === 'scheduled' && form.when.date && form.when.time ? formatShort(`${form.when.date}T${form.when.time}:00+03:00`) : 'Flexible' },
   { label: 'Workers needed', value: form.workersNeeded },
-  { label: 'Budget',         value: form.budget ? `${formatPrice(form.budget)} (${form.budgetBasis})` : 'Open to offers' },
+  { label: 'Budget',         value: appSettings.pricingEnabled ? budgetFormText(budgetSpec.value, true) : form.budget ? `${formatPrice(form.budget)} (${form.budgetBasis})` : 'Open to offers' },
   { label: 'Photos',         value: photos.value.length ? `${photos.value.length} ${photos.value.length === 1 ? 'photo' : 'photos'}` : 'None' },
 ]);
 
 function validateStep() {
   Object.keys(errors).forEach(k => { errors[k] = ''; });
+  Object.keys(budgetErrors).forEach(k => { budgetErrors[k] = ''; });
   if (currentStep.value === 1) {
     if (!form.title.trim()) errors.title = 'Enter a job title.';
     if (!form.category)     errors.category = 'Choose a service type.';
   }
   if (currentStep.value === 2 && !form.where.area) errors.area = 'Choose where the work is.';
   if (currentStep.value === 2 && form.when.timing === 'scheduled' && !(form.when.date && form.when.time)) errors.when = 'Choose a date and a time, or “I’m flexible”.';
-  if (currentStep.value === 3 && form.budget !== '' && !(Number(form.budget) > 0)) {
+  if (currentStep.value === 3 && appSettings.pricingEnabled) {
+    Object.assign(budgetErrors, validateBudget(budgetSpec.value));
+  } else if (currentStep.value === 3 && form.budget !== '' && !(Number(form.budget) > 0)) {
     errors.budget = 'Enter an amount above 0, or leave it empty.';
   }
-  return !Object.values(errors).some(Boolean);
+  return !Object.values(errors).some(Boolean) && !hasErrors(budgetErrors);
 }
 
 async function nextStep() {
@@ -274,8 +285,10 @@ async function submitJob() {
       landmark: form.where.landmark.trim() || null,
       directions: form.where.directions.trim() || null,
       workers_needed: form.workersNeeded === '6+' ? 6 : Number(form.workersNeeded),
-      budget: form.budget === '' ? null : Number(form.budget),
-      budget_basis: form.budget === '' ? null : form.budgetBasis,
+      ...(appSettings.pricingEnabled ? budgetBody(budgetSpec.value, true) : {
+        budget: form.budget === '' ? null : Number(form.budget),
+        budget_basis: form.budget === '' ? null : form.budgetBasis,
+      }),
       client_token: clientToken,
     }, photos.value.map(p => p.file));
     await upload('/jobs', body, { onProgress: (p) => { progress.value = p; } });
@@ -297,6 +310,7 @@ async function submitJob() {
 
 function reset() {
   Object.assign(form, blank());
+  budgetSpec.value = blankBudget();
   releasePhotos(photos.value);
   photos.value = [];
   clientToken = newClientToken();

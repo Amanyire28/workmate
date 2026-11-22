@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Conversation;
+use App\Models\ProviderProfile;
 use App\Models\ServiceRequest;
 use App\Services\Marketplace;
+use App\Services\Pricing;
 use App\Services\RequestDetails;
 use App\Services\Messaging;
 use Illuminate\Http\JsonResponse;
@@ -19,6 +21,9 @@ class ReceivedRequestController extends Controller
 {
     /** @var Marketplace */
     private $marketplace;
+
+    /** @var array<int, bool> whether the signed-in user may speak for each provider business on money matters */
+    private $canManage = [];
 
     public function __construct(Marketplace $marketplace)
     {
@@ -52,6 +57,20 @@ class ReceivedRequestController extends Controller
         $data = $request->validate(['duration_minutes' => ['nullable', 'integer', 'in:30,60,90,120,180,240,300,360,480,600,720']]);
 
         return $this->done($this->marketplace->acceptRequest($request->user(), $this->find($id), $data['duration_minutes'] ?? null));
+    }
+
+    /**
+     * "I need to see the job before I can price it" (or take that back). The business owner or a manager
+     * only; it records a flag and a note and prices nothing. Doing the same again changes nothing.
+     */
+    public function inspection(Request $request, Pricing $pricing, int $id): JsonResponse
+    {
+        $data = $request->validate([
+            'required' => ['required', 'boolean'],
+            'note' => ['nullable', 'string', 'max:300'],
+        ], ['required.required' => 'Say whether you need to inspect the job first.']);
+
+        return $this->done($pricing->setInspection($request->user(), $this->find($id), (bool) $data['required'], $data['note'] ?? null));
     }
 
     /** Arrived and started a confirmed booking */
@@ -100,6 +119,16 @@ class ReceivedRequestController extends Controller
         return response()->json(['data' => ['conversation_id' => $conversation->id]]);
     }
 
+    private function canManagePricing(int $providerId): bool
+    {
+        if (! array_key_exists($providerId, $this->canManage)) {
+            $provider = ProviderProfile::find($providerId);
+            $this->canManage[$providerId] = $provider !== null && $provider->canManageFinances(request()->user());
+        }
+
+        return $this->canManage[$providerId];
+    }
+
     private function find(int $id): ServiceRequest
     {
         // Checked again, with a lock, by the service
@@ -133,6 +162,9 @@ class ReceivedRequestController extends Controller
             'location' => RequestDetails::forProvider($r)['location'],
             'budget' => $r->budget,
             'budget_basis' => $r->budget_basis,
+        ] + Pricing::budgetFields($r) + Pricing::inspectionFields($r) + [
+            // Only the business owner or a manager marks a job as needing inspection: the app shows the control to them
+            'can_manage_pricing' => $this->canManagePricing((int) $r->provider_profile_id),
             'status' => $r->status,
             'received_at' => $r->created_at->toIso8601String(),
             'responded_at' => optional($r->responded_at)->toIso8601String(),

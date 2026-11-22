@@ -30,6 +30,8 @@ export const appSettings = reactive({
     minimumAge: 18,
     // Community videos: the limits the server checks
     videoMaxMb: 25,
+    // Admin → Settings → Pricing: budget types, estimates and "inspection first" (off: everything as before)
+    pricingEnabled: false,
 });
 
 export const categories = reactive([]);
@@ -131,6 +133,9 @@ export function toJob(j) {
         workersNeeded: j.workers_needed,
         budget: j.budget,
         budgetBasis: j.budget_basis || '',
+        budgetType: j.budget_type || '',
+        budgetMin: j.budget_min ?? null,
+        budgetMax: j.budget_max ?? null,
         postedAt: agoLabel(j.posted_at),
         postedAtIso: j.posted_at,
         status: j.status,
@@ -176,6 +181,7 @@ function applySettings(s) {
         askLegal: !!pick('legal.ask_acceptance', true),
         minimumAge: pick('legal.minimum_age', 18),
         videoMaxMb: Number(pick('community.video_max_mb', 25)) || 25,
+        pricingEnabled: !!pick('finance.pricing_enabled', false),
     });
     applySearchSettings(s);
 }

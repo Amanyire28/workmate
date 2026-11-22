@@ -32,7 +32,7 @@
 
         <p class="text-sm text-ink whitespace-pre-line">{{ a.message }}</p>
         <p class="wm-meta flex flex-wrap gap-x-4 gap-y-1">
-          <span v-if="a.amount" class="inline-flex items-center gap-1"><i class="bi bi-cash" aria-hidden="true"></i>{{ formatPrice(a.amount) }}</span>
+          <span v-if="estimate(a).main" class="inline-flex items-center gap-1"><i class="bi bi-cash" aria-hidden="true"></i>{{ estimate(a).main }}<template v-if="estimate(a).basis"> · {{ estimate(a).basis }}</template></span>
           <span v-if="a.start_time" class="inline-flex items-center gap-1"><i class="bi bi-calendar3" aria-hidden="true"></i>Can start {{ a.start_time }}</span>
           <span>Applied {{ agoLabel(a.applied_at).toLowerCase() }}</span>
         </p>
@@ -68,8 +68,11 @@ import BottomSheet from './BottomSheet.vue';
 import UserAvatar from './UserAvatar.vue';
 import StatusBadge from './StatusBadge.vue';
 import { api } from '@/api/client.js';
-import { agoLabel } from '@/stores/catalog.js';
-import { formatPrice } from '@/utils/ui.js';
+import { agoLabel, appSettings } from '@/stores/catalog.js';
+import { estimateParts, estimateFromApi } from '@/utils/pricing.js';
+
+// The provider's price offer; with pricing options on, an estimate (a guide, not the price of the job) or "needs to see the job first"
+const estimate = (a) => estimateParts(estimateFromApi(a), appSettings.pricingEnabled);
 
 /** The providers who applied to one of the customer's posted jobs, to compare and hire */
 const props = defineProps({

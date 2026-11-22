@@ -28,6 +28,13 @@ class ServiceRequest extends Model
     public const BOOKING_LEGACY = 1;
     public const BOOKING_V2 = 2;
 
+    /** How the customer described their budget (budget_type); empty on requests made before this existed */
+    public const BUDGET_FIXED = 'fixed';
+    public const BUDGET_RANGE = 'range';
+    public const BUDGET_NEGOTIABLE = 'negotiable';
+    public const BUDGET_NONE = 'none';
+    public const BUDGET_TYPES = [self::BUDGET_FIXED, self::BUDGET_RANGE, self::BUDGET_NEGOTIABLE, self::BUDGET_NONE];
+
     public const TIMING_ASAP = 'asap';
     public const TIMING_SCHEDULED = 'scheduled';
 
@@ -41,6 +48,9 @@ class ServiceRequest extends Model
         'workers_needed',
         'budget',
         'budget_basis',
+        'budget_type',
+        'budget_min',
+        'budget_max',
     ];
 
     protected $casts = [
@@ -50,6 +60,9 @@ class ServiceRequest extends Model
         'area_id' => 'integer',
         'workers_needed' => 'integer',
         'budget' => 'integer',
+        'budget_min' => 'integer',
+        'budget_max' => 'integer',
+        'inspection_required_at' => 'datetime',
         'is_sample' => 'boolean',
         'is_posted_job' => 'boolean',
         'responded_at' => 'datetime',
@@ -66,6 +79,29 @@ class ServiceRequest extends Model
         'provider_service_id' => 'integer',
         'booking_version' => 'integer',
     ];
+
+    /**
+     * The budget as the customer meant it. Requests made before budget types existed have none stored, so
+     * they are read from the older columns: no amount is "none", the basis "negotiable" is "negotiable",
+     * anything else is "fixed".
+     */
+    public function effectiveBudgetType(): string
+    {
+        if (in_array($this->budget_type, self::BUDGET_TYPES, true)) {
+            return $this->budget_type;
+        }
+        if ($this->budget === null) {
+            return self::BUDGET_NONE;
+        }
+
+        return $this->budget_basis === 'negotiable' ? self::BUDGET_NEGOTIABLE : self::BUDGET_FIXED;
+    }
+
+    /** The provider said they must see the job before they can give a price */
+    public function needsInspection(): bool
+    {
+        return $this->inspection_required_at !== null;
+    }
 
     /** Made before the booking system: kept as it is, on the original workflow */
     public function isLegacy(): bool

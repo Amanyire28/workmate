@@ -59,6 +59,12 @@ return [
             'view_permission' => 'admin.manage',
             'change_permission' => 'admin.manage',
         ],
+        // Budgets, price estimates and inspection (Phase B1). Nothing here charges or collects money.
+        'finance' => [
+            'label' => 'Pricing',
+            'view_permission' => 'admin.manage',
+            'change_permission' => 'admin.manage',
+        ],
         // Invite Friends (Admin → Invitations)
         'referrals' => [
             'label' => 'Invitations',
@@ -166,6 +172,12 @@ return [
             'label' => 'Expected length when not given (minutes)',
             'description' => 'How long a booking reserves the provider when the customer doesn’t say, and how long an “as soon as possible” job is held for.',
             'type' => 'integer', 'min' => 30, 'max' => 720, 'default' => 120, 'public' => true,
+        ],
+        'finance.pricing_enabled' => [
+            'group' => 'finance',
+            'label' => 'Budget types, price estimates and inspection',
+            'description' => 'Lets customers give a fixed, range or negotiable budget, providers give a fixed, range or “inspection first” estimate and list a price range, and providers mark a job as needing inspection. Off: everything works as before. This only records what people say; it never charges or collects anything.',
+            'type' => 'boolean', 'default' => false, 'public' => true,
         ],
         'presence.heartbeat_seconds' => [
             'group' => 'presence',

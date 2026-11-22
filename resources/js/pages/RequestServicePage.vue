@@ -104,7 +104,9 @@
 
             <JobLocationField v-model="form.where" id="request-area" :error-message="errors.area" />
 
+            <BudgetField v-if="appSettings.pricingEnabled" v-model="budgetSpec" :errors="budgetErrors" />
             <FormField
+              v-else
               v-model="form.budget"
               type="number"
               inputmode="numeric"
@@ -169,7 +171,9 @@ import UserAvatar from '@/components/UserAvatar.vue';
 import FormField from '@/components/FormField.vue';
 import PhotoPicker from '@/components/PhotoPicker.vue';
 import PrimaryButton from '@/components/PrimaryButton.vue';
-import { providers } from '@/stores/catalog.js';
+import { providers, appSettings } from '@/stores/catalog.js';
+import BudgetField from '@/components/pricing/BudgetField.vue';
+import { blankBudget, validateBudget, hasErrors, budgetBody } from '@/utils/pricing.js';
 import { displayName, tradeLabel, categoryLabel, servicePriceLabel } from '@/utils/ui.js';
 import { areaLabel } from '@/stores/catalog.js';
 import WhenField from '@/components/booking/WhenField.vue';
@@ -200,6 +204,9 @@ watch(provider, (p) => {
   if (p && (p.workStatus === 'busy' || p.acceptsImmediate === false) && !form.when.timing) form.when = { ...form.when, timing: 'scheduled' };
 }, { immediate: true });
 const errors = reactive({ service: '', details: '', area: '', when: '', budget: '' });
+// Budget types (when switched on in Admin → Settings → Pricing): a set amount, a range, negotiable or none
+const budgetSpec = ref(blankBudget());
+const budgetErrors = reactive({ amount: '', min: '', max: '' });
 
 // A service picked from the provider's Services & Prices (?service=ID): its type of work is filled in
 const listing = ref(null);
@@ -240,8 +247,9 @@ function validate() {
   errors.area    = form.where.area ? '' : 'Choose where the job is.';
   errors.when    = !form.when.timing ? 'Choose when you need it.'
     : form.when.timing === 'scheduled' && !(form.when.date && form.when.time) ? 'Choose a date and a time.' : '';
-  errors.budget  = form.budget === '' || Number(form.budget) > 0 ? '' : 'Enter an amount above 0, or leave it empty.';
-  return !Object.values(errors).some(Boolean);
+  Object.assign(budgetErrors, appSettings.pricingEnabled ? validateBudget(budgetSpec.value) : { amount: '', min: '', max: '' });
+  errors.budget  = appSettings.pricingEnabled || form.budget === '' || Number(form.budget) > 0 ? '' : 'Enter an amount above 0, or leave it empty.';
+  return !Object.values(errors).some(Boolean) && !hasErrors(budgetErrors);
 }
 
 async function submit() {
@@ -268,7 +276,7 @@ async function submit() {
       location_accuracy: form.where.pin ? Math.round(form.where.pin.accuracy || 0) : null,
       landmark: form.where.landmark.trim() || null,
       directions: form.where.directions.trim() || null,
-      budget: form.budget === '' ? null : Number(form.budget),
+      ...(appSettings.pricingEnabled ? budgetBody(budgetSpec.value) : { budget: form.budget === '' ? null : Number(form.budget) }),
       ...(listing.value ? { service: listing.value.id } : {}),
       client_token: clientToken,
     }, photos.value.map(p => p.file));

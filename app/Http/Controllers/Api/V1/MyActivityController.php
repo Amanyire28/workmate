@@ -65,6 +65,8 @@ class MyActivityController extends Controller
                     'message' => $quotation->message,
                     'start_time' => $quotation->start_time,
                     'amount' => $quotation->amount,
+                    'amount_max' => $quotation->amount_max,
+                    'estimate_type' => $quotation->estimate_type,
                     'applied_at' => $quotation->created_at->toIso8601String(),
                     'job' => [
                         'id' => $job->id,
@@ -73,6 +75,9 @@ class MyActivityController extends Controller
                         'area_name' => $job->area_name,
                         'budget' => $job->budget,
                         'budget_basis' => $job->budget_basis,
+                        'budget_type' => $job->effectiveBudgetType(),
+                        'budget_min' => $job->budget_min,
+                        'budget_max' => $job->budget_max,
                         'status' => $job->trashed() ? 'cancelled' : $job->status,
                     ],
                 ];

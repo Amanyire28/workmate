@@ -40,14 +40,28 @@
     </div>
 
     <p class="wm-meta flex flex-wrap gap-x-4 gap-y-1">
-      <span v-if="req.budget" class="inline-flex items-center gap-1"><i class="bi bi-cash" aria-hidden="true"></i>Budget {{ formatPrice(req.budget) }}</span>
+      <span v-if="budget.main" class="inline-flex items-center gap-1"><i class="bi bi-cash" aria-hidden="true"></i>Budget {{ budget.main }}<template v-if="appSettings.pricingEnabled && budget.basis"> · {{ budget.basis }}</template></span>
       <span>Received {{ sentLabel(req.received_at) }}</span>
+    </p>
+    <!-- Inspection first: said by the business owner or a manager; nothing is priced by it -->
+    <p v-if="req.inspection_required" class="flex items-start gap-2 rounded-xl bg-[#FFFBEB] px-3 py-2 text-[13.5px] text-[#92400E]">
+      <i class="bi bi-search mt-0.5" aria-hidden="true"></i>
+      <span><strong>You need to see this job before pricing it.</strong><template v-if="req.inspection_note"> {{ req.inspection_note }}</template> The customer has been told.</span>
     </p>
     <p v-if="req.status === 'cancelled' && req.provider_note" class="text-sm text-muted"><i class="bi bi-reply" aria-hidden="true"></i> You said: {{ req.provider_note }}</p>
     <p v-else-if="req.status === 'cancelled' && req.schedule?.cancelled_by === 'customer'" class="text-sm text-muted">The customer cancelled.</p>
 
     <!-- A reply that needs words or a time -->
-    <form v-if="mode === 'decline' || mode === 'cancel'" class="flex flex-col gap-2" @submit.prevent="send(mode, { reason: reason.trim() })">
+    <form v-if="mode === 'inspect'" class="flex flex-col gap-2" @submit.prevent="send('inspection', { required: true, note: note.trim() || null })">
+      <FormField v-model="note" type="textarea" label="What do you need to see?" optional :id="`inspect-${req.id}`" maxlength="300" :min-height="72"
+        placeholder="e.g. I need to look at the pipe before I can give a price" hint="The customer sees this. It doesn’t set a price." />
+      <div class="flex gap-2">
+        <button type="button" class="wm-btn wm-btn-secondary !min-h-11 flex-1" @click="mode = ''">Back</button>
+        <button type="submit" class="wm-btn wm-btn-primary !min-h-11 flex-1" :disabled="busy">Save</button>
+      </div>
+    </form>
+
+    <form v-else-if="mode === 'decline' || mode === 'cancel'" class="flex flex-col gap-2" @submit.prevent="send(mode, { reason: reason.trim() })">
       <FormField v-model="reason" type="textarea" :label="mode === 'decline' ? 'Why can’t you take it?' : 'Why do you need to cancel?'" :id="`${mode}-${req.id}`" required
         :placeholder="mode === 'decline' ? 'e.g. I’m fully booked this week' : 'e.g. I’m unwell and can’t come that day'" :min-height="72" hint="The customer sees this." />
       <div class="flex gap-2">
@@ -99,6 +113,16 @@
         <i class="bi bi-check2-all" aria-hidden="true"></i>Mark as done
       </button>
 
+      <div v-if="canMarkInspection" class="flex flex-wrap gap-2">
+        <button v-if="!req.inspection_required" type="button" class="wm-btn wm-btn-secondary !min-h-11 flex-1" :disabled="busy" @click="mode = 'inspect'">
+          <i class="bi bi-search" aria-hidden="true"></i>I need to see the job first
+        </button>
+        <template v-else>
+          <button type="button" class="wm-btn wm-btn-ghost !min-h-11 flex-1" :disabled="busy" @click="note = req.inspection_note || ''; mode = 'inspect'">Edit note</button>
+          <button type="button" class="wm-btn wm-btn-ghost !min-h-11 flex-1" :disabled="busy" @click="send('inspection', { required: false })">No need to inspect</button>
+        </template>
+      </div>
+
       <div class="flex flex-wrap gap-2">
         <button v-if="req.status !== 'cancelled'" type="button" class="wm-btn wm-btn-ghost !min-h-11" :disabled="busy" @click="$emit('message', req)">
           <i class="bi bi-chat-dots" aria-hidden="true"></i>Open chat
@@ -119,7 +143,9 @@ import UserAvatar from '@/components/UserAvatar.vue';
 import RequestPhotos from '@/components/RequestPhotos.vue';
 import FormField from '@/components/FormField.vue';
 import { api } from '@/api/client.js';
-import { formatPrice, categoryLabel } from '@/utils/ui.js';
+import { categoryLabel } from '@/utils/ui.js';
+import { appSettings } from '@/stores/catalog.js';
+import { budgetParts, budgetFromApi } from '@/utils/pricing.js';
 import { formatDay, formatTime, formatShort, providerStatus, directionsUrl, TIME_SLOTS, DURATIONS, durationLabel, todayInUganda } from '@/utils/booking.js';
 
 const props = defineProps({
@@ -129,11 +155,18 @@ const emit = defineEmits(['updated', 'message', 'report']);
 
 const busy = ref(false);
 const error = ref('');
-const mode = ref('');        // '' | decline | cancel | propose
+const mode = ref('');        // '' | decline | cancel | propose | inspect
 const reason = ref('');
+const note = ref('');
 const minutes = ref('');
 const when = reactive({ date: '', time: '' });
 const today = todayInUganda();
+
+// The budget as the customer meant it (a range or "negotiable" in words once pricing options are on)
+const budget = computed(() => budgetParts(budgetFromApi(props.req), appSettings.pricingEnabled));
+// "I need to see the job first": the owner or a manager, on a job that is still to be done, once pricing options are on
+const canMarkInspection = computed(() => appSettings.pricingEnabled && props.req.can_manage_pricing && !props.req.is_legacy
+  && ['open', 'scheduled', 'in_progress'].includes(props.req.status));
 
 const tone = computed(() => ({ open: 'info', scheduled: 'success', in_progress: 'info', completed: 'success', cancelled: 'neutral' }[props.req.status] || 'neutral'));
 

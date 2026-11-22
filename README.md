@@ -275,6 +275,15 @@ A request sent to one provider goes through these steps (implemented ✅):
 
 The provider sees the customer's name and photo, never their email or phone number; they reply through WorkMate's messages.
 
+**Budgets, estimates and "inspection first" (Phase B1) ✅ — off by default.** Admin → Settings → **Pricing** (`finance.pricing_enabled`) switches on a more honest way to talk about price. While it is off nothing changes: the new fields aren't read, the new screens don't show, and everything works as before. It only records what people *say*; **it never prices a job, takes a payment, charges a commission or creates a debt** (no such tables exist yet).
+- **Customer budgets:** a set amount, a **range**, **negotiable** (an amount is optional, only where talking starts) or **none**. Saved in `service_requests.budget_type/budget_min/budget_max`; the older `budget` and `budget_basis` are still written (a range leaves `budget` empty), so older apps keep working. Requests made before this have no stored type and are read from the older fields.
+- **Provider estimates when applying** (`quotations.estimate_type/amount_max`): a set price, a range, or **"I need to see the job first"** (no figure). An estimate is a guide for the customer, never the price of the job; the price is agreed and confirmed by the customer in a later phase. An older app's plain `amount` still works.
+- **The skill applied with** (`quotations.profession_id`): checked by the server. It must be one of the provider's own professions within the job's category; without a choice (older apps) it is their only fitting skill or their main one, and otherwise left empty rather than guessed. `GET /jobs/{id}/application-options` tells the app which skills fit and whether to ask.
+- **Listed price ranges:** a service on "Services & Prices" may be priced as a range (`provider_services.price_max`).
+- **Inspection first:** the provider business's **owner or a manager** (not an ordinary member) can mark a request or hired job as needing inspection, with a short note (`POST /me/received-requests/{id}/inspection`). It is idempotent, audited, tells the customer, never changes the job's status, and is refused for requests made before bookings existed, for finished or cancelled jobs, and for suspended providers.
+- **Server-side rules:** amounts are whole UGX between 1,000 and 100,000,000; a range needs a highest amount above the lowest; a fixed budget or estimate needs its amount; nothing the client sends for another type is kept.
+- **Tests:** `PricingOptionsTest` (PHPUnit) and `tests/js/pricing.test.mjs`. There are no new environment variables, packages or scheduled tasks, and three additive migrations (`2026_11_25_000060` to `000062`: only nullable columns).
+
 ---
 
 ## Reports and complaints

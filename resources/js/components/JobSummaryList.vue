@@ -3,9 +3,9 @@
     <div class="flex items-start gap-3">
       <dt class="sr-only">Budget</dt>
       <i class="bi bi-cash-stack text-muted text-base mt-0.5" aria-hidden="true"></i>
-      <dd v-if="job.budget">
-        <span class="text-base font-semibold text-ink">{{ formatPrice(job.budget) }}</span>
-        <span class="text-muted"> · {{ job.budgetBasis }}</span>
+      <dd v-if="budget.main">
+        <span class="text-base font-semibold text-ink">{{ budget.main }}</span>
+        <span v-if="budget.basis" class="text-muted"> · {{ budget.basis }}</span>
       </dd>
       <dd v-else class="text-muted">Budget to be discussed</dd>
     </div>
@@ -28,9 +28,12 @@
 </template>
 
 <script setup>
-import { formatPrice } from '@/utils/ui.js';
+import { computed } from 'vue';
+import { appSettings } from '@/stores/catalog.js';
+import { budgetParts } from '@/utils/pricing.js';
 
-defineProps({
+const props = defineProps({
   job: { type: Object, required: true },
 });
+const budget = computed(() => budgetParts(props.job, appSettings.pricingEnabled));
 </script>

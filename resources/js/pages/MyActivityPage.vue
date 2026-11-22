@@ -202,9 +202,9 @@
               <span class="inline-flex items-center gap-1"><i class="bi bi-geo-alt" aria-hidden="true"></i>{{ app.area }}</span>
               <span>Applied {{ app.appliedAt }}</span>
             </p>
-            <p v-if="app.budget" class="text-sm">
-              <span class="font-semibold text-ink">{{ formatPrice(app.budget) }}</span>
-              <span class="text-muted"> · {{ app.budgetBasis }}</span>
+            <p v-if="app.priceText" class="text-sm">
+              <span class="font-semibold text-ink">{{ app.priceText }}</span>
+              <span v-if="app.priceNote" class="text-muted"> · {{ app.priceNote }}</span>
             </p>
             <p v-if="app.status === 'accepted'" class="wm-notice wm-notice-success mt-auto">
               <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
@@ -245,9 +245,23 @@ import SuggestionCard from '@/components/engagement/SuggestionCard.vue';
 import RecommendedForYou from '@/components/engagement/RecommendedForYou.vue';
 import ReceivedRequestCard from '@/components/work/ReceivedRequestCard.vue';
 import CustomerRequestStatus from '@/components/work/CustomerRequestStatus.vue';
-import { agoLabel, providers } from '@/stores/catalog.js';
+import { agoLabel, providers, appSettings } from '@/stores/catalog.js';
 import { api } from '@/api/client.js';
 import { formatPrice, categoryLabel } from '@/utils/ui.js';
+import { budgetParts, budgetFromApi, estimateParts, estimateFromApi } from '@/utils/pricing.js';
+
+/** What an application shows as price: the provider's own estimate, else the job's budget (as before until pricing options are on) */
+function applicationPrice(a) {
+  if (!appSettings.pricingEnabled) {
+    return { priceText: formatPrice(a.amount || a.job.budget) || '', priceNote: a.amount ? 'your price' : (a.job.budget_basis || '') };
+  }
+  if (a.estimate_type || a.amount) {
+    const e = estimateParts(estimateFromApi(a), true);
+    return { priceText: e.main, priceNote: e.basis === 'estimate' ? 'your estimate' : e.basis };
+  }
+  const b = budgetParts(budgetFromApi(a.job), true);
+  return { priceText: b.main || '', priceNote: b.main ? 'their budget' : '' };
+}
 
 const providerPhoto = id => providers.find(p => p.id === id)?.avatarUrl || '';
 
@@ -377,8 +391,7 @@ async function load() {
       appliedAt: agoLabel(a.applied_at).toLowerCase(),
       status: a.status,
       clientName: null,
-      budget: a.amount || a.job.budget,
-      budgetBasis: a.amount ? 'your price' : a.job.budget_basis,
+      ...applicationPrice(a),
     }));
 
     state.value = 'ready';

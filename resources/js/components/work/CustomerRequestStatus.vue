@@ -6,6 +6,12 @@
       <p v-if="status.text" class="text-[13px] opacity-90">{{ status.text }}</p>
     </div>
 
+    <!-- The provider needs to see the job before giving a final price -->
+    <p v-if="req.inspection_required" class="flex items-start gap-2 rounded-xl bg-[#FFFBEB] px-3 py-2 text-[13.5px] text-[#92400E]">
+      <i class="bi bi-search mt-0.5" aria-hidden="true"></i>
+      <span><strong>The provider needs to see the job before giving a final price.</strong><template v-if="req.inspection_note"> “{{ req.inspection_note }}”</template> Message them to arrange it.</span>
+    </p>
+
     <p v-if="req.schedule?.start" class="flex items-center gap-2 text-[14px] text-ink">
       <i class="bi bi-calendar-check text-muted" aria-hidden="true"></i>{{ formatDay(req.schedule.start) }}, {{ formatTime(req.schedule.start) }}
     </p>

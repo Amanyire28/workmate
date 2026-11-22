@@ -14,7 +14,9 @@ class ProviderService extends Model
     public const PRICING_FIXED = 'fixed';
     public const PRICING_FROM = 'from';
     public const PRICING_QUOTE = 'quote';
-    public const PRICING_TYPES = [self::PRICING_FIXED, self::PRICING_FROM, self::PRICING_QUOTE];
+    // A guide between two amounts (price to price_max); only while pricing options are switched on
+    public const PRICING_RANGE = 'range';
+    public const PRICING_TYPES = [self::PRICING_FIXED, self::PRICING_FROM, self::PRICING_QUOTE, self::PRICING_RANGE];
 
     public const UNITS = ['hour', 'day', 'visit', 'item', 'job'];
 
@@ -31,6 +33,7 @@ class ProviderService extends Model
         'provider_profile_id' => 'integer',
         'category_id' => 'integer',
         'price' => 'integer',
+        'price_max' => 'integer',
         'is_active' => 'boolean',
         'position' => 'integer',
     ];

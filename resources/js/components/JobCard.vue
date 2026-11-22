@@ -25,9 +25,9 @@
 
     <div class="mt-auto pt-3 border-t border-line flex items-center justify-between gap-3">
       <p class="min-w-0">
-        <template v-if="job.budget">
-          <span class="text-base font-semibold text-ink">{{ formatPrice(job.budget) }}</span>
-          <span class="wm-meta"> · {{ job.budgetBasis }}</span>
+        <template v-if="budget.main">
+          <span class="text-base font-semibold text-ink">{{ budget.main }}</span>
+          <span v-if="budget.basis" class="wm-meta"> · {{ budget.basis }}</span>
         </template>
         <span v-else class="wm-meta">Budget to be discussed</span>
       </p>
@@ -37,9 +37,14 @@
 </template>
 
 <script setup>
-import { categoryIcon, categoryLabel, formatPrice } from '@/utils/ui.js';
+import { computed } from 'vue';
+import { categoryIcon, categoryLabel } from '@/utils/ui.js';
+import { appSettings } from '@/stores/catalog.js';
+import { budgetParts } from '@/utils/pricing.js';
 
-defineProps({
+const props = defineProps({
   job: { type: Object, required: true },
 });
+// A range or negotiable budget in words once pricing options are on; exactly as before until then
+const budget = computed(() => budgetParts(props.job, appSettings.pricingEnabled));
 </script>

@@ -40,8 +40,12 @@ class Marketplace
     /** @var Messaging */
     private $messaging;
 
-    public function __construct(AuditLogger $audit, EventNotifications $notify, PhotoVariants $photos, JobAlerts $alerts, Scheduling $scheduling, Messaging $messaging)
+    /** @var Pricing */
+    private $pricing;
+
+    public function __construct(AuditLogger $audit, EventNotifications $notify, PhotoVariants $photos, JobAlerts $alerts, Scheduling $scheduling, Messaging $messaging, Pricing $pricing)
     {
+        $this->pricing = $pricing;
         $this->audit = $audit;
         $this->notify = $notify;
         $this->photos = $photos;
@@ -145,14 +149,18 @@ class Marketplace
                 throw new BusinessRuleException('already_applied', 'You have already applied for this job.', 409);
             }
 
-            $quotation = new Quotation($data);
+            // What they say about price (an estimate, a guide: never the price of the job) and which of their
+            // own skills they apply with; both are only read while pricing options are switched on
+            $profession = $this->pricing->professionFor($provider, $job, $data['profession'] ?? null);
+            $quotation = new Quotation(array_intersect_key($data, array_flip(['message', 'start_time'])) + $this->pricing->estimateColumns($data));
             $quotation->forceFill([
                 'service_request_id' => $job->getKey(),
                 'provider_profile_id' => $provider->getKey(),
                 'status' => Quotation::STATUS_PENDING,
+                'profession_id' => $profession,
             ])->save();
 
-            $this->audit->record('marketplace.applied', $quotation, [], ['service_request_id' => $job->getKey(), 'amount' => $quotation->amount], null, $user);
+            $this->audit->record('marketplace.applied', $quotation, [], ['service_request_id' => $job->getKey(), 'amount' => $quotation->amount, 'amount_max' => $quotation->amount_max, 'estimate_type' => $quotation->estimate_type, 'profession_id' => $profession], null, $user);
             $this->notify->applicationReceived($quotation);
 
             return $quotation;
@@ -605,9 +613,7 @@ class Marketplace
                 'area_name' => $area->name,
                 'preferred_time' => $data['preferred_time'] ?? null,
                 'workers_needed' => $data['workers_needed'] ?? 1,
-                'budget' => $data['budget'] ?? null,
-                'budget_basis' => isset($data['budget']) ? ($data['budget_basis'] ?? 'fixed') : null,
-            ]);
+            ] + $this->pricing->budgetColumns($data));
             $request->forceFill([
                 'customer_id' => $customer->getKey(),
                 'client_token' => $data['client_token'] ?? null,
@@ -642,7 +648,7 @@ class Marketplace
 
             $this->audit->record(
                 $provider ? 'marketplace.request_sent' : 'marketplace.job_posted',
-                $request, [], ['category' => $category->slug, 'area' => $area->slug, 'budget' => $request->budget, 'photos' => count($stored)], null, $customer
+                $request, [], ['category' => $category->slug, 'area' => $area->slug, 'budget' => $request->budget, 'budget_type' => $request->budget_type, 'budget_min' => $request->budget_min, 'budget_max' => $request->budget_max, 'photos' => count($stored)], null, $customer
             );
 
             return $request;

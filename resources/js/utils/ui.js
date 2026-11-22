@@ -4,6 +4,7 @@
  * data stays exactly as it comes from the API.
  */
 import { getCategoryById, statusLabels } from '@/stores/catalog.js';
+import { rangeLabel } from '@/utils/pricing.js';
 
 // Bootstrap Icons class per category id
 export const categoryIcons = {
@@ -82,6 +83,7 @@ const PRICE_UNITS = { hour: 'per hour', day: 'per day', visit: 'per visit', item
 export function servicePriceLabel(service) {
     if (!service || service.pricing_type === 'quote' || service.price == null) return 'Request a quote';
     const unit = PRICE_UNITS[service.price_unit] ? ` ${PRICE_UNITS[service.price_unit]}` : '';
+    if (service.pricing_type === 'range' && service.price_max != null) return rangeLabel(service, PRICE_UNITS[service.price_unit] || '');
     return `${service.pricing_type === 'from' ? 'From ' : ''}${formatPrice(service.price)}${unit}`;
 }
 

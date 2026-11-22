@@ -71,6 +71,9 @@ class JobApplicantController extends Controller
             'message' => $q->message,
             'start_time' => $q->start_time,
             'amount' => $q->amount,
+            // A guide, not the price of the job: the price is agreed later and confirmed by the customer
+            'amount_max' => $q->amount_max,
+            'estimate_type' => $q->estimate_type,
             'applied_at' => $q->created_at->toIso8601String(),
             'provider' => $p ? [
                 'id' => $p->id,

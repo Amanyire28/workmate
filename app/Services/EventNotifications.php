@@ -123,6 +123,12 @@ class EventNotifications
         $this->toCustomer($request, 'Your job is done', $this->providerName($request).' finished your '.$this->service($request).' job. How did it go? Rate them in WorkMate.');
     }
 
+    /** The provider needs to see the job before giving a price (Phase B1); nothing is priced yet */
+    public function inspectionRequired(ServiceRequest $request): void
+    {
+        $this->toCustomer($request, 'Inspection needed', $this->providerName($request).' needs to see your '.$this->service($request).' job before giving a final price. Message them to arrange it.');
+    }
+
     /* ---------------- Posted jobs ---------------- */
 
     public function applicationReceived(Quotation $quotation): void

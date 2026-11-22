@@ -22,9 +22,13 @@ class ProviderServices
     /** @var AuditLogger */
     private $audit;
 
-    public function __construct(AuditLogger $audit)
+    /** @var PlatformSettings */
+    private $settings;
+
+    public function __construct(AuditLogger $audit, PlatformSettings $settings)
     {
         $this->audit = $audit;
+        $this->settings = $settings;
     }
 
     /** @param array{title: string, description: ?string, category: ?string, pricing_type: string, price: ?int, price_unit: ?string} $data */
@@ -129,6 +133,8 @@ class ProviderServices
             'category_name' => $s->category ? $s->category->name : null,
             'pricing_type' => $s->pricing_type,
             'price' => $s->pricing_type === ProviderService::PRICING_QUOTE ? null : $s->price,
+            // The top of a range (the bottom is "price"); empty for every other kind
+            'price_max' => $s->pricing_type === ProviderService::PRICING_RANGE ? $s->price_max : null,
             'price_unit' => $s->price_unit,
         ];
         if ($forOwner) {
@@ -192,19 +198,33 @@ class ProviderServices
         // Price, type and unit are checked together
         $type = array_key_exists('pricing_type', $data) ? $data['pricing_type'] : ($service ? $service->pricing_type : null);
         $price = array_key_exists('price', $data) ? $data['price'] : ($service ? $service->price : null);
+        $priceMax = array_key_exists('price_max', $data) ? $data['price_max'] : ($service ? $service->price_max : null);
         $unit = array_key_exists('price_unit', $data) ? $data['price_unit'] : ($service ? $service->price_unit : null);
-        if (! $service || array_intersect(['pricing_type', 'price', 'price_unit'], array_keys($data))) {
+        if (! $service || array_intersect(['pricing_type', 'price', 'price_max', 'price_unit'], array_keys($data))) {
             if (! in_array($type, ProviderService::PRICING_TYPES, true)) {
+                throw new BusinessRuleException('service_pricing', 'Choose how you price this service.', 422);
+            }
+            // A range is only offered while pricing options are on (a range already saved can still be edited)
+            if ($type === ProviderService::PRICING_RANGE && (! $service || $service->pricing_type !== ProviderService::PRICING_RANGE) && ! $this->settings->get('finance.pricing_enabled')) {
                 throw new BusinessRuleException('service_pricing', 'Choose how you price this service.', 422);
             }
             if ($type === ProviderService::PRICING_QUOTE) {
                 $price = null;
+                $priceMax = null;
                 $unit = null;
             } elseif ($price === null || $price === '') {
                 throw new BusinessRuleException('service_price', 'Enter your usual price in UGX, or choose “Request a quote”.', 422);
             }
+            if ($type === ProviderService::PRICING_RANGE) {
+                if ($priceMax === null || $priceMax === '' || (int) $priceMax <= (int) $price) {
+                    throw new BusinessRuleException('service_price_range', 'Enter the lowest price and a higher highest price.', 422);
+                }
+            } else {
+                $priceMax = null;
+            }
             $out['pricing_type'] = $type;
             $out['price'] = $price === null ? null : (int) $price;
+            $out['price_max'] = $priceMax === null ? null : (int) $priceMax;
             $out['price_unit'] = $unit ?: null;
         }
 
@@ -227,6 +247,6 @@ class ProviderServices
 
     private function audited(ProviderService $s): array
     {
-        return $s->only(['title', 'category_id', 'pricing_type', 'price', 'price_unit', 'is_active']);
+        return $s->only(['title', 'category_id', 'pricing_type', 'price', 'price_max', 'price_unit', 'is_active']);
     }
 }

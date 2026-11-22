@@ -15,7 +15,8 @@
       <template v-else><dt class="text-muted">When</dt><dd class="text-ink">{{ r.preferred_time || 'Flexible' }}</dd></template>
       <dt class="text-muted">Location</dt>
       <dd class="text-ink">{{ r.location.area_name }}<template v-if="r.location.landmark"> · {{ r.location.landmark }}</template></dd>
-      <template v-if="r.budget"><dt class="text-muted">Budget</dt><dd class="text-ink">{{ formatPrice(r.budget) }}</dd></template>
+      <template v-if="budget.main"><dt class="text-muted">Budget</dt><dd class="text-ink">{{ budget.main }}<template v-if="appSettings.pricingEnabled && budget.basis"> · {{ budget.basis }}</template></dd></template>
+      <template v-if="r.inspection_required"><dt class="text-muted">Price</dt><dd class="text-ink">Needs inspection first</dd></template>
       <dt class="text-muted">Status</dt><dd><span class="wm-pill !py-0" :class="`wm-pill-${status.tone}`">{{ status.title }}</span></dd>
     </dl>
     <p v-if="r.description" class="px-4 pb-3 text-[13.5px] text-[#475569] line-clamp-3 whitespace-pre-line">{{ r.description }}</p>
@@ -30,7 +31,8 @@
 
 <script setup>
 import { computed } from 'vue';
-import { formatPrice } from '@/utils/ui.js';
+import { appSettings } from '@/stores/catalog.js';
+import { budgetParts, budgetFromApi } from '@/utils/pricing.js';
 import { formatDay, formatTime, directionsUrl, customerStatus } from '@/utils/booking.js';
 
 const props = defineProps({
@@ -39,6 +41,8 @@ const props = defineProps({
   // Whether the person reading is the customer (else the provider)
   asCustomer: { type: Boolean, default: false },
 });
+
+const budget = computed(() => budgetParts(budgetFromApi(props.r), appSettings.pricingEnabled));
 
 // "Awaiting provider response" while it's new; otherwise the same words customers see
 const status = computed(() => (props.r.status === 'open' && !props.r.schedule?.proposed_start

@@ -204,6 +204,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         });
         Route::get('me/requests', [MyActivityController::class, 'requests'])->name('me.requests');
         Route::get('me/applications', [MyActivityController::class, 'applications'])->name('me.applications');
+        // Phase B1: the skills of theirs that fit an open job, for the provider applying
+        Route::get('jobs/{id}/application-options', [JobController::class, 'applicationOptions'])->whereNumber('id')->name('jobs.application-options');
 
         // Providers who applied to the customer's own posted job
         Route::get('me/jobs/{id}/applications', [JobApplicantController::class, 'index'])->whereNumber('id')->name('me.jobs.applications');
@@ -254,6 +256,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::middleware('throttle:marketplace-write')->group(function () {
             Route::post('me/received-requests/{id}/accept', [ReceivedRequestController::class, 'accept'])->whereNumber('id')->name('me.received-requests.accept');
             // Bookings: start, suggest another time, cancel
+            // Phase B1: "I need to see the job first" (owner or manager; only while pricing options are on)
+            Route::post('me/received-requests/{id}/inspection', [ReceivedRequestController::class, 'inspection'])->whereNumber('id')->name('me.received-requests.inspection');
             Route::post('me/received-requests/{id}/start', [ReceivedRequestController::class, 'start'])->whereNumber('id')->name('me.received-requests.start');
             Route::post('me/received-requests/{id}/propose', [ReceivedRequestController::class, 'propose'])->whereNumber('id')->name('me.received-requests.propose');
             Route::post('me/received-requests/{id}/cancel', [ReceivedRequestController::class, 'cancel'])->whereNumber('id')->name('me.received-requests.cancel');

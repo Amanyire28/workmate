@@ -8,6 +8,7 @@ use App\Models\ProviderProfile;
 use App\Models\ServiceRequest;
 use App\Models\ServiceRequestPhoto;
 use App\Services\Marketplace;
+use App\Services\Pricing;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -58,9 +59,13 @@ class JobController extends Controller
     /** @var Marketplace */
     private $marketplace;
 
-    public function __construct(Marketplace $marketplace)
+    /** @var Pricing */
+    private $pricing;
+
+    public function __construct(Marketplace $marketplace, Pricing $pricing)
     {
         $this->marketplace = $marketplace;
+        $this->pricing = $pricing;
     }
 
     /** Open jobs anyone can apply to, newest first */
@@ -91,7 +96,7 @@ class JobController extends Controller
 
     public function store(Request $request): JsonResponse
     {
-        $data = $request->validate([
+        $data = $request->validate(array_merge([
             'category' => ['required', 'string', 'exists:categories,slug'],
             'title' => ['required', 'string', 'max:150'],
             'description' => ['nullable', 'string', 'max:2000'],
@@ -100,9 +105,9 @@ class JobController extends Controller
             'workers_needed' => ['required', 'integer', 'min:1', 'max:50'],
             'budget' => ['nullable', 'integer', 'min:1000', 'max:100000000'],
             'budget_basis' => ['nullable', 'in:fixed,total,per person,per day,per hour,negotiable'],
-        ] + self::BOOKING_RULES + self::PHOTO_RULES, [
+        ], $this->pricing->budgetRules()) + self::BOOKING_RULES + self::PHOTO_RULES, [
             'budget.min' => 'Enter a budget of at least UGX 1,000, or leave it empty.',
-        ] + self::BOOKING_MESSAGES + self::PHOTO_MESSAGES);
+        ] + self::BOOKING_MESSAGES + self::PHOTO_MESSAGES + $this->pricing->budgetMessages());
 
         $job = $this->marketplace->postJob($request->user(), $data, $request->file('photos', []));
 
@@ -114,11 +119,13 @@ class JobController extends Controller
     {
         $job = ServiceRequest::findOrFail($id);
 
-        $data = $request->validate([
+        $rules = [
             'message' => ['required', 'string', 'min:20', 'max:2000'],
             'start_time' => ['required', 'string', 'max:60'],
             'amount' => ['nullable', 'integer', 'min:1000', 'max:100000000'],
-        ]);
+        ];
+        // An estimate type, the top of a range, and the skill applied with (only while pricing options are on)
+        $data = $request->validate($this->pricing->estimateRules() + $rules, $this->pricing->estimateMessages());
 
         $quotation = $this->marketplace->apply($request->user(), $job, $data);
 
@@ -129,7 +136,7 @@ class JobController extends Controller
     {
         $provider = ProviderProfile::publiclyListed()->findOrFail($providerId);
 
-        $data = $request->validate([
+        $data = $request->validate(array_merge([
             'category' => ['required', 'string'],
             'description' => ['required', 'string', 'min:15', 'max:2000'],
             'area' => ['required', 'string', 'exists:areas,slug'],
@@ -138,11 +145,26 @@ class JobController extends Controller
             'budget' => ['nullable', 'integer', 'min:1000', 'max:100000000'],
             // One of this provider's listed services, if the customer chose one
             'service' => ['nullable', 'integer'],
-        ] + self::BOOKING_RULES + self::PHOTO_RULES, self::BOOKING_MESSAGES + self::PHOTO_MESSAGES);
+        ], $this->pricing->budgetRules()) + self::BOOKING_RULES + self::PHOTO_RULES, self::BOOKING_MESSAGES + self::PHOTO_MESSAGES + $this->pricing->budgetMessages());
 
         $serviceRequest = $this->marketplace->requestProvider($request->user(), $provider, $data, $request->file('photos', []));
 
         return (new JobResource($serviceRequest->load('category', 'area', 'provider', 'photos')))->response()->setStatusCode($serviceRequest->wasRecentlyCreated ? 201 : 200);
+    }
+
+    /**
+     * What an approved provider needs to apply for an open job: the skills of theirs that fit it, which
+     * one they would apply with, and whether the app must ask. Anyone else, and any job that isn't open
+     * for applications, is "not found".
+     */
+    public function applicationOptions(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+        $job = ServiceRequest::openJobs()->findOrFail($id);
+        $profile = $user->isProvider() ? $user->providerProfile : null;
+        abort_unless($profile && $job->customer_id !== (int) $user->getKey(), 404);
+
+        return response()->json(['data' => ['pricing_enabled' => $this->pricing->enabled()] + $this->pricing->professionOptions($profile, $job)]);
     }
 
     /** A photo of the job, only for the people involved (ServiceRequest::photosVisibleTo) */
