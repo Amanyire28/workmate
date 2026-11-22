@@ -51,6 +51,17 @@
         </div>
       </section>
 
+      <!-- Real numbers from the member's own community activity, and the way into My Space -->
+      <AccountStats class="mt-3" />
+      <router-link to="/my-space" class="wm-card wm-card-link mt-3 flex items-center gap-4 !border-primary/30">
+        <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-grid-1x2"></i></span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-[15px] font-semibold text-ink">My Space</span>
+          <span class="block wm-meta">Your posts, videos and how they’re doing</span>
+        </span>
+        <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+      </router-link>
+
       <p v-if="route.query.welcome" class="wm-notice wm-notice-success mt-3" role="status">
         <i class="bi bi-check-circle" aria-hidden="true"></i>
         <span>Welcome to WorkMate! Your account is ready.</span>
@@ -362,6 +373,7 @@ import PrimaryButton from '@/components/PrimaryButton.vue';
 import ProviderApplicationPanel from '@/components/ProviderApplicationPanel.vue';
 import PushNotificationSetting from '@/components/PushNotificationSetting.vue';
 import SuggestionCard from '@/components/engagement/SuggestionCard.vue';
+import AccountStats from '@/components/space/AccountStats.vue';
 import { saved } from '@/stores/saved.js';
 import PlacePicker from '@/components/PlacePicker.vue';
 import { appSettings } from '@/stores/catalog.js';

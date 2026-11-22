@@ -51,7 +51,7 @@
           v-else
           to="/account"
           class="hidden lg:inline-flex wm-icon-btn"
-          :class="{ 'text-primary bg-primary/10': route.path.startsWith('/account') }"
+          :class="{ 'text-primary bg-primary/10': route.path.startsWith('/account') || route.path.startsWith('/my-space') }"
           aria-label="Account"
         >
           <UserAvatar v-if="auth.user?.avatar_url" :name="auth.user.name" :src="auth.user.avatar_url" :size="30" />
@@ -126,7 +126,7 @@ const navItems = [
 ];
 
 const isActive = (item) => navIsActive(route.path, item.match);
-const isAccountPage = computed(() => navIsActive(route.path, ['/account', '/saved']));
+const isAccountPage = computed(() => navIsActive(route.path, ['/account', '/saved', '/my-space']));
 
 // Come back to the current page after signing in, except from home and the
 // sign-in pages themselves (which would nest redirects)
