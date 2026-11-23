@@ -231,6 +231,18 @@ class CommissionShadow
     public function process(JobPaymentReport $report): ?CommissionShadowSnapshot
     {
         return DB::transaction(function () use ($report) {
+            $result = $this->processInside($report);
+            // Phase B6 (off by default): in the same transaction, with the request and payment still locked, the obligation follows the
+            // estimate: recorded once when it qualifies, reversed once when the payment stopped counting
+            app(CommissionAssessments::class)->sync($report->id);
+
+            return $result;
+        }, 3);
+    }
+
+    private function processInside(JobPaymentReport $report): ?CommissionShadowSnapshot
+    {
+        return DB::transaction(function () use ($report) {
             // The same order every other money action takes its locks in: the request first, then the payment. (Saving the
             // estimate also checks the request, so taking the payment first could make two actions wait for each other.)
             ServiceRequest::withTrashed()->whereKey($report->service_request_id)->lockForUpdate()->first();

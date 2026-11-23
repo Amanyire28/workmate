@@ -903,7 +903,7 @@ class CommissionShadowTest extends ApiTestCase
         $this->assertSame('in_progress', ServiceRequest::find($id)->status);
 
         // No place to hold a debt, an invoice, a balance or a payment request exists
-        foreach (['commission_assessments', 'ledger_entries', 'settlement_cycles', 'invoices', 'provider_debts', 'provider_balances', 'payment_requests', 'wallets', 'payouts', 'provider_subscriptions', 'commission_payments'] as $table) {
+        foreach (['ledger_entries', 'settlement_cycles', 'invoices', 'provider_debts', 'provider_balances', 'payment_requests', 'wallets', 'payouts', 'provider_subscriptions', 'commission_payments'] as $table) {
             $this->assertFalse(Schema::hasTable($table), "{$table} must not exist");
         }
         // A provider's account is never restricted by an estimate

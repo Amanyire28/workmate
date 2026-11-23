@@ -927,7 +927,7 @@ class PaymentReportTest extends ApiTestCase
 
     public function test_this_phase_adds_no_commission_ledger_gateway_wallet_or_debt()
     {
-        foreach (['commission_policies', 'commission_assessments', 'ledger_entries', 'settlement_cycles', 'provider_subscriptions', 'wallets', 'payouts', 'job_payments'] as $table) {
+        foreach (['commission_policies', 'ledger_entries', 'settlement_cycles', 'provider_subscriptions', 'wallets', 'payouts', 'job_payments'] as $table) {
             $this->assertFalse(Schema::hasTable($table), "$table must not exist");
         }
         [$provider, $customer, $id] = $this->priced();

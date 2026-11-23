@@ -4,7 +4,7 @@
 
     <p class="wm-notice wm-notice-warning" role="note">
       <i class="bi bi-shield-check" aria-hidden="true"></i>
-      <span><strong class="font-semibold">{{ ESTIMATE_LABEL }}.</strong> This is shadow mode: nothing is charged, no provider owes anything, and none of this is shown to providers or customers. No setting here can make an estimate collectable.</span>
+      <span><strong class="font-semibold">{{ ESTIMATE_LABEL }}.</strong> The estimates, rate rules and calculations here are a simulation: nothing is charged and none of it is shown to providers or customers. Only the Obligations tab shows recorded amounts, and only when Obligations are switched on.</span>
     </p>
 
     <!-- How the two switches stand -->
@@ -22,7 +22,7 @@
       <span>Estimates are switched off, so no new payment is being calculated. You can still prepare rate rules; nothing here affects anyone.</span>
     </p>
 
-    <div class="wm-segmented grid grid-cols-2 sm:inline-grid sm:grid-cols-4" role="tablist" aria-label="Commission estimates">
+    <div class="wm-segmented grid grid-cols-2 sm:inline-grid sm:grid-cols-5" role="tablist" aria-label="Commission estimates">
       <button v-for="t in TABS" :id="`ce-tab-${t.id}`" :key="t.id" type="button" role="tab" class="wm-segment !min-h-11" :class="{ 'is-active': tab === t.id }"
         :aria-selected="tab === t.id" :aria-controls="`ce-panel-${t.id}`" :tabindex="tab === t.id ? 0 : -1" @click="tab = t.id">{{ t.label }}</button>
     </div>
@@ -228,6 +228,43 @@
     </section>
 
     <!-- ================= Calculations ================= -->
+    <!-- ================= Obligations (B6): recorded, read only ================= -->
+    <section v-show="tab === 'obligations'" id="ce-panel-obligations" role="tabpanel" aria-labelledby="ce-tab-obligations" class="flex flex-col gap-3">
+      <p class="wm-notice wm-notice-warning" role="note"><i class="bi bi-journal-text" aria-hidden="true"></i>
+        <span><strong class="font-semibold">Recorded obligations, not estimates.</strong> These are what a provider owes WorkMate because the customer confirmed a payment (after the chosen start). They are only recorded when Obligations are switched on in Settings, nothing is collected by any system yet, and this page can’t change them.</span></p>
+      <StateBlock v-if="!obligationsLoaded && !error" kind="loading" title="Loading…" />
+      <template v-else>
+        <p v-if="!obligations.enabled" class="wm-notice wm-notice-info"><i class="bi bi-info-circle" aria-hidden="true"></i><span>Obligations are switched off, so nothing new is being recorded.</span></p>
+        <p v-else-if="!obligations.starts_at" class="wm-notice wm-notice-info"><i class="bi bi-info-circle" aria-hidden="true"></i><span>No start moment is set, so nothing is assessed yet. Payments before the start are never charged.</span></p>
+        <p v-else class="text-[13px] text-[#475569]">Payments the customer confirmed from {{ formatDateTime(obligations.starts_at) }} are assessed.</p>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <MetricCard label="Obligations recorded" :value="formatNumber(obligations.totals.assessments)" hint="One per customer-confirmed payment." />
+          <MetricCard label="Commission assessed" :value="formatUGX(obligations.totals.assessed_ugx)" hint="Before any reversals." />
+          <MetricCard label="Outstanding" :value="formatUGX(obligations.totals.outstanding_ugx)" :primary="true" hint="Assessed minus reversed. Settlement is a later phase." />
+        </div>
+        <StateBlock v-if="!obligations.items.length" title="No obligations yet" message="They appear when a customer confirms a payment after the start moment, with Obligations switched on." />
+        <div v-else class="overflow-x-auto rounded-xl wm-surface">
+          <table class="w-full min-w-[760px] text-left text-[13px]">
+            <caption class="sr-only">Recorded commission obligations</caption>
+            <thead><tr class="text-[12px] text-[#64748B]"><th scope="col" class="p-3 font-medium">Recorded</th><th scope="col" class="p-3 font-medium">Provider</th><th scope="col" class="p-3 text-right font-medium">Payment</th><th scope="col" class="p-3 text-right font-medium">Rate</th><th scope="col" class="p-3 text-right font-medium">Commission</th><th scope="col" class="p-3 text-right font-medium">Outstanding</th><th scope="col" class="p-3 font-medium">Rule · job · case</th></tr></thead>
+            <tbody class="divide-y divide-[#F1F5F9]">
+              <tr v-for="o in obligations.items" :key="o.id">
+                <td class="p-3 text-[#475569]">{{ formatDateTime(o.assessed_at) }}</td><td class="p-3 text-ink">{{ o.provider || '—' }}</td>
+                <td class="p-3 text-right">{{ formatUGX(o.payment_ugx) }}</td><td class="p-3 text-right">{{ o.rate }}</td><td class="p-3 text-right">{{ formatUGX(o.commission_ugx) }}</td>
+                <td class="p-3 text-right font-medium text-ink">{{ formatUGX(o.outstanding_ugx) }} <span v-if="o.status === 'reversed'" class="text-[12px] font-normal text-[#64748B]">(reversed)</span></td>
+                <td class="p-3 text-[#475569]">v{{ o.policy_version }} · job #{{ o.request_id }}<template v-if="o.dispute_id"> · case #{{ o.dispute_id }}</template></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-if="obligations.total > obligations.per_page" class="flex items-center justify-between text-[13px]">
+          <button type="button" class="wm-btn wm-btn-secondary !min-h-10 !rounded-lg" :disabled="obligations.page <= 1 || busy" @click="loadObligations(obligations.page - 1)">Newer</button>
+          <span class="text-[#64748B]">Page {{ obligations.page }} of {{ Math.ceil(obligations.total / obligations.per_page) }}</span>
+          <button type="button" class="wm-btn wm-btn-secondary !min-h-10 !rounded-lg" :disabled="obligations.page * obligations.per_page >= obligations.total || busy" @click="loadObligations(obligations.page + 1)">Older</button>
+        </div>
+      </template>
+    </section>
+
     <section v-show="tab === 'calculations'" id="ce-panel-calculations" role="tabpanel" aria-labelledby="ce-tab-calculations" class="flex flex-col gap-3">
       <div class="flex flex-wrap items-end gap-3">
         <label class="flex flex-col gap-1 text-[13px] font-medium text-ink">Show<select v-model="filters.status" class="h-10 rounded-lg border border-[#CBD5E1] px-2 font-normal" @change="loadSnapshots(1)"><option value="">All</option><option value="calculated">Estimated</option><option value="excluded">Not counted</option></select></label>
@@ -274,7 +311,7 @@ import {
   ESTIMATE_LABEL, bpToPercent, percentToBp, SCOPES, TIER_LABEL, STATE_LABEL, reasonLabel, blankRule, validateRule, hasErrors, ruleBody, localInput, barPercent,
 } from '../utils/commission.js';
 
-const TABS = [{ id: 'overview', label: 'Overview' }, { id: 'rules', label: 'Rate rules' }, { id: 'check', label: 'Which rate?' }, { id: 'calculations', label: 'Calculations' }];
+const TABS = [{ id: 'overview', label: 'Overview' }, { id: 'rules', label: 'Rate rules' }, { id: 'check', label: 'Which rate?' }, { id: 'calculations', label: 'Calculations' }, { id: 'obligations', label: 'Obligations' }];
 const GROUPS = [{ key: 'by_category', title: 'By service category', col: 'Category' }, { key: 'by_profession', title: 'By profession', col: 'Profession' }];
 
 const uid = useId();
@@ -438,8 +475,24 @@ async function loadSnapshots(page = 1) {
   }
 }
 
+const obligations = ref({ enabled: false, starts_at: null, totals: { assessments: 0, assessed_ugx: 0, outstanding_ugx: 0 }, items: [], page: 1, per_page: 25, total: 0 });
+const obligationsLoaded = ref(false);
+
+async function loadObligations(page = 1) {
+  busy.value = true;
+  try {
+    obligations.value = (await api(`/admin/commission/assessments?page=${page}`)).data;
+    obligationsLoaded.value = true;
+  } catch (e) {
+    error.value = e.message;
+  } finally {
+    busy.value = false;
+  }
+}
+
 function reload() {
   error.value = '';
+  loadObligations(1);
   loadSummary();
   loadPolicies();
   loadSnapshots(1);

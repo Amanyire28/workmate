@@ -259,6 +259,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // Phase B3: the final price, the payments reported and each step (each side reads only its own request)
         Route::get('me/received-requests/{id}/payments', [ReceivedRequestController::class, 'payments'])->whereNumber('id')->name('me.received-requests.payments');
         Route::get('me/requests/{id}/payments', [MyActivityController::class, 'payments'])->whereNumber('id')->name('me.requests.payments');
+        // Phase B6: the provider business's own commission obligations (owner or manager; nobody else's)
+        Route::get('me/commission', [\App\Http\Controllers\Api\V1\CommissionObligationController::class, 'mine'])->name('me.commission');
         // Phase B5: a payment dispute, for its customer and its provider business only
         Route::get('me/disputes/{id}', [\App\Http\Controllers\Api\V1\PaymentDisputeController::class, 'show'])->whereNumber('id')->name('me.disputes.show');
         Route::get('me/disputes/{id}/evidence/{uuid}', [\App\Http\Controllers\Api\V1\PaymentDisputeController::class, 'evidence'])->whereNumber('id')->where('uuid', '[0-9a-f-]{36}')->name('me.disputes.evidence');
@@ -383,6 +385,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::get('resolve', [\App\Http\Controllers\Api\V1\Admin\CommissionShadowController::class, 'resolve'])->name('resolve');
                 Route::get('options', [\App\Http\Controllers\Api\V1\Admin\CommissionShadowController::class, 'options'])->name('options');
                 Route::get('policies', [\App\Http\Controllers\Api\V1\Admin\CommissionPolicyController::class, 'index'])->name('policies');
+                // Phase B6: the recorded obligations and their ledger lines (read only)
+                Route::get('assessments', [\App\Http\Controllers\Api\V1\Admin\CommissionAssessmentController::class, 'index'])->name('assessments');
+                Route::get('assessments/{id}', [\App\Http\Controllers\Api\V1\Admin\CommissionAssessmentController::class, 'show'])->whereNumber('id')->name('assessments.show');
             });
             // ... and changing the rate rules needs commission.manage
             Route::middleware(['can:commission.manage', 'throttle:60,1'])->prefix('commission/policies')->name('commission.policies.')->group(function () {

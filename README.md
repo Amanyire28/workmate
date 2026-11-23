@@ -338,6 +338,18 @@ WorkMate can **estimate** what a commission would be on payments the customer ha
 
 Not built (by design, for a later approved phase): charging or invoicing, balances or deadlines, enforcement, any provider-facing display, a way to correct a calculated estimate by hand, and the administrator payment-dispute workflow.
 
+### Commission obligations (Phase B6) ✅ (built, OFF by default; nothing is collected)
+
+B6 turns the B4 estimate of a customer-confirmed payment into a **recorded obligation** in an append-only ledger. It reuses the B4 engine for everything about the rate (policy precedence, effective dates, rounding), never works out a rate itself, and moves no money: no gateway, no collection, no settlement, no deadline (B7).
+
+- **Three switches, all off by default:** `finance.pricing_enabled` (B3), `finance.commission_shadow_enabled` (B4) and the new `finance.commission_assessment_enabled`. An obligation is only recorded when all three are on **and** `finance.commission_assessment_from` names a moment (empty by default): only payments the customer confirmed at or after it qualify, so **old payments never become debt** and nothing is assessed until a start is chosen. Do not switch on without the written activation approval.
+- **When an obligation is recorded:** a payment the customer **explicitly confirmed** (never a provider's report, never silence), with a current B4 estimate (so a rule was in force; nothing is invented), a commission above zero, and no open dispute case on it. Waiting, questioned and withdrawn payments are never assessed; B5 administrator decisions never create one; a case the two sides settle as "received" is the customer's own confirmation, so that payment is assessed then.
+- **Tables:** `commission_assessments` (one per payment, unique; the payment, policy id and version, rate, amount; never changed) and `commission_ledger_entries` (append-only, signed whole UGX, one unique reference per event). The outstanding amount is the **sum** of a provider's entries; no balance is stored. A payment that stops counting (job cancelled or removed, payment no longer confirmed) gets **one reversal entry**; the original assessment and entry stay. Recording happens inside `CommissionShadow::process`, with the request and payment locked, so a payment is assessed once even under concurrent confirmations, cancellations and catch-ups; the hourly `workmate:commission-assess` fills gaps and reverses what stopped counting, and does nothing while the switch is off.
+- **Providers** (owner or manager only, own business only): *Your commission* on the Received tab of My Work (`GET /api/v1/me/commission`, empty while off): confirmed payments, commission recorded, outstanding, and the jobs behind it with rate and status. Waiting or questioned payments are only counted, never shown as owed.
+- **Administrators** (`commission.view`: Finance and Super Admin; read only): the **Obligations** tab on Finance → Commission Estimates, with totals, the policy version used and the dispute case, plus `GET /api/v1/admin/commission/assessments[/{id}]` with every ledger line. No permission was added, and nothing here can change an obligation.
+- **Not in B6:** waivers, promotions, eligibility groups and a profession-and-location or category-and-location precedence (no approved definition exists in the code; the B4 order Provider → Profession → Category → Place → District → Default is used), refunds or manual adjustments (B8), settlement cycles, payments of commission, reminders and overdue handling (B7), and the controlled launch (B9).
+- **Schema:** two NEW tables (`2026_11_30_000074`); no existing table changes. **Tests:** `CommissionObligationTest` (19 PHPUnit tests).
+
 ---
 
 ## Reports and complaints

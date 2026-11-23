@@ -867,7 +867,7 @@ class PriceAgreementTest extends ApiTestCase
 
     public function test_this_phase_adds_no_payment_commission_ledger_or_debt()
     {
-        foreach (['job_payments', 'commission_policies', 'commission_assessments', 'ledger_entries', 'settlement_cycles', 'provider_subscriptions'] as $table) {
+        foreach (['job_payments', 'commission_policies', 'ledger_entries', 'settlement_cycles', 'provider_subscriptions'] as $table) {
             $this->assertFalse(Schema::hasTable($table), "$table must not exist yet");
         }
         [$provider, $customer, $id] = $this->fixture();

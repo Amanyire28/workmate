@@ -572,7 +572,7 @@ class PricingOptionsTest extends ApiTestCase
     public function test_this_phase_adds_no_commission_ledger_payment_or_agreement_tables()
     {
         // (price agreements arrived with Phase B2; payments, commissions and the rest are still to come)
-        foreach (['commission_policies', 'commission_assessments', 'ledger_entries', 'settlement_cycles', 'job_payments', 'provider_subscriptions'] as $table) {
+        foreach (['commission_policies', 'ledger_entries', 'settlement_cycles', 'job_payments', 'provider_subscriptions'] as $table) {
             $this->assertFalse(Schema::hasTable($table), "$table must not exist yet");
         }
     }

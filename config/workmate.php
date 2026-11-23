@@ -191,6 +191,18 @@ return [
             'description' => 'A safety ceiling on new commission rate rules: 100 basis points = 1%, so 2000 = 20%. It is a limit, not a rate: no rate is set by it.',
             'type' => 'integer', 'min' => 100, 'max' => 5000, 'default' => 2000,
         ],
+        'finance.commission_assessment_enabled' => [
+            'group' => 'finance',
+            'label' => 'Record commission obligations (off by default)',
+            'description' => 'When on, a payment the customer confirmed (on or after the start moment below) becomes a recorded commission obligation for the provider, in an append-only ledger. Nothing is collected: no payment, gateway, deadline or penalty exists. It also needs the Pricing and Estimated-commission switches on, and it turns neither on. Do not switch on without the written activation approval.',
+            'type' => 'boolean', 'default' => false,
+        ],
+        'finance.commission_assessment_from' => [
+            'group' => 'finance',
+            'label' => 'Obligations start at (date and time)',
+            'description' => 'Only payments the customer confirmed at or after this moment can become obligations, so nothing in the past is ever charged. Empty (the default) means nothing is assessed. Example: 2026-12-01T00:00:00+03:00.',
+            'type' => 'string', 'max' => 30, 'default' => null,
+        ],
         'finance.agreement_expiry_days' => [
             'group' => 'finance',
             'label' => 'Days a price offer waits for the customer',

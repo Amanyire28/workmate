@@ -63,6 +63,7 @@
         <p v-if="actionError" class="wm-notice wm-notice-error mb-3" role="alert">
           <i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>{{ actionError }}</span>
         </p>
+        <ProviderCommissionPanel class="mb-4" />
         <MyWorkPanel v-model:stage="stage" :requests="received" class="mb-4" />
         <RecommendedForYou />
         <ul v-if="shownReceived.length" class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
@@ -252,6 +253,7 @@ import RequestPhotos from '@/components/RequestPhotos.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
 import MyWorkPanel from '@/components/work/MyWorkPanel.vue';
+import ProviderCommissionPanel from '@/components/pricing/ProviderCommissionPanel.vue';
 import SuggestionCard from '@/components/engagement/SuggestionCard.vue';
 import RecommendedForYou from '@/components/engagement/RecommendedForYou.vue';
 import ReceivedRequestCard from '@/components/work/ReceivedRequestCard.vue';
