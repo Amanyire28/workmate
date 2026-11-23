@@ -25,7 +25,7 @@
     <PriceHistory v-if="req.pricing" :path="`/me/requests/${req.id}/pricing`" />
 
     <!-- Payments the provider reported (Phase B3): the customer confirms them, or says they are not right -->
-    <PaymentSummary v-if="req.payments" :payments="req.payments" role="customer" />
+    <PaymentSummary v-if="req.payments" :payments="req.payments" role="customer" @refresh="emit('refresh')" />
     <PaymentAnswer :req="req" :provider-name="(req.provider && req.provider.display_name) || 'The provider'" @updated="emit('updated', $event)" @refresh="emit('refresh')" />
 
     <!-- A time the provider suggested -->

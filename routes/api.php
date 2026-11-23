@@ -259,6 +259,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // Phase B3: the final price, the payments reported and each step (each side reads only its own request)
         Route::get('me/received-requests/{id}/payments', [ReceivedRequestController::class, 'payments'])->whereNumber('id')->name('me.received-requests.payments');
         Route::get('me/requests/{id}/payments', [MyActivityController::class, 'payments'])->whereNumber('id')->name('me.requests.payments');
+        // Phase B5: a payment dispute, for its customer and its provider business only
+        Route::get('me/disputes/{id}', [\App\Http\Controllers\Api\V1\PaymentDisputeController::class, 'show'])->whereNumber('id')->name('me.disputes.show');
+        Route::get('me/disputes/{id}/evidence/{uuid}', [\App\Http\Controllers\Api\V1\PaymentDisputeController::class, 'evidence'])->whereNumber('id')->where('uuid', '[0-9a-f-]{36}')->name('me.disputes.evidence');
         Route::middleware('throttle:marketplace-write')->group(function () {
             Route::post('me/received-requests/{id}/accept', [ReceivedRequestController::class, 'accept'])->whereNumber('id')->name('me.received-requests.accept');
             // Bookings: start, suggest another time, cancel
@@ -276,6 +279,12 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             // Phase B3: the customer confirms a reported payment or says it is not right
             Route::post('me/requests/{id}/payments/{payment}/confirm', [MyActivityController::class, 'confirmPayment'])->whereNumber('id')->whereNumber('payment')->name('me.requests.payments.confirm');
             Route::post('me/requests/{id}/payments/{payment}/dispute', [MyActivityController::class, 'disputePayment'])->whereNumber('id')->whereNumber('payment')->name('me.requests.payments.dispute');
+            // Phase B5: write in a dispute (with evidence), ask WorkMate to step in, and suggest / agree an outcome
+            Route::post('me/disputes/{id}/messages', [\App\Http\Controllers\Api\V1\PaymentDisputeController::class, 'post'])->whereNumber('id')->name('me.disputes.messages');
+            Route::post('me/disputes/{id}/escalate', [\App\Http\Controllers\Api\V1\PaymentDisputeController::class, 'escalate'])->whereNumber('id')->name('me.disputes.escalate');
+            Route::post('me/disputes/{id}/proposal', [\App\Http\Controllers\Api\V1\PaymentDisputeController::class, 'propose'])->whereNumber('id')->name('me.disputes.propose');
+            Route::post('me/disputes/{id}/proposal/accept', [\App\Http\Controllers\Api\V1\PaymentDisputeController::class, 'accept'])->whereNumber('id')->name('me.disputes.accept');
+            Route::post('me/disputes/{id}/proposal/decline', [\App\Http\Controllers\Api\V1\PaymentDisputeController::class, 'decline'])->whereNumber('id')->name('me.disputes.decline');
             // Phase B2: the customer accepts the price, turns it down, or asks for a change
             Route::post('me/requests/{id}/agreements/{agreement}/accept', [MyActivityController::class, 'acceptPrice'])->whereNumber('id')->whereNumber('agreement')->name('me.requests.agreements.accept');
             Route::post('me/requests/{id}/agreements/{agreement}/reject', [MyActivityController::class, 'rejectPrice'])->whereNumber('id')->whereNumber('agreement')->name('me.requests.agreements.reject');
@@ -382,6 +391,17 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::post('{policy}/replace', [\App\Http\Controllers\Api\V1\Admin\CommissionPolicyController::class, 'replace'])->whereNumber('policy')->name('replace');
                 Route::post('{policy}/retire', [\App\Http\Controllers\Api\V1\Admin\CommissionPolicyController::class, 'retire'])->whereNumber('policy')->name('retire');
             });
+            // Phase B5: payment disputes. Reading: disputes.view. Taking a case, asking questions: disputes.review. Deciding: disputes.resolve.
+            Route::middleware('can:disputes.view')->group(function () {
+                Route::get('disputes', [\App\Http\Controllers\Api\V1\Admin\PaymentDisputeController::class, 'index'])->name('disputes.index');
+                Route::get('disputes/{id}', [\App\Http\Controllers\Api\V1\Admin\PaymentDisputeController::class, 'show'])->whereNumber('id')->name('disputes.show');
+                Route::get('disputes/{id}/evidence/{uuid}', [\App\Http\Controllers\Api\V1\Admin\PaymentDisputeController::class, 'evidence'])->whereNumber('id')->where('uuid', '[0-9a-f-]{36}')->name('disputes.evidence');
+            });
+            Route::middleware(['can:disputes.review', 'throttle:60,1'])->group(function () {
+                Route::post('disputes/{id}/review', [\App\Http\Controllers\Api\V1\Admin\PaymentDisputeController::class, 'review'])->whereNumber('id')->name('disputes.review');
+                Route::post('disputes/{id}/info-requests', [\App\Http\Controllers\Api\V1\Admin\PaymentDisputeController::class, 'requestInfo'])->whereNumber('id')->name('disputes.info');
+            });
+            Route::post('disputes/{id}/decision', [\App\Http\Controllers\Api\V1\Admin\PaymentDisputeController::class, 'decide'])->whereNumber('id')->middleware(['can:disputes.resolve', 'throttle:60,1'])->name('disputes.decide');
             // Phase B3: a request's final price and reported payments, read-only (finance.view)
             Route::get('requests/{id}/payments', [\App\Http\Controllers\Api\V1\Admin\RequestPaymentsController::class, 'show'])->whereNumber('id')->middleware('can:finance.view')->name('requests.payments');
             // Phase B2: a request's price negotiation, read-only

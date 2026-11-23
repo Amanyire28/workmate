@@ -67,7 +67,7 @@
         <RecommendedForYou />
         <ul v-if="shownReceived.length" class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
           <ReceivedRequestCard v-for="req in shownReceived" :key="req.id" :req="req"
-            @updated="replace" @message="messageCustomer"
+            @updated="replace" @refresh="load({ quiet: true })" @message="messageCustomer"
             @report="reportFor = { about: 'customer', name: $event.customer.name.split(' ')[0], requestId: $event.id }" />
         </ul>
         <p v-else-if="received.length" class="wm-card wm-meta">Nothing here right now. <button type="button" class="wm-link" @click="stage = ''">Show everything</button></p>
@@ -162,7 +162,7 @@
             </div>
             <!-- The final price and the payments the hired provider reported (Phase B3) -->
             <div v-if="job.workerId && job.raw.payments" class="flex flex-col gap-2">
-              <PaymentSummary :payments="job.raw.payments" role="customer" />
+              <PaymentSummary :payments="job.raw.payments" role="customer" @refresh="load({ quiet: true })" />
               <PaymentAnswer :req="job.raw" :provider-name="job.workerName || 'The provider'" @updated="onPostedUpdated" @refresh="load({ quiet: true })" />
             </div>
             <div class="mt-auto pt-3 border-t border-line flex flex-wrap items-center justify-between gap-2 text-sm text-ink">

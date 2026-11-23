@@ -30,6 +30,9 @@ return [
         'finance.view' => 'Work transactions, refunds, payouts and reconciliation',
         'commission.view' => 'View estimated (shadow) commissions and the commission rate rules. Nothing is collected',
         'commission.manage' => 'Create, replace and retire shadow commission rate rules',
+        'disputes.view' => 'See payment disputes the parties escalated, with their discussion and evidence',
+        'disputes.review' => 'Take a payment dispute into review and ask the customer or provider for more information',
+        'disputes.resolve' => 'Record the reasoned decision that closes a payment dispute',
         'content.view' => 'Moderate videos and manage content and translations',
         'comms.view' => 'Manage notifications, templates and campaigns',
         'comms.send' => 'Send push announcements to everyone who turned them on',
@@ -76,7 +79,7 @@ return [
         'finance' => [
             'name' => 'Finance Administrator',
             'description' => 'Transactions, refunds, payouts and reconciliation.',
-            'permissions' => ['dashboard.view', 'activity.view', 'finance.summary', 'finance.view', 'commission.view', 'analytics.view'],
+            'permissions' => ['dashboard.view', 'activity.view', 'finance.summary', 'finance.view', 'commission.view', 'disputes.view', 'disputes.review', 'analytics.view'],
         ],
         'trust_safety' => [
             'name' => 'Trust and Safety Moderator',

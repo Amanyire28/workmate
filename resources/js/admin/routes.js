@@ -14,6 +14,7 @@ const pages = {
     'live-presence': () => import('./pages/LivePresencePage.vue'),
     legal: () => import('./pages/LegalDocumentsPage.vue'),
     'commission-shadow': () => import('./pages/CommissionShadowPage.vue'),
+    'payment-disputes': () => import('./pages/PaymentDisputesPage.vue'),
 };
 const modulePage = () => import('./pages/ModulePage.vue');
 const tabbedPage = () => import('./pages/TabbedPage.vue');

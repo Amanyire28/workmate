@@ -11,6 +11,7 @@ use App\Models\DocumentVerification;
 use App\Models\JobPaymentReport;
 use App\Models\JobPriceAgreement;
 use App\Models\Message;
+use App\Models\PaymentDispute;
 use App\Models\ProviderApplication;
 use App\Models\ProviderMember;
 use App\Models\Quotation;
@@ -190,6 +191,82 @@ class EventNotifications
     public function paymentDisputed(JobPaymentReport $report, ServiceRequest $request, User $customer): void
     {
         $this->priceToProvider($request, $customer, 'Payment questioned', $this->firstName($request->customer).' says a payment you reported for the '.$this->service($request).' job isn’t right. Open the job to see why.', 'payment');
+    }
+
+    /**
+     * Phase B5, a payment dispute: a message, an escalation, a suggested outcome, an agreement, WorkMate taking it up, asking for
+     * more, or deciding. The words never carry an amount, what anyone wrote or what the evidence shows (these appear on lock
+     * screens); they point to the job, where the signed-in person sees the rest. $role is who acted ('customer', 'provider' or
+     * 'admin'); $to narrows an information request ('customer', 'provider' or 'both').
+     */
+    public function disputeActivity(string $event, PaymentDispute $dispute, ServiceRequest $request, ?User $actor, string $role, ?string $to = null): void
+    {
+        $service = $this->service($request);
+        $copy = [
+            'message' => ['New message about a payment', 'There is a new message about a payment question on the '.$service.' job. Open the job to read it.'],
+            'escalated' => ['WorkMate was asked to help', 'The payment question on the '.$service.' job was passed to WorkMate to review. You can still add information.'],
+            'proposed' => ['A way to settle it was suggested', 'Someone suggested how to settle the payment question on the '.$service.' job. Open the job to answer.'],
+            'agreed' => ['Payment question settled', 'You both agreed how to settle the payment question on the '.$service.' job.'],
+            'review_started' => ['WorkMate is reviewing', 'WorkMate has started reviewing the payment question on the '.$service.' job.'],
+            'info_requested' => ['WorkMate needs more information', 'WorkMate asked for more information about the payment question on the '.$service.' job. Open the job to answer.'],
+            'decided' => ['WorkMate made a decision', 'WorkMate decided the payment question on the '.$service.' job. Open the job to read the decision.'],
+        ];
+        if (! isset($copy[$event])) {
+            return;
+        }
+        [$title, $body] = $copy[$event];
+
+        // Who hears about it
+        if ($role === 'admin') {
+            $audience = in_array($to, ['customer', 'provider'], true) ? [$to] : ['customer', 'provider'];
+        } else {
+            $audience = [$role === 'customer' ? 'provider' : 'customer'];
+        }
+        $owner = optional($request->provider)->owner;
+        $actorUser = $role === 'admin' ? null : $actor;
+
+        if (in_array('customer', $audience, true)) {
+            $notice = [
+                'title' => $title, 'body' => $body,
+                'url' => ($request->isPostedJob() ? '/activity?tab=posted' : '/activity?tab=requests').'&request='.$request->id.'&dispute='.$dispute->id,
+                'tag' => 'dispute-'.$dispute->id.'-'.$event, 'important' => true,
+            ];
+            if ($actorUser) {
+                $notice += ['actor_id' => $actorUser->id, 'icon' => ($owner ?: $actorUser)->avatarPath(128)];
+            }
+            $this->send('requests', [$request->customer_id], $notice);
+        }
+        if (in_array('provider', $audience, true)) {
+            $notice = [
+                'title' => $title, 'body' => $body,
+                'url' => '/activity?tab=received&request='.$request->id.'&dispute='.$dispute->id,
+                'tag' => 'dispute-'.$dispute->id.'-'.$event, 'important' => true,
+            ];
+            if ($actorUser) {
+                $notice += ['actor_id' => $actorUser->id, 'icon' => $actorUser->avatarPath(128)];
+            }
+            $this->toProvider('requests', $request->provider_profile_id, $role === 'provider' && $actorUser ? $actorUser->id : null, $notice);
+        }
+    }
+
+    /**
+     * Phase B5: tells the people who review payment disputes (disputes.review: active Finance and Super Administrator accounts)
+     * that a case reached WorkMate. No amount, no message, no evidence: only that a case needs a look, and where.
+     */
+    public function disputeEscalatedToAdmins(PaymentDispute $dispute, ServiceRequest $request, User $by): void
+    {
+        $ids = User::where('status', User::STATUS_ACTIVE)->where('id', '!=', $by->id)
+            ->whereHas('roles.permissions', function ($q) {
+                $q->where('key', 'disputes.review');
+            })->pluck('id');
+
+        $this->send(UserNotifications::ACCOUNT, $ids, [
+            'title' => 'A payment question needs review',
+            'body' => 'A payment question on a ' . $this->service($request) . ' job was passed to WorkMate. Open Payment Disputes to take it.',
+            'url' => '/admin/finance/payment-disputes?case=' . $dispute->id,
+            'tag' => 'dispute-' . $dispute->id . '-admin-escalated', 'important' => true,
+            'actor_id' => $by->id, 'icon' => $by->avatarPath(128),
+        ]);
     }
 
     private function priceToCustomer(ServiceRequest $request, User $by, string $title, string $body, string $tag = 'price'): void

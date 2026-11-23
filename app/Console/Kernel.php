@@ -22,6 +22,8 @@ class Kernel extends ConsoleKernel
         // SHADOW mode (off by default): estimated commissions for customer-confirmed payments, and a fresh look when a rate rule changed.
         // Estimates only: nothing is charged, owed or sent. Repeated runs change nothing that already exists.
         $schedule->command('workmate:commission-shadow')->hourly()->withoutOverlapping(30);
+        // Payment disputes made before cases existed get one (never escalated, never announced); a run with nothing to do changes nothing
+        $schedule->command('workmate:disputes-backfill')->hourly()->withoutOverlapping(30);
         // Price proposals nobody answered in time are expired (never agreed); each is expired once, so repeated runs are harmless
         $schedule->command('workmate:expire-price-proposals')->hourly()->withoutOverlapping(30);
         // Grouped like and follow pushes, quiet-hours summaries and push retries (only while notifications.smart_push is on).

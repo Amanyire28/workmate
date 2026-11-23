@@ -25,14 +25,20 @@
           <p v-if="r.response_note" class="text-ink">{{ role === 'provider' ? 'The customer wrote' : 'You wrote' }}: “{{ r.response_note }}”</p>
           <p v-if="r.cancel_reason" class="text-ink">{{ role === 'provider' ? 'You wrote' : 'The provider wrote' }}: “{{ r.cancel_reason }}”</p>
           <p v-if="r.corrects_id" class="text-[12.5px] text-muted">This replaces an earlier report.</p>
+          <button v-if="r.dispute" type="button" class="wm-btn wm-btn-tint !min-h-11 mt-1 w-full" @click="openId = r.dispute.id">
+            <i class="bi bi-chat-left-text" aria-hidden="true"></i>{{ r.dispute.status === 'resolved' ? 'See how the payment question ended' : 'Open the payment question' }}
+          </button>
         </li>
       </ol>
     </details>
+    <DisputePanel :open="!!openId" :dispute-id="openId" @close="closeDispute" @changed="changed = true" />
   </section>
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useRoute } from 'vue-router';
+import DisputePanel from '@/components/pricing/DisputePanel.vue';
 import { ugx, methodLabel, paymentWords, paymentLines, priceLine, shortDate, uncorrectedReports } from '@/utils/pricing.js';
 
 const props = defineProps({
@@ -42,6 +48,21 @@ const props = defineProps({
   role: { type: String, default: 'customer' },
 });
 
+const emit = defineEmits(['refresh']);
+const route = useRoute();
+// The case that is open (from the button, or from a notification that points at it)
+const openId = ref(null);
+const changed = ref(false);
+const dismissed = ref(null);
+const closeDispute = () => {
+  dismissed.value = openId.value;
+  openId.value = null;
+  if (changed.value) {
+    changed.value = false;
+    emit('refresh');
+  }
+};
+
 const TEXT = { success: 'text-success', info: 'text-primary', warning: 'text-[#92400E]', neutral: 'text-muted' };
 
 const reports = computed(() => (props.payments && props.payments.reports) || []);
@@ -50,7 +71,12 @@ const lines = computed(() => paymentLines(props.payments, props.role));
 // the customer is asked about waiting reports separately, and their own totals already say what they confirmed or questioned, so for them it stays closed
 const attention = computed(() => (props.role === 'provider'
   ? reports.value.some((r) => r.status === 'pending_confirmation' || r.status === 'disputed') || uncorrectedReports(props.payments).length > 0
-  : false));
+  : reports.value.some((r) => r.dispute && r.dispute.status !== 'resolved')));
 const price = computed(() => priceLine(props.payments));
 const words = (r) => paymentWords(r.status, props.role);
+
+watch(() => [route.query.dispute, props.payments], () => {
+  const wanted = Number(route.query.dispute);
+  if (wanted && reports.value.some((r) => r.dispute && r.dispute.id === wanted) && openId.value === null && dismissed.value !== wanted) openId.value = wanted;
+}, { immediate: true });
 </script>

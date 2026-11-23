@@ -182,6 +182,10 @@ class PaymentReports
 
             $was = $report->status;
             $this->move($report, JobPaymentReport::CANCELLED, ['cancelled_by_user_id' => $user->getKey(), 'cancelled_at' => now(), 'cancel_reason' => $reason], 'cancelled', $user, 'provider', $reason);
+            if ($was === JobPaymentReport::DISPUTED) {
+                // Phase B5: taking a disputed report back ends its case
+                app(PaymentDisputes::class)->reportWithdrawn($report, $user);
+            }
             $this->notify->paymentCancelled($report, $request, $user, $was);
 
             return $report;
@@ -240,10 +244,25 @@ class PaymentReports
             $this->guardCanAnswer($report);
 
             $this->move($report, JobPaymentReport::DISPUTED, ['responded_by_user_id' => $customer->getKey(), 'responded_at' => now(), 'response_note' => $note], 'disputed', $customer, 'customer', $note);
+            // Phase B5: the dispute becomes a case both sides can talk in and either can escalate (one case per report)
+            app(PaymentDisputes::class)->opened($report, $customer, $note);
             $this->notify->paymentDisputed($report, $request, $customer);
 
             return $report;
         });
+    }
+
+    /**
+     * Phase B5: a DISPUTED report moves on because its dispute was settled (both sides agreed, or an administrator decided it).
+     * Only from disputed, only to confirmed or cancelled, and written to the payment history and audit log like every other step.
+     * Used by App\Services\PaymentDisputes inside its own transaction (the request and the report are already locked).
+     */
+    public function settleDisputed(JobPaymentReport $report, string $to, array $fields, string $event, ?User $actor, string $role, ?string $note): void
+    {
+        if ($report->status !== JobPaymentReport::DISPUTED || ! in_array($to, [JobPaymentReport::CONFIRMED, JobPaymentReport::CANCELLED], true)) {
+            throw new BusinessRuleException('report_changed', 'The payment report is no longer in question.', 409);
+        }
+        $this->move($report, $to, $fields, $event, $actor, $role, $note);
     }
 
     /* ---------------- What the apps are shown ---------------- */
@@ -292,9 +311,9 @@ class PaymentReports
             'agreed_amount' => $agreed ? $agreed->amount_ugx : null,
             'final_price' => FinalPrices::present($final),
             'totals' => self::totals($reports, $final ? (int) $final->amount_ugx : null),
-            'reports' => $reports->sortBy('id')->map(function (JobPaymentReport $p) {
+            'reports' => PaymentDisputes::attach($reports->sortBy('id')->map(function (JobPaymentReport $p) {
                 return self::present($p);
-            })->values()->all(),
+            })->values()->all()),
         ];
     }
 
@@ -330,9 +349,9 @@ class PaymentReports
                 return FinalPrices::present($f) + ['status' => $f->status];
             })->values()->all(),
             'totals' => self::totals($reports, $currentFinal ? (int) $currentFinal->amount_ugx : null),
-            'reports' => $reports->map(function (JobPaymentReport $p) {
+            'reports' => PaymentDisputes::attach($reports->map(function (JobPaymentReport $p) {
                 return self::present($p);
-            })->values()->all(),
+            })->values()->all()),
             'events' => JobPaymentEvent::where('service_request_id', $request->id)->orderBy('id')->get()->map(function (JobPaymentEvent $e) {
                 return [
                     'event' => $e->event, 'by' => $e->actor_role, 'payment_id' => $e->payment_id, 'from' => $e->from_status, 'to' => $e->to_status,

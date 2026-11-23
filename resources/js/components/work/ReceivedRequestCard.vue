@@ -48,7 +48,7 @@
     <PriceHistory v-if="req.pricing" :path="`/me/received-requests/${req.id}/pricing`" />
 
     <!-- The final price and the payments reported (Phase B3): a payment counts as paid only once the customer confirms it -->
-    <PaymentSummary v-if="req.payments" :payments="req.payments" role="provider" />
+    <PaymentSummary v-if="req.payments" :payments="req.payments" role="provider" @refresh="emit('refresh')" />
 
     <!-- Inspection first: said by the business owner or a manager; nothing is priced by it -->
     <p v-if="req.inspection_required" class="flex items-start gap-2 rounded-xl bg-[#FFFBEB] px-3 py-2 text-[13.5px] text-[#92400E]">
@@ -174,7 +174,7 @@ import { formatDay, formatTime, formatShort, providerStatus, directionsUrl, TIME
 const props = defineProps({
   req: { type: Object, required: true },
 });
-const emit = defineEmits(['updated', 'message', 'report']);
+const emit = defineEmits(['updated', 'message', 'report', 'refresh']);
 
 const busy = ref(false);
 const error = ref('');
