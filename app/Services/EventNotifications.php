@@ -269,6 +269,45 @@ class EventNotifications
         ]);
     }
 
+    /**
+     * Phase B7, commission settlement reminders and decisions. Providers' owners and managers hear about their own cycle and payments;
+     * administrators with settlements.verify hear that a payment needs checking. The words never carry an amount, a reference or a
+     * reason (they appear on lock screens); the signed-in person reads the rest in the app. Each one is sent once (the caller claims a key).
+     */
+    public function settlement(string $kind, int $providerId, ?int $cycleId, ?int $paymentId, ?User $actor = null): void
+    {
+        $copy = [
+            'three_jobs' => ['Your commission is due', 'You have reached three jobs with commission. Open My Work to see what to settle.'],
+            'approaching' => ['Commission due soon', 'A commission settlement is due within a day. Open My Work to see it.'],
+            'overdue' => ['Commission overdue', 'A commission settlement is past its deadline. Open My Work to see it.'],
+            'payment_verified' => ['Commission payment verified', 'WorkMate checked and recorded your commission payment. Open My Work to see your balance.'],
+            'payment_rejected' => ['Commission payment not accepted', 'WorkMate could not accept a commission payment you reported. Open My Work to see why.'],
+            'payment_awaiting' => ['A commission payment needs checking', 'A provider reported paying commission. Open Settlements to check it.'],
+        ];
+        if (! isset($copy[$kind])) {
+            return;
+        }
+        [$title, $body] = $copy[$kind];
+
+        if ($kind === 'payment_awaiting') {
+            $ids = User::where('status', User::STATUS_ACTIVE)->whereHas('roles.permissions', function ($q) {
+                $q->where('key', 'settlements.verify');
+            })->pluck('id');
+            $this->send(UserNotifications::ACCOUNT, $ids, [
+                'title' => $title, 'body' => $body, 'url' => '/admin/finance/settlements?payment='.$paymentId,
+                'tag' => 'commission-payment-'.$paymentId, 'important' => true,
+            ]);
+
+            return;
+        }
+
+        $members = ProviderMember::where('provider_profile_id', $providerId)->whereIn('role', [ProviderMember::ROLE_OWNER, ProviderMember::ROLE_MANAGER])->pluck('user_id');
+        $this->send(UserNotifications::ACCOUNT, $members, [
+            'title' => $title, 'body' => $body, 'url' => '/activity?tab=received',
+            'tag' => 'commission-'.$kind.'-'.($paymentId ?: $cycleId), 'important' => true,
+        ]);
+    }
+
     private function priceToCustomer(ServiceRequest $request, User $by, string $title, string $body, string $tag = 'price'): void
     {
         $owner = optional($request->provider)->owner;

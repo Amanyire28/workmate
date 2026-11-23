@@ -203,6 +203,30 @@ return [
             'description' => 'Only payments the customer confirmed at or after this moment can become obligations, so nothing in the past is ever charged. Empty (the default) means nothing is assessed. Example: 2026-12-01T00:00:00+03:00.',
             'type' => 'string', 'max' => 30, 'default' => null,
         ],
+        'finance.commission_settlement_enabled' => [
+            'group' => 'finance',
+            'label' => 'Commission settlement (off by default)',
+            'description' => 'When on, recorded commission obligations are grouped into settlement cycles with due dates, providers can report paying WorkMate, and finance can verify those payments into the ledger. Nothing is collected automatically and no penalty, suspension or deduction exists. Do not switch on without the written activation approval.',
+            'type' => 'boolean', 'default' => false,
+        ],
+        'finance.commission_payment_instructions' => [
+            'group' => 'finance',
+            'label' => 'How providers pay WorkMate commission',
+            'description' => 'Shown to providers exactly as written, only when filled in. Put WorkMate’s approved receiving details here (mobile money number or merchant code, bank account). Empty (the default): no instructions are shown and none are invented.',
+            'type' => 'string', 'max' => 500, 'default' => null,
+        ],
+        'finance.commission_accepts_cash' => [
+            'group' => 'finance',
+            'label' => 'Accept cash commission payments',
+            'description' => 'Only switch on if an approved way of collecting cash exists. Off (the default): providers can only report mobile money or bank payments.',
+            'type' => 'boolean', 'default' => false,
+        ],
+        'finance.settlement_three_job_window_hours' => [
+            'group' => 'finance',
+            'label' => 'Hours to pay after the third job (0 = none)',
+            'description' => 'A cycle that reaches three jobs is due at once. With 0 (the default) it only becomes overdue at the seven-day limit; a number of hours here makes it overdue that long after the third job. Not approved yet: leave at 0.',
+            'type' => 'integer', 'min' => 0, 'max' => 720, 'default' => 0,
+        ],
         'finance.agreement_expiry_days' => [
             'group' => 'finance',
             'label' => 'Days a price offer waits for the customer',

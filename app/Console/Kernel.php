@@ -26,6 +26,8 @@ class Kernel extends ConsoleKernel
         $schedule->command('workmate:disputes-backfill')->hourly()->withoutOverlapping(30);
         // Commission obligations (off by default): records any that were missed and reverses any whose payment stopped counting
         $schedule->command('workmate:commission-assess')->hourly()->withoutOverlapping(30);
+        // Commission settlement (off by default): puts obligations in their cycles and sends each due reminder once
+        $schedule->command('workmate:commission-settlements')->hourly()->withoutOverlapping(30);
         // Price proposals nobody answered in time are expired (never agreed); each is expired once, so repeated runs are harmless
         $schedule->command('workmate:expire-price-proposals')->hourly()->withoutOverlapping(30);
         // Grouped like and follow pushes, quiet-hours summaries and push retries (only while notifications.smart_push is on).

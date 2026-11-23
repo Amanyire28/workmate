@@ -126,6 +126,8 @@ class CommissionAssessments
             'commission_ugx' => $s->commission_ugx, 'assessed_at' => now(),
         ])->save();
         $this->entry($assessment, CommissionLedgerEntry::ASSESSMENT, (int) $s->commission_ugx, null, 'assess:'.$report->id);
+        // Phase B7 (off by default): the obligation joins its settlement cycle, in the same transaction
+        app(CommissionSettlements::class)->allocate($assessment);
         $this->audit->record('commission.obligation_assessed', $assessment, [], [
             'payment_report_id' => $report->id, 'provider_profile_id' => $report->provider_profile_id, 'amount_ugx' => (int) $s->amount_ugx,
             'rate_bp' => (int) $s->rate_bp, 'policy_id' => (int) $s->policy_id, 'policy_version' => (int) $s->policy_version, 'commission_ugx' => (int) $s->commission_ugx,
@@ -144,6 +146,8 @@ class CommissionAssessments
         $dispute = PaymentDispute::where('payment_report_id', $assessment->payment_report_id)->value('id');
         $this->entry($assessment, CommissionLedgerEntry::REVERSAL, -$open, mb_substr($reason, 0, 40), 'reverse:'.$assessment->id, $dispute ? (int) $dispute : null);
         $this->audit->record('commission.obligation_reversed', $assessment, ['outstanding_ugx' => $open], ['outstanding_ugx' => 0], $reason, null);
+        // Phase B7: if verified payments now exceed what is owed, that is recorded as an exception for reconciliation (nothing is refunded)
+        app(CommissionSettlements::class)->reconcileProvider((int) $assessment->provider_profile_id);
     }
 
     private function entry(CommissionAssessment $a, string $type, int $amount, ?string $reason, string $reference, ?int $dispute = null): void
@@ -217,7 +221,7 @@ class CommissionAssessments
     public function forProvider(User $user): ?array
     {
         $ids = $this->providerIdsFor($user);
-        if (! $this->enabled() || ! $ids) {
+        if ((! $this->enabled() && ! app(CommissionSettlements::class)->enabled()) || ! $ids) {
             return null;
         }
         $assessments = CommissionAssessment::whereIn('provider_profile_id', $ids)->orderByDesc('id')->limit(100)->get();
@@ -232,7 +236,10 @@ class CommissionAssessments
             'confirmed_payments_ugx' => (int) CommissionAssessment::whereIn('provider_profile_id', $ids)->sum('amount_ugx'),
             'assessed_ugx' => $assessed,
             'reversed_ugx' => $reversed,
+            'settled_ugx' => -(int) CommissionLedgerEntry::whereIn('provider_profile_id', $ids)->where('entry_type', CommissionLedgerEntry::SETTLEMENT)->sum('amount_ugx'),
             'outstanding_ugx' => $total,
+            // Phase B7 (null while settlement is off): cycles, due dates, payment reports and how to pay
+            'settlement' => app(CommissionSettlements::class)->forProvider($ids),
             // Not part of any obligation: they are not confirmed, so nothing is owed on them yet
             'not_counted' => [
                 'waiting_for_customer' => JobPaymentReport::whereIn('provider_profile_id', $ids)->where('status', JobPaymentReport::PENDING)->count(),

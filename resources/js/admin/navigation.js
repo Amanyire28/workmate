@@ -111,6 +111,8 @@ export const navGroups = [
         items: [
             { id: 'commission-shadow', label: 'Commission Estimates', path: '/admin/finance/commission-estimates', permission: 'commission.view',
               summary: 'Estimated commission on customer-confirmed payments, and the rate rules behind it. Estimated, not collected.' },
+            { id: 'settlements', label: 'Commission Settlements', path: '/admin/finance/settlements', permission: 'settlements.view',
+              summary: 'Settlement cycles, commission payments providers report, and the checks that turn a report into a credit.' },
             { id: 'payment-disputes', label: 'Payment Disputes', path: '/admin/finance/payment-disputes', permission: 'disputes.view',
               summary: 'Cases the customer and provider could not settle, with the evidence, a reasoned decision and a full audit trail.' },
             { id: 'finance-overview', label: 'Financial Overview', hidden: true, path: '/admin/finance/overview', permission: 'finance.view',

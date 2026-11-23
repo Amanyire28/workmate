@@ -10,12 +10,14 @@ class CommissionLedgerEntry extends Model
 {
     public const ASSESSMENT = 'assessment';
     public const REVERSAL = 'reversal';
+    /** Phase B7: a verified commission payment taking some of what is owed away (negative, belongs to a cycle and a payment, not to one assessment) */
+    public const SETTLEMENT = 'settlement';
 
     public $timestamps = false;
 
     protected $guarded = ['*'];
 
-    protected $casts = ['assessment_id' => 'integer', 'provider_profile_id' => 'integer', 'amount_ugx' => 'integer', 'dispute_id' => 'integer', 'actor_id' => 'integer', 'created_at' => 'datetime'];
+    protected $casts = ['assessment_id' => 'integer', 'cycle_id' => 'integer', 'commission_payment_id' => 'integer', 'provider_profile_id' => 'integer', 'amount_ugx' => 'integer', 'dispute_id' => 'integer', 'actor_id' => 'integer', 'created_at' => 'datetime'];
 
     protected static function booted()
     {

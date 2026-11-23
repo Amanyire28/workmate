@@ -25,6 +25,8 @@ export const PERMISSIONS = {
     'disputes.view':      'See payment disputes the parties escalated, with their discussion and evidence',
     'disputes.review':    'Take a payment dispute into review and ask the customer or provider for more information',
     'disputes.resolve':   'Record the reasoned decision that closes a payment dispute',
+    'settlements.view':   'See commission settlement cycles, reported commission payments and reconciliation exceptions',
+    'settlements.verify': 'Verify or reject a commission payment a provider reported (confirming it really arrived)',
     'content.view':       'Moderate videos and manage content and translations',
     'comms.view':         'Manage notifications, templates and campaigns',
     'comms.send':         'Send push announcements to everyone who turned them on',
@@ -70,7 +72,7 @@ export const ROLES = [
     {
         id: 'finance', label: 'Finance Administrator',
         description: 'Transactions, refunds, payouts and reconciliation.',
-        permissions: ['dashboard.view', 'activity.view', 'finance.summary', 'finance.view', 'commission.view', 'disputes.view', 'disputes.review', 'analytics.view'],
+        permissions: ['dashboard.view', 'activity.view', 'finance.summary', 'finance.view', 'commission.view', 'disputes.view', 'disputes.review', 'settlements.view', 'settlements.verify', 'analytics.view'],
     },
     {
         id: 'trust_safety', label: 'Trust and Safety Moderator',
@@ -110,6 +112,7 @@ export const RECORD_ACCESS = [
     ['Refunds and payouts',          { view: 'finance.view', approve: 'finance.view', export: 'finance.view' }],
     ['Commission estimates (shadow)', { view: 'commission.view', edit: 'commission.manage' }],
     ['Payment disputes',             { view: 'disputes.view', edit: 'disputes.review', approve: 'disputes.resolve' }],
+    ['Commission settlements',       { view: 'settlements.view', approve: 'settlements.verify' }],
     ['Disputes and reports',         { view: 'trust.view', edit: 'trust.view', approve: 'trust.view' }],
     ['Videos, reviews and content',  { view: 'content.view', create: 'content.view', edit: 'content.view', approve: 'content.view', delete: 'content.view' }],
     ['Templates and campaigns',      { view: 'comms.view', create: 'comms.view', edit: 'comms.view' }],

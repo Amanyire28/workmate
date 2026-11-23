@@ -15,6 +15,7 @@ const pages = {
     legal: () => import('./pages/LegalDocumentsPage.vue'),
     'commission-shadow': () => import('./pages/CommissionShadowPage.vue'),
     'payment-disputes': () => import('./pages/PaymentDisputesPage.vue'),
+    settlements: () => import('./pages/SettlementsPage.vue'),
 };
 const modulePage = () => import('./pages/ModulePage.vue');
 const tabbedPage = () => import('./pages/TabbedPage.vue');

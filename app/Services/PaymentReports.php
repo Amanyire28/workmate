@@ -154,7 +154,7 @@ class PaymentReports
             $this->notify->paymentReported($report, $request, $user);
 
             return $report;
-        });
+        }, 3);   // a lock clash with another payment of the same business (the bell insert) rolls this one back whole: it is tried again, never half done
     }
 
     /**
@@ -189,7 +189,7 @@ class PaymentReports
             $this->notify->paymentCancelled($report, $request, $user, $was);
 
             return $report;
-        });
+        }, 3);   // a lock clash with another payment of the same business (the bell insert) rolls this one back whole: it is tried again, never half done
     }
 
     /* ---------------- The customer ---------------- */
@@ -218,7 +218,7 @@ class PaymentReports
             $this->notify->paymentConfirmed($report, $request, $customer);
 
             return $report;
-        });
+        }, 3);   // a lock clash with another payment of the same business (the bell insert) rolls this one back whole: it is tried again, never half done
 
         // Shadow mode (off by default): the estimated commission of this confirmed payment. It runs after the confirmation is
         // saved and can never change or undo it; a problem there is only logged (a scheduled catch-up does it again).
@@ -249,7 +249,7 @@ class PaymentReports
             $this->notify->paymentDisputed($report, $request, $customer);
 
             return $report;
-        });
+        }, 3);   // a lock clash with another payment of the same business (the bell insert) rolls this one back whole: it is tried again, never half done
     }
 
     /**

@@ -231,6 +231,14 @@ class CommissionShadow
     public function process(JobPaymentReport $report): ?CommissionShadowSnapshot
     {
         return DB::transaction(function () use ($report) {
+            // With obligations on, the provider is locked up front too (request, payment, provider: always this order). Saving the estimate
+            // and the obligation both check the provider row, so two payments of one provider that each took a shared check first and then
+            // wanted the lock would wait for each other.
+            if (app(CommissionAssessments::class)->enabled()) {
+                ServiceRequest::withTrashed()->whereKey($report->service_request_id)->lockForUpdate()->first();
+                JobPaymentReport::whereKey($report->id)->lockForUpdate()->first();
+                ProviderProfile::withTrashed()->whereKey($report->provider_profile_id)->lockForUpdate()->first();
+            }
             $result = $this->processInside($report);
             // Phase B6 (off by default): in the same transaction, with the request and payment still locked, the obligation follows the
             // estimate: recorded once when it qualifies, reversed once when the payment stopped counting

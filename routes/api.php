@@ -261,6 +261,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::get('me/requests/{id}/payments', [MyActivityController::class, 'payments'])->whereNumber('id')->name('me.requests.payments');
         // Phase B6: the provider business's own commission obligations (owner or manager; nobody else's)
         Route::get('me/commission', [\App\Http\Controllers\Api\V1\CommissionObligationController::class, 'mine'])->name('me.commission');
+        // Phase B7: report paying WorkMate commission (a statement: it credits nothing until finance verifies it), and read your own proof
+        Route::post('me/commission/payments', [\App\Http\Controllers\Api\V1\CommissionObligationController::class, 'report'])->middleware('throttle:marketplace-write')->name('me.commission.payments.store');
+        Route::get('me/commission/payments/{id}/evidence', [\App\Http\Controllers\Api\V1\CommissionObligationController::class, 'evidence'])->whereNumber('id')->name('me.commission.payments.evidence');
         // Phase B5: a payment dispute, for its customer and its provider business only
         Route::get('me/disputes/{id}', [\App\Http\Controllers\Api\V1\PaymentDisputeController::class, 'show'])->whereNumber('id')->name('me.disputes.show');
         Route::get('me/disputes/{id}/evidence/{uuid}', [\App\Http\Controllers\Api\V1\PaymentDisputeController::class, 'evidence'])->whereNumber('id')->where('uuid', '[0-9a-f-]{36}')->name('me.disputes.evidence');
@@ -395,6 +398,18 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::post('/', [\App\Http\Controllers\Api\V1\Admin\CommissionPolicyController::class, 'store'])->name('store');
                 Route::post('{policy}/replace', [\App\Http\Controllers\Api\V1\Admin\CommissionPolicyController::class, 'replace'])->whereNumber('policy')->name('replace');
                 Route::post('{policy}/retire', [\App\Http\Controllers\Api\V1\Admin\CommissionPolicyController::class, 'retire'])->whereNumber('policy')->name('retire');
+            });
+            // Phase B7: commission settlements. Reading: settlements.view. Verifying or rejecting a reported payment: settlements.verify.
+            Route::middleware('can:settlements.view')->prefix('settlements')->name('settlements.')->group(function () {
+                Route::get('cycles', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'cycles'])->name('cycles');
+                Route::get('cycles/{id}', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'cycle'])->whereNumber('id')->name('cycle');
+                Route::get('payments', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'payments'])->name('payments');
+                Route::get('payments/{id}/evidence', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'evidence'])->whereNumber('id')->name('payments.evidence');
+                Route::get('exceptions', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'exceptions'])->name('exceptions');
+            });
+            Route::middleware(['can:settlements.verify', 'throttle:60,1'])->prefix('settlements')->name('settlements.')->group(function () {
+                Route::post('payments/{id}/verify', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'verify'])->whereNumber('id')->name('payments.verify');
+                Route::post('payments/{id}/reject', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'reject'])->whereNumber('id')->name('payments.reject');
             });
             // Phase B5: payment disputes. Reading: disputes.view. Taking a case, asking questions: disputes.review. Deciding: disputes.resolve.
             Route::middleware('can:disputes.view')->group(function () {
