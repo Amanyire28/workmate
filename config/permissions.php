@@ -28,6 +28,8 @@ return [
         'trust.view' => 'Work trust and safety cases',
         'finance.summary' => 'See headline revenue figures',
         'finance.view' => 'Work transactions, refunds, payouts and reconciliation',
+        'commission.view' => 'View estimated (shadow) commissions and the commission rate rules. Nothing is collected',
+        'commission.manage' => 'Create, replace and retire shadow commission rate rules',
         'content.view' => 'Moderate videos and manage content and translations',
         'comms.view' => 'Manage notifications, templates and campaigns',
         'comms.send' => 'Send push announcements to everyone who turned them on',
@@ -74,7 +76,7 @@ return [
         'finance' => [
             'name' => 'Finance Administrator',
             'description' => 'Transactions, refunds, payouts and reconciliation.',
-            'permissions' => ['dashboard.view', 'activity.view', 'finance.summary', 'finance.view', 'analytics.view'],
+            'permissions' => ['dashboard.view', 'activity.view', 'finance.summary', 'finance.view', 'commission.view', 'analytics.view'],
         ],
         'trust_safety' => [
             'name' => 'Trust and Safety Moderator',

@@ -73,7 +73,7 @@ class ApiConventionsTest extends ApiTestCase
             ->assertOk()
             ->assertJsonPath('data.id', $user->id)
             ->assertJsonPath('data.roles', ['finance'])
-            ->assertJsonPath('data.permissions', ['activity.view', 'analytics.view', 'dashboard.view', 'finance.summary', 'finance.view']);
+            ->assertJsonPath('data.permissions', ['activity.view', 'analytics.view', 'commission.view', 'dashboard.view', 'finance.summary', 'finance.view']);
 
         $this->assertArrayNotHasKey('password', $response->json('data'));
         $this->assertArrayNotHasKey('remember_token', $response->json('data'));

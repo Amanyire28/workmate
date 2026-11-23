@@ -179,6 +179,18 @@ return [
             'description' => 'Lets customers give a fixed, range or negotiable budget, providers give a fixed, range or “inspection first” estimate and list a price range, and providers mark a job as needing inspection. Off: everything works as before. This only records what people say; it never charges or collects anything.',
             'type' => 'boolean', 'default' => false, 'public' => true,
         ],
+        'finance.commission_shadow_enabled' => [
+            'group' => 'finance',
+            'label' => 'Calculate estimated commissions (shadow mode)',
+            'description' => 'Works out what WorkMate could earn from payments the customer confirmed, using the commission rate rules. Every figure is an ESTIMATE, not collected: nothing is charged, no provider owes anything, and nothing is shown to providers or customers. Off by default, and independent of the Pricing switch: it never turns payment reporting on, and no setting makes a commission enforceable.',
+            'type' => 'boolean', 'default' => false,
+        ],
+        'finance.commission_max_bp' => [
+            'group' => 'finance',
+            'label' => 'Highest commission rate a rule may have (basis points)',
+            'description' => 'A safety ceiling on new commission rate rules: 100 basis points = 1%, so 2000 = 20%. It is a limit, not a rate: no rate is set by it.',
+            'type' => 'integer', 'min' => 100, 'max' => 5000, 'default' => 2000,
+        ],
         'finance.agreement_expiry_days' => [
             'group' => 'finance',
             'label' => 'Days a price offer waits for the customer',

@@ -58,8 +58,12 @@ class PaymentReports
     /** @var FinalPrices */
     private $finalPrices;
 
-    public function __construct(Pricing $pricing, AuditLogger $audit, EventNotifications $notify, FinalPrices $finalPrices)
+    /** @var CommissionShadow */
+    private $shadow;
+
+    public function __construct(Pricing $pricing, AuditLogger $audit, EventNotifications $notify, FinalPrices $finalPrices, CommissionShadow $shadow)
     {
+        $this->shadow = $shadow;
         $this->pricing = $pricing;
         $this->audit = $audit;
         $this->notify = $notify;
@@ -194,7 +198,7 @@ class PaymentReports
     {
         $this->guardEnabled();
 
-        return DB::transaction(function () use ($customer, $requestId, $paymentId, $amount) {
+        $report = DB::transaction(function () use ($customer, $requestId, $paymentId, $amount) {
             $request = $this->lockForCustomer($customer, $requestId);
             $report = $this->find($request, $paymentId);
 
@@ -211,6 +215,13 @@ class PaymentReports
 
             return $report;
         });
+
+        // Shadow mode (off by default): the estimated commission of this confirmed payment. It runs after the confirmation is
+        // saved and can never change or undo it; a problem there is only logged (a scheduled catch-up does it again).
+        // Nobody is notified and nothing is owed.
+        $this->shadow->processQuietly($report);
+
+        return $report;
     }
 
     /** "It isn't right": the customer disputes the report. It stays disputed; nobody can resolve it for them here. */

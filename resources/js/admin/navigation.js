@@ -109,6 +109,8 @@ export const navGroups = [
     {
         id: 'finance', label: 'Finance', icon: 'bi-cash-stack',
         items: [
+            { id: 'commission-shadow', label: 'Commission Estimates', path: '/admin/finance/commission-estimates', permission: 'commission.view',
+              summary: 'Estimated commission on customer-confirmed payments, and the rate rules behind it. Estimated, not collected.' },
             { id: 'finance-overview', label: 'Financial Overview', hidden: true, path: '/admin/finance/overview', permission: 'finance.view',
               summary: 'Gross transaction value, commission, refunds, fees and net revenue kept as separate figures.' },
             { id: 'transactions', label: 'Transactions', hidden: true, path: '/admin/finance/transactions', permission: 'finance.view',

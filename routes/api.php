@@ -367,6 +367,21 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::get('data', AdminDataController::class)->middleware('can:admin-access')->name('data');
             // Live updates: a cheap fingerprint the admin checks every few seconds
             Route::get('pulse', AdminPulseController::class)->middleware(['can:admin-access', 'throttle:admin-pulse'])->name('pulse');
+            // Phase B4, SHADOW commissions (estimates only, nothing is collected): reading needs commission.view ...
+            Route::middleware('can:commission.view')->prefix('commission')->name('commission.')->group(function () {
+                Route::get('summary', [\App\Http\Controllers\Api\V1\Admin\CommissionShadowController::class, 'summary'])->name('summary');
+                Route::get('snapshots', [\App\Http\Controllers\Api\V1\Admin\CommissionShadowController::class, 'snapshots'])->name('snapshots');
+                Route::get('resolve', [\App\Http\Controllers\Api\V1\Admin\CommissionShadowController::class, 'resolve'])->name('resolve');
+                Route::get('options', [\App\Http\Controllers\Api\V1\Admin\CommissionShadowController::class, 'options'])->name('options');
+                Route::get('policies', [\App\Http\Controllers\Api\V1\Admin\CommissionPolicyController::class, 'index'])->name('policies');
+            });
+            // ... and changing the rate rules needs commission.manage
+            Route::middleware(['can:commission.manage', 'throttle:60,1'])->prefix('commission/policies')->name('commission.policies.')->group(function () {
+                Route::post('simulate', [\App\Http\Controllers\Api\V1\Admin\CommissionPolicyController::class, 'simulate'])->name('simulate');
+                Route::post('/', [\App\Http\Controllers\Api\V1\Admin\CommissionPolicyController::class, 'store'])->name('store');
+                Route::post('{policy}/replace', [\App\Http\Controllers\Api\V1\Admin\CommissionPolicyController::class, 'replace'])->whereNumber('policy')->name('replace');
+                Route::post('{policy}/retire', [\App\Http\Controllers\Api\V1\Admin\CommissionPolicyController::class, 'retire'])->whereNumber('policy')->name('retire');
+            });
             // Phase B3: a request's final price and reported payments, read-only (finance.view)
             Route::get('requests/{id}/payments', [\App\Http\Controllers\Api\V1\Admin\RequestPaymentsController::class, 'show'])->whereNumber('id')->middleware('can:finance.view')->name('requests.payments');
             // Phase B2: a request's price negotiation, read-only

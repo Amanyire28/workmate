@@ -13,6 +13,7 @@ const pages = {
     'bluetick-rules': () => import('./pages/BlueTickRulesPage.vue'),
     'live-presence': () => import('./pages/LivePresencePage.vue'),
     legal: () => import('./pages/LegalDocumentsPage.vue'),
+    'commission-shadow': () => import('./pages/CommissionShadowPage.vue'),
 };
 const modulePage = () => import('./pages/ModulePage.vue');
 const tabbedPage = () => import('./pages/TabbedPage.vue');

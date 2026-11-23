@@ -19,6 +19,9 @@ class Kernel extends ConsoleKernel
         $schedule->command('workmate:reminders')->everyFifteenMinutes()->withoutOverlapping(30);
         // Unfinished video uploads and deleted posts' videos (Cloudflare R2)
         $schedule->command('workmate:video-cleanup')->hourly()->withoutOverlapping(60);
+        // SHADOW mode (off by default): estimated commissions for customer-confirmed payments, and a fresh look when a rate rule changed.
+        // Estimates only: nothing is charged, owed or sent. Repeated runs change nothing that already exists.
+        $schedule->command('workmate:commission-shadow')->hourly()->withoutOverlapping(30);
         // Price proposals nobody answered in time are expired (never agreed); each is expired once, so repeated runs are harmless
         $schedule->command('workmate:expire-price-proposals')->hourly()->withoutOverlapping(30);
         // Grouped like and follow pushes, quiet-hours summaries and push retries (only while notifications.smart_push is on).

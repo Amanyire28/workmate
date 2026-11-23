@@ -165,7 +165,8 @@ class PriceAgreementTest extends ApiTestCase
         $note = $this->notifications($customer, 'New price proposed')->first();
         $this->assertNotNull($note);
         $this->assertSame($provider->owner_id, (int) $note->actor_id);
-        $this->assertStringNotContainsString('150', $note->body);
+        // The amount is not in the words (the provider's random name can contain any digits, so check for the amount itself)
+        $this->assertDoesNotMatchRegularExpression('/150[,.\s]?000|UGX/i', $note->body);
         $this->assertStringContainsString('request='.$id, $note->url);
 
         // Both sides see it; the provider's own list too
