@@ -259,6 +259,20 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // Phase B3: the final price, the payments reported and each step (each side reads only its own request)
         Route::get('me/received-requests/{id}/payments', [ReceivedRequestController::class, 'payments'])->whereNumber('id')->name('me.received-requests.payments');
         Route::get('me/requests/{id}/payments', [MyActivityController::class, 'payments'])->whereNumber('id')->name('me.requests.payments');
+        // Phase B9, My Finances: a provider business's own money, read only. The owner always; a team member only if the owner allowed it.
+        // Historical reading never depends on a financial switch. Statements are CSV or PDF, commission or customer payments.
+        Route::prefix('me/finance')->name('me.finance.')->group(function () {
+            Route::get('access', [\App\Http\Controllers\Api\V1\ProviderFinanceController::class, 'access'])->name('access');
+            Route::post('access', [\App\Http\Controllers\Api\V1\ProviderFinanceController::class, 'setAccess'])->middleware('throttle:30,1')->name('access.set');
+            Route::get('summary', [\App\Http\Controllers\Api\V1\ProviderFinanceController::class, 'summary'])->name('summary');
+            Route::get('payments', [\App\Http\Controllers\Api\V1\ProviderFinanceController::class, 'payments'])->name('payments');
+            Route::get('statement', [\App\Http\Controllers\Api\V1\ProviderFinanceController::class, 'statement'])->name('statement');
+            Route::get('cycles', [\App\Http\Controllers\Api\V1\ProviderFinanceController::class, 'cycles'])->name('cycles');
+            Route::get('cycles/{id}', [\App\Http\Controllers\Api\V1\ProviderFinanceController::class, 'cycle'])->whereNumber('id')->name('cycle');
+            Route::get('commission-payments', [\App\Http\Controllers\Api\V1\ProviderFinanceController::class, 'commissionPayments'])->name('commission-payments');
+            Route::get('disputes', [\App\Http\Controllers\Api\V1\ProviderFinanceController::class, 'disputes'])->name('disputes');
+            Route::get('statements/{kind}.{format}', [\App\Http\Controllers\Api\V1\ProviderFinanceController::class, 'statementFile'])->where('kind', '[a-z]+')->where('format', '[a-z]+')->middleware('throttle:20,1')->name('statements');
+        });
         // Phase B6: the provider business's own commission obligations (owner or manager; nobody else's)
         Route::get('me/commission', [\App\Http\Controllers\Api\V1\CommissionObligationController::class, 'mine'])->name('me.commission');
         // Phase B7: report paying WorkMate commission (a statement: it credits nothing until finance verifies it), and read your own proof
@@ -399,20 +413,6 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::post('{policy}/replace', [\App\Http\Controllers\Api\V1\Admin\CommissionPolicyController::class, 'replace'])->whereNumber('policy')->name('replace');
                 Route::post('{policy}/retire', [\App\Http\Controllers\Api\V1\Admin\CommissionPolicyController::class, 'retire'])->whereNumber('policy')->name('retire');
             });
-            // Phase B7: commission settlements. Reading: settlements.view. Verifying or rejecting a reported payment: settlements.verify.
-            Route::middleware('can:settlements.view')->prefix('settlements')->name('settlements.')->group(function () {
-                Route::get('cycles', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'cycles'])->name('cycles');
-                Route::get('cycles/{id}', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'cycle'])->whereNumber('id')->name('cycle');
-                Route::get('payments', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'payments'])->name('payments');
-                Route::get('payments/{id}/evidence', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'evidence'])->whereNumber('id')->name('payments.evidence');
-                Route::get('exceptions', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'exceptions'])->name('exceptions');
-            });
-            Route::middleware(['can:settlements.verify', 'throttle:60,1'])->prefix('settlements')->name('settlements.')->group(function () {
-                Route::post('payments/{id}/verify', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'verify'])->whereNumber('id')->name('payments.verify');
-                Route::post('payments/{id}/reject', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'reject'])->whereNumber('id')->name('payments.reject');
-            });
-            // Phase B5: payment disputes. Reading: disputes.view. Taking a case, asking questions: disputes.review. Deciding: disputes.resolve.
-            Route::middleware('can:disputes.view')->group(function () {
             // Phase B8: financial administration. Overview: finance.overview.view. Reports, CSV and the audit trail: finance.reports.view.
             // Proposing an adjustment: finance.adjustments.request; approving or rejecting: finance.adjustments.approve (Super Administrator).
             // Exceptions: finance.exceptions.review to investigate, finance.exceptions.resolve (Super Administrator) to close.
@@ -438,6 +438,20 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 });
                 Route::post('exceptions/{id}/resolve', [\App\Http\Controllers\Api\V1\Admin\FinancialAdministrationController::class, 'resolveException'])->whereNumber('id')->middleware(['can:finance.exceptions.resolve', 'throttle:30,1'])->name('exceptions.resolve');
             });
+            // Phase B7: commission settlements. Reading: settlements.view. Verifying or rejecting a reported payment: settlements.verify.
+            Route::middleware('can:settlements.view')->prefix('settlements')->name('settlements.')->group(function () {
+                Route::get('cycles', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'cycles'])->name('cycles');
+                Route::get('cycles/{id}', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'cycle'])->whereNumber('id')->name('cycle');
+                Route::get('payments', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'payments'])->name('payments');
+                Route::get('payments/{id}/evidence', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'evidence'])->whereNumber('id')->name('payments.evidence');
+                Route::get('exceptions', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'exceptions'])->name('exceptions');
+            });
+            Route::middleware(['can:settlements.verify', 'throttle:60,1'])->prefix('settlements')->name('settlements.')->group(function () {
+                Route::post('payments/{id}/verify', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'verify'])->whereNumber('id')->name('payments.verify');
+                Route::post('payments/{id}/reject', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'reject'])->whereNumber('id')->name('payments.reject');
+            });
+            // Phase B5: payment disputes. Reading: disputes.view. Taking a case, asking questions: disputes.review. Deciding: disputes.resolve.
+            Route::middleware('can:disputes.view')->group(function () {
                 Route::get('disputes', [\App\Http\Controllers\Api\V1\Admin\PaymentDisputeController::class, 'index'])->name('disputes.index');
                 Route::get('disputes/{id}', [\App\Http\Controllers\Api\V1\Admin\PaymentDisputeController::class, 'show'])->whereNumber('id')->name('disputes.show');
                 Route::get('disputes/{id}/evidence/{uuid}', [\App\Http\Controllers\Api\V1\Admin\PaymentDisputeController::class, 'evidence'])->whereNumber('id')->where('uuid', '[0-9a-f-]{36}')->name('disputes.evidence');

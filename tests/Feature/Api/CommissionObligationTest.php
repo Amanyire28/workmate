@@ -432,6 +432,12 @@ class CommissionObligationTest extends ApiTestCase
         $provider->members()->create(['user_id' => $manager->id, 'role' => ProviderMember::ROLE_MANAGER]);
         $provider->members()->create(['user_id' => $member->id, 'role' => ProviderMember::ROLE_MEMBER]);
 
+        // A manager has no access to the business's finances by default (Phase B9); the owner can give it
+        $this->signIn($manager);
+        $this->assertNull($this->getJson('/api/v1/me/commission')->assertOk()->json('data'));
+        $this->signIn($provider->owner);
+        $this->postJson('/api/v1/me/finance/access', ['user_id' => $manager->id, 'allowed' => true])->assertOk();
+
         foreach ([$provider->owner, $manager] as $allowed) {
             $this->signIn($allowed);
             $data = $this->getJson('/api/v1/me/commission')->assertOk()->json('data');

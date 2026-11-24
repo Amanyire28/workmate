@@ -186,7 +186,7 @@ class PaymentDisputes
     /** One case, for its customer or its provider business only. Anyone else gets "not found". */
     public function show(User $user, int $id): array
     {
-        $this->guardEnabled();
+        // Reading a case never depends on the pricing switch: history stays readable. Acting in it still needs the switch.
         $dispute = PaymentDispute::find($id);
         $role = $dispute ? $this->roleOf($user, $dispute) : null;
         if (! $role) {
@@ -400,7 +400,6 @@ class PaymentDisputes
     /** An evidence file, for the case's own two sides: [path, mime, name] */
     public function evidenceFor(User $user, int $id, string $uuid): array
     {
-        $this->guardEnabled();
         $dispute = PaymentDispute::find($id);
         if (! $dispute || ! $this->roleOf($user, $dispute)) {
             throw $this->notFound();

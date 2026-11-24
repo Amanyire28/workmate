@@ -216,14 +216,24 @@ class PaymentDisputeTest extends ApiTestCase
         $this->assertSame(PaymentDispute::OPEN, PaymentDispute::find($d)->status);
     }
 
-    public function test_the_case_is_not_available_while_pricing_options_are_off()
+    public function test_while_pricing_options_are_off_a_case_can_be_read_but_nothing_new_can_be_done_in_it()
     {
         [$provider, $customer, $id, $payment, $d] = $this->disputed();
         app(PlatformSettings::class)->set('finance.pricing_enabled', false, $this->root);
+        // History stays readable (Phase B9) ...
+        foreach ([$customer, $provider->owner] as $reader) {
+            $this->signIn($reader);
+            $this->getJson("/api/v1/me/disputes/{$d}")->assertOk()->assertJsonPath('data.id', $d);
+        }
+        // ... but every action still needs the switch
         $this->signIn($customer);
-        $this->getJson("/api/v1/me/disputes/{$d}")->assertStatus(409);
         $this->postJson("/api/v1/me/disputes/{$d}/messages", ['body' => 'Hello'])->assertStatus(409);
+        $this->postJson("/api/v1/me/disputes/{$d}/escalate", ['reason' => 'other', 'note' => 'I would like WorkMate to look.'])->assertStatus(409);
+        $this->postJson("/api/v1/me/disputes/{$d}/proposal", ['outcome' => 'payment_received'])->assertStatus(409);
         $this->assertSame(0, PaymentDisputeMessage::count());
+        // And a stranger still cannot read it
+        $this->signIn(User::factory()->create());
+        $this->getJson("/api/v1/me/disputes/{$d}")->assertNotFound();
     }
 
     /* ---------------- Talking and evidence ---------------- */

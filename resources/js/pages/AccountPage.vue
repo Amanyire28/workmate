@@ -62,6 +62,16 @@
         <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
       </router-link>
 
+      <!-- Providers: one place for what customers paid them and the commission they owe WorkMate (the page says who may see it) -->
+      <router-link v-if="['approved', 'suspended'].includes(user.provider_status)" to="/my-finances" class="wm-card wm-card-link mt-3 flex items-center gap-4">
+        <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-wallet2"></i></span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-[15px] font-semibold text-ink">My Finances</span>
+          <span class="block wm-meta">Customer payments, commission and statements</span>
+        </span>
+        <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+      </router-link>
+
       <p v-if="route.query.welcome" class="wm-notice wm-notice-success mt-3" role="status">
         <i class="bi bi-check-circle" aria-hidden="true"></i>
         <span>Welcome to WorkMate! Your account is ready.</span>

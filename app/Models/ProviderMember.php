@@ -15,9 +15,12 @@ class ProviderMember extends Model
         'role',
     ];
 
+    // Not mass-assignable: only the owner changes it, through App\Services\ProviderFinanceAccess
+
     protected $casts = [
         'provider_profile_id' => 'integer',
         'user_id' => 'integer',
+        'can_view_finances' => 'boolean',
     ];
 
     public function profile()

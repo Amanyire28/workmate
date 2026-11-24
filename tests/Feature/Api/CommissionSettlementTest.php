@@ -604,6 +604,12 @@ class CommissionSettlementTest extends ApiTestCase
         // Another business's cycle: "not found", whether it is reported on or looked at
         $this->report($provider, $theirs)->assertStatus(404);
         $this->assertSame(0, CommissionPaymentReport::count());
+        // A manager has no access to the business's finances by default (Phase B9); the owner can give it
+        $this->signIn($manager);
+        $this->assertNull($this->getJson('/api/v1/me/commission')->assertOk()->json('data'));
+        $this->signIn($provider->owner);
+        $this->postJson('/api/v1/me/finance/access', ['user_id' => $manager->id, 'allowed' => true])->assertOk();
+
         foreach ([$provider->owner, $manager] as $allowed) {
             $this->signIn($allowed);
             $data = $this->getJson('/api/v1/me/commission')->assertOk()->json('data');

@@ -211,10 +211,11 @@ class CommissionAssessments
 
     /* ---------------- What is shown ---------------- */
 
-    /** The provider ids a user may see commission for: the business they own or manage, and nobody else's */
+    /** The provider ids a user may see commission for: the business they own, or one whose owner gave them access, and nobody else's */
     public function providerIdsFor(User $user): array
     {
-        return ProviderMember::where('user_id', $user->getKey())->whereIn('role', [ProviderMember::ROLE_OWNER, ProviderMember::ROLE_MANAGER])->pluck('provider_profile_id')->all();
+        // One rule for every finance screen (Phase B9): the owner, or a team member the owner gave access to. A manager has no access by default.
+        return app(ProviderFinanceAccess::class)->providerIds($user);
     }
 
     /** The provider's own view: totals and the obligations behind them (null when the obligation system is off or they have no business) */

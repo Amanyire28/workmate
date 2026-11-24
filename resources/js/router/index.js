@@ -29,6 +29,7 @@ const routes = [
     { path: '/activity',             component: () => import('@/pages/MyActivityPage.vue'),         meta: { title: 'My Work – WorkMate', requiresAuth: true } },
     { path: '/account',              component: AccountPage,            meta: { title: 'My Account – WorkMate' } },
     // My Space: the member's own posts, videos and numbers (reached from Account)
+    { path: '/my-finances',         component: () => import('@/pages/MyFinancesPage.vue'), meta: { title: 'My Finances – WorkMate', requiresAuth: true } },
     { path: '/my-space',            component: () => import('@/pages/MySpacePage.vue'), meta: { title: 'My Space – WorkMate', requiresAuth: true } },
     { path: '/account/reports',      component: () => import('@/pages/ReportsPage.vue'), meta: { title: 'Reports and complaints – WorkMate', requiresAuth: true } },
     { path: '/account/verification', component: () => import('@/pages/GetVerifiedPage.vue'), meta: { title: 'Get Verified – WorkMate', requiresAuth: true } },

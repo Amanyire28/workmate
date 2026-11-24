@@ -515,7 +515,8 @@ class CommissionSettlements
 
     public function providerIdsFor(User $user): array
     {
-        return ProviderMember::where('user_id', $user->getKey())->whereIn('role', [ProviderMember::ROLE_OWNER, ProviderMember::ROLE_MANAGER])->pluck('provider_profile_id')->all();
+        // One rule for every finance screen (Phase B9): the owner, or a team member the owner gave access to. A manager has no access by default.
+        return app(ProviderFinanceAccess::class)->providerIds($user);
     }
 
     /** The settlement part of a provider's own view (null while settlement is off) */

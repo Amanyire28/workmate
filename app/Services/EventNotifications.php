@@ -301,9 +301,13 @@ class EventNotifications
             return;
         }
 
-        $members = ProviderMember::where('provider_profile_id', $providerId)->whereIn('role', [ProviderMember::ROLE_OWNER, ProviderMember::ROLE_MANAGER])->pluck('user_id');
+        // Whoever may see the business's finances (the owner, and team members the owner allowed), taken to the right place in My Finances
+        $members = ProviderMember::where('provider_profile_id', $providerId)->where(function ($q) {
+            $q->where('role', ProviderMember::ROLE_OWNER)->orWhere('can_view_finances', true);
+        })->pluck('user_id');
+        $url = in_array($kind, ['payment_verified', 'payment_rejected'], true) ? '/my-finances?tab=to-workmate' : '/my-finances?tab=settlements'.($cycleId ? '&cycle='.$cycleId : '');
         $this->send(UserNotifications::ACCOUNT, $members, [
-            'title' => $title, 'body' => $body, 'url' => '/activity?tab=received',
+            'title' => $title, 'body' => $body, 'url' => $url,
             'tag' => 'commission-'.$kind.'-'.($paymentId ?: $cycleId), 'important' => true,
         ]);
     }
