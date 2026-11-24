@@ -35,6 +35,12 @@ return [
         'disputes.resolve' => 'Record the reasoned decision that closes a payment dispute',
         'settlements.view' => 'See commission settlement cycles, reported commission payments and reconciliation exceptions',
         'settlements.verify' => 'Verify or reject a commission payment a provider reported (confirming it really arrived)',
+        'finance.overview.view' => 'See the financial overview: commission assessed, reversed, collected and outstanding',
+        'finance.reports.view' => 'See financial reports, export them as CSV and read the financial audit trail',
+        'finance.adjustments.request' => 'Propose a correction to what a provider owes (it changes nothing until approved and posted)',
+        'finance.exceptions.review' => 'Take, annotate and investigate commission reconciliation exceptions',
+        'finance.adjustments.approve' => 'Approve or reject a proposed financial adjustment',
+        'finance.exceptions.resolve' => 'Authorise resolving a commission reconciliation exception',
         'content.view' => 'Moderate videos and manage content and translations',
         'comms.view' => 'Manage notifications, templates and campaigns',
         'comms.send' => 'Send push announcements to everyone who turned them on',
@@ -81,7 +87,7 @@ return [
         'finance' => [
             'name' => 'Finance Administrator',
             'description' => 'Transactions, refunds, payouts and reconciliation.',
-            'permissions' => ['dashboard.view', 'activity.view', 'finance.summary', 'finance.view', 'commission.view', 'disputes.view', 'disputes.review', 'settlements.view', 'settlements.verify', 'analytics.view'],
+            'permissions' => ['dashboard.view', 'activity.view', 'finance.summary', 'finance.view', 'commission.view', 'disputes.view', 'disputes.review', 'settlements.view', 'settlements.verify', 'finance.overview.view', 'finance.reports.view', 'finance.adjustments.request', 'finance.exceptions.review', 'analytics.view'],
         ],
         'trust_safety' => [
             'name' => 'Trust and Safety Moderator',

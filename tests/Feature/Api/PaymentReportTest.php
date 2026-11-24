@@ -167,7 +167,7 @@ class PaymentReportTest extends ApiTestCase
     {
         [$provider, $customer, $id] = $this->priced();
 
-        $this->report($provider->owner, $id, ['amount' => 50000, 'method' => 'mobile_money', 'paid_on' => now()->toDateString(), 'reference' => 'MP2611.1234.A5', 'note' => 'Deposit'])->assertCreated()
+        $this->report($provider->owner, $id, ['amount' => 50000, 'method' => 'mobile_money', 'paid_on' => now(\App\Services\Scheduling::TIMEZONE)->toDateString(), 'reference' => 'MP2611.1234.A5', 'note' => 'Deposit'])->assertCreated()
             ->assertJsonPath('data.payments.reports.0.amount', 50000)
             ->assertJsonPath('data.payments.reports.0.status', 'pending_confirmation')
             ->assertJsonPath('data.payments.totals.pending', 50000)
@@ -201,7 +201,7 @@ class PaymentReportTest extends ApiTestCase
     {
         [$provider, $customer, $id] = $this->priced();
         $owner = $provider->owner;
-        $today = now()->toDateString();
+        $today = now(\App\Services\Scheduling::TIMEZONE)->toDateString();
 
         $this->report($owner, $id, ['amount' => 99])->assertStatus(422)->assertJsonValidationErrors('amount');
         $this->report($owner, $id, ['amount' => 0])->assertStatus(422)->assertJsonValidationErrors('amount');

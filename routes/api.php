@@ -413,6 +413,31 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             });
             // Phase B5: payment disputes. Reading: disputes.view. Taking a case, asking questions: disputes.review. Deciding: disputes.resolve.
             Route::middleware('can:disputes.view')->group(function () {
+            // Phase B8: financial administration. Overview: finance.overview.view. Reports, CSV and the audit trail: finance.reports.view.
+            // Proposing an adjustment: finance.adjustments.request; approving or rejecting: finance.adjustments.approve (Super Administrator).
+            // Exceptions: finance.exceptions.review to investigate, finance.exceptions.resolve (Super Administrator) to close.
+            Route::prefix('financial')->name('financial.')->group(function () {
+                Route::get('overview', [\App\Http\Controllers\Api\V1\Admin\FinancialAdministrationController::class, 'overview'])->middleware('can:finance.overview.view')->name('overview');
+                Route::middleware('can:finance.reports.view')->group(function () {
+                    Route::get('reports/{key}', [\App\Http\Controllers\Api\V1\Admin\FinancialAdministrationController::class, 'report'])->where('key', '[a-z]+')->name('report');
+                    Route::get('reports/{key}.csv', [\App\Http\Controllers\Api\V1\Admin\FinancialAdministrationController::class, 'csv'])->where('key', '[a-z]+')->middleware('throttle:20,1')->name('report.csv');
+                    Route::get('audit', [\App\Http\Controllers\Api\V1\Admin\FinancialAdministrationController::class, 'audit'])->name('audit');
+                    Route::get('adjustments', [\App\Http\Controllers\Api\V1\Admin\FinancialAdministrationController::class, 'adjustments'])->name('adjustments');
+                    Route::get('adjustments/{id}', [\App\Http\Controllers\Api\V1\Admin\FinancialAdministrationController::class, 'adjustment'])->whereNumber('id')->name('adjustment');
+                });
+                Route::post('adjustments', [\App\Http\Controllers\Api\V1\Admin\FinancialAdministrationController::class, 'requestAdjustment'])->middleware(['can:finance.adjustments.request', 'throttle:30,1'])->name('adjustments.request');
+                Route::middleware(['can:finance.adjustments.approve', 'throttle:30,1'])->group(function () {
+                    Route::post('adjustments/{id}/approve', [\App\Http\Controllers\Api\V1\Admin\FinancialAdministrationController::class, 'approveAdjustment'])->whereNumber('id')->name('adjustments.approve');
+                    Route::post('adjustments/{id}/reject', [\App\Http\Controllers\Api\V1\Admin\FinancialAdministrationController::class, 'rejectAdjustment'])->whereNumber('id')->name('adjustments.reject');
+                });
+                Route::middleware('can:finance.exceptions.review')->group(function () {
+                    Route::get('exceptions', [\App\Http\Controllers\Api\V1\Admin\FinancialAdministrationController::class, 'exceptions'])->name('exceptions');
+                    Route::get('exceptions/{id}', [\App\Http\Controllers\Api\V1\Admin\FinancialAdministrationController::class, 'exception'])->whereNumber('id')->name('exception');
+                    Route::post('exceptions/{id}/take', [\App\Http\Controllers\Api\V1\Admin\FinancialAdministrationController::class, 'takeException'])->whereNumber('id')->middleware('throttle:60,1')->name('exceptions.take');
+                    Route::post('exceptions/{id}/notes', [\App\Http\Controllers\Api\V1\Admin\FinancialAdministrationController::class, 'noteException'])->whereNumber('id')->middleware('throttle:60,1')->name('exceptions.note');
+                });
+                Route::post('exceptions/{id}/resolve', [\App\Http\Controllers\Api\V1\Admin\FinancialAdministrationController::class, 'resolveException'])->whereNumber('id')->middleware(['can:finance.exceptions.resolve', 'throttle:30,1'])->name('exceptions.resolve');
+            });
                 Route::get('disputes', [\App\Http\Controllers\Api\V1\Admin\PaymentDisputeController::class, 'index'])->name('disputes.index');
                 Route::get('disputes/{id}', [\App\Http\Controllers\Api\V1\Admin\PaymentDisputeController::class, 'show'])->whereNumber('id')->name('disputes.show');
                 Route::get('disputes/{id}/evidence/{uuid}', [\App\Http\Controllers\Api\V1\Admin\PaymentDisputeController::class, 'evidence'])->whereNumber('id')->where('uuid', '[0-9a-f-]{36}')->name('disputes.evidence');

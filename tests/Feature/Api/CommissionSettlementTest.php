@@ -491,7 +491,7 @@ class CommissionSettlementTest extends ApiTestCase
         $this->report($provider, $cycle, ['channel' => 'paypal'])->assertStatus(422);
         $this->report($provider, $cycle, ['reference' => ''])->assertStatus(422)->assertJsonPath('code', 'reference_required');
         $this->report($provider, $cycle, ['reference' => 'PIN 1234 <script>'])->assertStatus(422);
-        $this->report($provider, $cycle, ['paid_on' => now()->addDay()->toDateString()])->assertStatus(422);
+        $this->report($provider, $cycle, ['paid_on' => now()->addDays(2)->toDateString()])->assertStatus(422);
         $this->report($provider, $cycle, ['channel' => 'cash', 'reference' => null])->assertStatus(422)->assertJsonPath('code', 'channel_invalid');   // no approved cash process
         $this->assertSame(0, CommissionPaymentReport::count());
 

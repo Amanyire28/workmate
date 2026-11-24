@@ -420,18 +420,25 @@ class CommissionSettlements
     public function reconcileProvider(int $providerId): void
     {
         $balance = (int) CommissionLedgerEntry::where('provider_profile_id', $providerId)->sum('amount_ugx');
-        $open = CommissionException::where('provider_profile_id', $providerId)->where('kind', CommissionException::EXCESS_CREDIT)->where('status', 'open')->first();
+        // Open, or being investigated (Phase B8): either way it is the one live exception for this provider
+        $open = CommissionException::where('provider_profile_id', $providerId)->where('kind', CommissionException::EXCESS_CREDIT)->whereIn('status', ['open', 'under_review'])->first();
         if ($balance < 0) {
             if ($open) {
                 if ((int) $open->amount_ugx !== -$balance) {
                     $open->forceFill(['amount_ugx' => -$balance])->save();
                 }
-            } else {
-                $this->exception(CommissionException::EXCESS_CREDIT, $providerId, null, null, -$balance,
-                    'Verified payments now exceed what is owed (an obligation was reversed). Waiting for a reconciliation decision.');
+
+                return;
             }
+            // One a Super Administrator already closed with a documented "no financial change" decision, for this much or more, is not reopened
+            $closed = CommissionException::where('provider_profile_id', $providerId)->where('kind', CommissionException::EXCESS_CREDIT)->where('resolution', 'no_financial_change')->orderByDesc('id')->first();
+            if ($closed && (int) $closed->amount_ugx >= -$balance) {
+                return;
+            }
+            $this->exception(CommissionException::EXCESS_CREDIT, $providerId, null, null, -$balance,
+                'Verified payments now exceed what is owed (an obligation was reversed). Waiting for a reconciliation decision.');
         } elseif ($open) {
-            $open->forceFill(['status' => 'resolved', 'detail' => 'The balance is back to zero or above.'])->save();
+            $open->forceFill(['status' => 'resolved', 'resolution' => 'balance_restored', 'resolved_at' => now(), 'detail' => 'The balance is back to zero or above.'])->save();
         }
     }
 
@@ -468,16 +475,24 @@ class CommissionSettlements
             $out['allocated']++;
         }
 
-        foreach (CommissionSettlementCycle::orderByDesc('id')->limit($limit)->get() as $cycle) {
-            $s = $this->state((int) $cycle->id);
-            if ($s['outstanding_ugx'] <= 0 || ! $s['due_at']) {
-                continue;
+        // Every cycle that still has something to pay (however old), in batches
+        for ($page = 1; ; $page++) {
+            $batch = $this->cycleSummary()->where('outstanding_ugx', '>', 0)->orderBy('id')->forPage($page, 200)->get(['id', 'provider_profile_id', 'status', 'due_at', 'overdue_after']);
+            if ($batch->isEmpty()) {
+                break;
             }
-            if ($s['status'] === 'overdue' && $this->notice('overdue', (int) $cycle->provider_profile_id, (int) $cycle->id, 'cycle:'.$cycle->id.':overdue')) {
-                $out['reminders']++;
-            } elseif (in_array($s['status'], ['open', 'due', 'partially_paid'], true) && now()->addDay()->gte(Carbon::parse($s['overdue_after'] ?: $s['due_at']))
-                && $this->notice('approaching', (int) $cycle->provider_profile_id, (int) $cycle->id, 'cycle:'.$cycle->id.':approaching')) {
-                $out['reminders']++;
+            foreach ($batch as $cycle) {
+                if (! $cycle->due_at) {
+                    continue;
+                }
+                if ($cycle->status === 'overdue') {
+                    if ($this->notice('overdue', (int) $cycle->provider_profile_id, (int) $cycle->id, 'cycle:'.$cycle->id.':overdue')) {
+                        $out['reminders']++;
+                    }
+                } elseif (in_array($cycle->status, ['open', 'due', 'partially_paid'], true) && now()->addDay()->gte(Carbon::parse($cycle->overdue_after ?: $cycle->due_at))
+                    && $this->notice('approaching', (int) $cycle->provider_profile_id, (int) $cycle->id, 'cycle:'.$cycle->id.':approaching')) {
+                    $out['reminders']++;
+                }
             }
         }
 
@@ -514,9 +529,9 @@ class CommissionSettlements
             return $this->state((int) $c->id);
         })->all();
         $reports = CommissionPaymentReport::whereIn('provider_profile_id', $providerIds)->orderByDesc('id')->limit(20)->get();
-        $current = collect($states)->first(function ($s) {
-            return in_array($s['status'], ['open', 'due', 'partially_paid', 'overdue'], true);
-        });
+        // The newest cycle that still has something to pay, wherever it is in their history (not just among the twelve listed)
+        $currentId = $this->cycleSummary(['provider' => null])->whereIn('provider_profile_id', $providerIds)->where('outstanding_ugx', '>', 0)->orderByDesc('id')->value('id');
+        $current = $currentId ? $this->state((int) $currentId) : null;
 
         return [
             'instructions' => $this->instructions(),
@@ -552,38 +567,131 @@ class CommissionSettlements
         return ['path' => $r->evidence_path, 'mime' => $r->evidence_mime, 'name' => $r->evidence_name ?: 'Evidence'];
     }
 
-    /** Administrators: cycles (filtered, newest first) with their derived state. Bounded to the latest 500 matching cycles. */
-    public function adminCycles(array $filters): array
+    /**
+     * The state of EVERY cycle, worked out by the database in one query (never a sample): the same rules as state(), written as SQL, so a
+     * total over all cycles is exact however many there are. Columns: id, provider_profile_id, created_at, payable_ugx, credits_ugx,
+     * outstanding_ugx, first_obligation_at, due_at, overdue_after, status. A test holds it equal to state() cycle by cycle.
+     *
+     * @param  array{provider?: int, from?: string, to?: string}  $filters
+     */
+    public function cycleSummary(array $filters = []): \Illuminate\Database\Query\Builder
     {
-        $q = CommissionSettlementCycle::query();
+        $window = (int) $this->settings->get('finance.settlement_three_job_window_hours');
+        $now = now()->toDateTimeString();
+        $where = '';
+        $bind = [];
         if (! empty($filters['provider'])) {
-            $q->where('provider_profile_id', (int) $filters['provider']);
+            $where .= ' and c.provider_profile_id = ?';
+            $bind[] = (int) $filters['provider'];
         }
         if (! empty($filters['from'])) {
-            $q->where('created_at', '>=', $filters['from']);
+            $where .= ' and c.created_at >= ?';
+            $bind[] = Carbon::parse($filters['from'])->startOfDay()->toDateTimeString();
         }
         if (! empty($filters['to'])) {
-            $q->where('created_at', '<=', $filters['to']);
+            $where .= ' and c.created_at <= ?';
+            $bind[] = Carbon::parse($filters['to'])->endOfDay()->toDateTimeString();
         }
-        $names = [];
-        $all = $q->orderByDesc('id')->limit(500)->get()->map(function ($c) {
-            return $this->state((int) $c->id);
-        });
-        if (! empty($filters['status'])) {
-            $all = $all->where('status', $filters['status']);
+        // An obligation is "active" while something is still on its ledger lines; a job counts once, from its first active obligation.
+        // (The third job is found by ranking jobs against each other, not with a window function: MariaDB refuses a window over a grouped
+        // derived table when ONLY_FULL_GROUP_BY is on, which is how Laravel runs.)
+        $jf = "select o.cycle_id, a.service_request_id as job, min(a.assessed_at) as first_at
+                    from commission_cycle_obligations o
+                    join commission_assessments a on a.id = o.assessment_id
+                    join (select assessment_id from commission_ledger_entries where assessment_id is not null group by assessment_id having sum(amount_ugx) > 0) x on x.assessment_id = o.assessment_id
+                    group by o.cycle_id, a.service_request_id";
+        $sql = "select base.*,
+              case
+                when base.payable_ugx = 0 and base.credits_ugx = 0 then 'void'
+                when base.outstanding_ugx <= 0 then 'settled'
+                when base.overdue_after is not null and ? > base.overdue_after then 'overdue'
+                when base.credits_ugx > 0 then 'partially_paid'
+                when base.due_at is not null and ? >= base.due_at then 'due'
+                else 'open'
+              end as status
+            from (
+              select c.id, c.provider_profile_id, c.created_at,
+                coalesce(p.payable, 0) as payable_ugx, coalesce(k.credits, 0) as credits_ugx,
+                coalesce(p.payable, 0) - coalesce(k.credits, 0) as outstanding_ugx,
+                f.first_at as first_obligation_at,
+                case when th.third_at is not null and (f.first_at is null or th.third_at < date_add(f.first_at, interval 7 day)) then th.third_at
+                     else date_add(f.first_at, interval 7 day) end as due_at,
+                case when th.third_at is not null and ? > 0 and date_add(th.third_at, interval ? hour) < date_add(f.first_at, interval 7 day)
+                       then date_add(th.third_at, interval ? hour)
+                     else date_add(f.first_at, interval 7 day) end as overdue_after
+              from commission_settlement_cycles c
+              left join (
+                select o.cycle_id, sum(x.open_ugx) as payable
+                from commission_cycle_obligations o
+                join (select assessment_id, sum(amount_ugx) as open_ugx from commission_ledger_entries where assessment_id is not null group by assessment_id) x on x.assessment_id = o.assessment_id
+                group by o.cycle_id
+              ) p on p.cycle_id = c.id
+              left join (
+                select cycle_id, -sum(amount_ugx) as credits from commission_ledger_entries where entry_type = 'settlement' group by cycle_id
+              ) k on k.cycle_id = c.id
+              left join (
+                select o.cycle_id, min(a.assessed_at) as first_at
+                from commission_cycle_obligations o
+                join commission_assessments a on a.id = o.assessment_id
+                join (select assessment_id from commission_ledger_entries where assessment_id is not null group by assessment_id having sum(amount_ugx) > 0) x on x.assessment_id = o.assessment_id
+                group by o.cycle_id
+              ) f on f.cycle_id = c.id
+              left join (
+                select t.cycle_id, min(t.first_at) as third_at from (
+                  select j1.cycle_id, j1.job, j1.first_at
+                  from ({$jf}) j1
+                  left join ({$jf}) j2 on j2.cycle_id = j1.cycle_id and (j2.first_at < j1.first_at or (j2.first_at = j1.first_at and j2.job < j1.job))
+                  group by j1.cycle_id, j1.job, j1.first_at
+                  having count(j2.job) = 2
+                ) t group by t.cycle_id
+              ) th on th.cycle_id = c.id
+              where 1 = 1 {$where}
+            ) base";
+
+        // The placeholders appear in the order: status (now, now), overdue window (window, window, window), then the filters
+        return DB::query()->fromRaw('('.$sql.') as cs', array_merge([$now, $now, $window, $window, $window], $bind));
+    }
+
+    /**
+     * Every cycle counted and summed by state, exactly (one grouped query). outstanding is what is still to pay on cycles in that state.
+     *
+     * @return array<string, array{count: int, outstanding_ugx: int}>
+     */
+    public function statusTotals(array $filters = []): array
+    {
+        $out = [];
+        foreach ($this->cycleSummary($filters)->select('status', DB::raw('count(*) as n'), DB::raw('sum(case when outstanding_ugx > 0 then outstanding_ugx else 0 end) as owed'))->groupBy('status')->get() as $row) {
+            $out[$row->status] = ['count' => (int) $row->n, 'outstanding_ugx' => (int) $row->owed];
         }
-        $all = $all->values();
+
+        return $out;
+    }
+
+    /** Administrators: cycles (filtered, newest first), counted and paged by the database. Nothing is sampled. */
+    public function adminCycles(array $filters): array
+    {
+        $query = $this->cycleSummary($filters);
         $page = max((int) ($filters['page'] ?? 1), 1);
         $per = 25;
-        $slice = $all->forPage($page, $per)->values();
-        $names = ProviderProfile::withTrashed()->whereIn('id', $slice->pluck('provider_id'))->pluck('display_name', 'id');
+        $total = (clone $query)->when(! empty($filters['status']), function ($q) use ($filters) {
+            $q->where('status', $filters['status']);
+        })->count();
+        $rows = (clone $query)->when(! empty($filters['status']), function ($q) use ($filters) {
+            $q->where('status', $filters['status']);
+        })->orderByDesc('id')->forPage($page, $per)->get();
+        $names = ProviderProfile::withTrashed()->whereIn('id', $rows->pluck('provider_profile_id'))->pluck('display_name', 'id');
+        $counts = [];
+        foreach ($this->statusTotals(array_intersect_key($filters, array_flip(['provider', 'from', 'to']))) as $status => $t) {
+            $counts[$status] = $t['count'];
+        }
 
         return [
-            'items' => $slice->map(function ($s) use ($names) {
-                return $s + ['provider' => $names[$s['provider_id']] ?? null];
+            'items' => $rows->map(function ($r) use ($names) {
+                // The full explanation (jobs, trigger, history) is worked out for the rows shown; the figures above come from the query
+                return $this->state((int) $r->id) + ['provider' => $names[$r->provider_profile_id] ?? null];
             })->all(),
-            'counts' => $all->groupBy('status')->map->count()->all(),
-            'page' => $page, 'per_page' => $per, 'total' => $all->count(),
+            'counts' => $counts,
+            'page' => $page, 'per_page' => $per, 'total' => $total,
         ];
     }
 
