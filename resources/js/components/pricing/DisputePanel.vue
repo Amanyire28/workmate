@@ -1,5 +1,5 @@
 <template>
-  <BottomSheet :open="open" title="Payment question" @close="emit('close')">
+  <BottomSheet :open="open" title="Payment question" full @close="emit('close')">
     <p v-if="loading" class="text-[14px] text-muted" role="status"><span class="wm-spinner mr-2" aria-hidden="true"></span>Loading…</p>
     <p v-else-if="loadError" class="wm-notice wm-notice-error" role="alert"><i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>{{ loadError }}</span></p>
 

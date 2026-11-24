@@ -1,26 +1,26 @@
 <template>
   <div class="flex flex-col gap-4">
-    <AdminPageHeader title="Commission Estimates" description="What WorkMate could earn from payments that customers confirmed, using the rate rules below. A simulation only." demo />
+    <AdminPageHeader title="Commission Estimates" description="What WorkMate could earn from payments customers confirmed, by the rate rules below.">
+      <template #actions><NoticeReopen scope="finance.estimates." /></template>
+    </AdminPageHeader>
 
-    <p class="wm-notice wm-notice-warning" role="note">
-      <i class="bi bi-shield-check" aria-hidden="true"></i>
-      <span><strong class="font-semibold">{{ ESTIMATE_LABEL }}.</strong> The estimates, rate rules and calculations here are a simulation: nothing is charged and none of it is shown to providers or customers. Only the Obligations tab shows recorded amounts, and only when Obligations are switched on.</span>
-    </p>
+    <DismissibleNotice v-if="loaded" id="finance.estimates.basis" :version="summary.shadow_enabled ? 'on' : 'off'" tone="warning" icon="bi-shield-check">
+      <strong class="font-semibold">{{ ESTIMATE_LABEL }}.</strong> Nothing is charged or owed from these figures, and providers and customers don’t see them. Recorded amounts are on the Obligations tab.
+    </DismissibleNotice>
 
-    <!-- How the two switches stand -->
-    <div class="flex flex-wrap items-center gap-2 text-[13px]" aria-label="Switches">
+    <!-- How the two switches stand (shown only once the real state is known) -->
+    <div v-if="loaded" class="flex flex-wrap items-center gap-2 text-[13px]" aria-label="Switches">
       <span class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1" :class="summary.shadow_enabled ? 'border-[#86EFAC] bg-[#F0FDF4] text-[#166534]' : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#475569]'">
         <i :class="['bi', summary.shadow_enabled ? 'bi-toggle-on' : 'bi-toggle-off']" aria-hidden="true"></i>Estimates {{ summary.shadow_enabled ? 'on' : 'off' }}
       </span>
       <span class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1" :class="summary.pricing_enabled ? 'border-[#86EFAC] bg-[#F0FDF4] text-[#166534]' : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#475569]'">
         <i :class="['bi', summary.pricing_enabled ? 'bi-toggle-on' : 'bi-toggle-off']" aria-hidden="true"></i>Pricing options {{ summary.pricing_enabled ? 'on' : 'off' }}
       </span>
-      <span class="text-[#64748B]">Safety ceiling for any rate: {{ bpToPercent(summary.ceiling_bp || 0) }}. Both switches are in Financial Settings.</span>
+      <span class="inline-flex items-center gap-1 text-[#64748B]">Highest rate allowed: {{ bpToPercent(summary.ceiling_bp) }}<InfoTip label="the switches" text="A safety limit on any rate rule. Both switches are in Financial Settings." /></span>
     </div>
-    <p v-if="loaded && !summary.shadow_enabled" class="wm-notice wm-notice-info">
-      <i class="bi bi-info-circle" aria-hidden="true"></i>
-      <span>Estimates are switched off, so no new payment is being calculated. You can still prepare rate rules; nothing here affects anyone.</span>
-    </p>
+    <DismissibleNotice v-if="loaded && !summary.shadow_enabled" id="finance.estimates.off" version="off">
+      Estimates are switched off, so new payments aren’t being calculated. You can still prepare rate rules.
+    </DismissibleNotice>
 
     <div class="wm-segmented grid grid-cols-2 sm:inline-grid sm:grid-cols-5" role="tablist" aria-label="Commission estimates">
       <button v-for="t in TABS" :id="`ce-tab-${t.id}`" :key="t.id" type="button" role="tab" class="wm-segment !min-h-11" :class="{ 'is-active': tab === t.id }"
@@ -43,16 +43,15 @@
       <StateBlock v-if="!loaded && !error" kind="loading" title="Loading estimates…" />
       <template v-else-if="loaded">
         <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <MetricCard label="Confirmed payments counted" :value="formatNumber(summary.totals.eligible_payments)" :hint="`Customer-confirmed payments that could be estimated. ${ESTIMATE_LABEL}.`" />
-          <MetricCard label="Payment volume counted" :value="formatUGX(summary.totals.eligible_volume_ugx)" hint="The confirmed payments' total. Money customers paid providers directly: not WorkMate revenue." />
-          <MetricCard label="Estimated commission" :value="formatUGX(summary.totals.estimated_commission_ugx)" :context="ESTIMATE_LABEL" :primary="true" hint="What the rate rules would have produced. An estimate: not collected, not owed, not revenue." />
+          <MetricCard label="Confirmed payments counted" :value="formatNumber(summary.totals.eligible_payments)" hint="Customer-confirmed payments that could be estimated." />
+          <MetricCard label="Payment volume counted" :value="formatUGX(summary.totals.eligible_volume_ugx)" hint="The total of those payments. Customers paid it to providers directly: it is not WorkMate revenue." />
+          <MetricCard label="Estimated commission" :value="formatUGX(summary.totals.estimated_commission_ugx)" :context="ESTIMATE_LABEL" :primary="true" hint="What the rate rules would have produced. Not collected, not owed, not revenue." />
           <MetricCard label="Not counted" :value="formatNumber(summary.excluded.payments)" hint="Payments that could not be estimated, with the reasons below." />
         </div>
 
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <section class="rounded-xl wm-surface p-4" aria-labelledby="ce-by-period">
             <h2 id="ce-by-period" class="text-[15px] font-semibold text-ink">Estimated commission by {{ range.granularity === 'day' ? 'day' : 'month' }}</h2>
-            <p class="text-[12px] text-[#64748B]">{{ ESTIMATE_LABEL }}</p>
             <p v-if="!summary.by_period.length" class="mt-3 text-[13px] text-[#64748B]">Nothing in this period.</p>
             <ul v-else class="mt-3 flex flex-col gap-2">
               <li v-for="r in summary.by_period" :key="r.period" class="text-[13px]">
@@ -77,10 +76,9 @@
         <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <section v-for="g in GROUPS" :key="g.key" class="rounded-xl wm-surface p-4" :aria-labelledby="`ce-${g.key}`">
             <h2 :id="`ce-${g.key}`" class="text-[15px] font-semibold text-ink">{{ g.title }}</h2>
-            <p class="text-[12px] text-[#64748B]">{{ ESTIMATE_LABEL }}</p>
             <p v-if="!summary[g.key].length" class="mt-3 text-[13px] text-[#64748B]">Nothing in this period.</p>
             <table v-else class="mt-3 w-full text-left text-[13px]">
-              <caption class="sr-only">{{ g.title }}. {{ ESTIMATE_LABEL }}</caption>
+              <caption class="sr-only">{{ g.title }}</caption>
               <thead><tr class="text-[12px] text-[#64748B]"><th scope="col" class="pb-1 font-medium">{{ g.col }}</th><th scope="col" class="pb-1 text-right font-medium">Payments</th><th scope="col" class="pb-1 text-right font-medium">Volume</th><th scope="col" class="pb-1 text-right font-medium">Estimate</th></tr></thead>
               <tbody class="divide-y divide-[#F1F5F9]">
                 <tr v-for="r in summary[g.key]" :key="r.name"><td class="py-1.5 text-ink">{{ r.name }}</td><td class="py-1.5 text-right">{{ r.payments }}</td><td class="py-1.5 text-right">{{ formatUGX(r.amount_ugx) }}</td><td class="py-1.5 text-right font-medium text-ink">{{ formatUGX(r.commission_ugx) }}</td></tr>
@@ -90,10 +88,10 @@
 
           <section class="rounded-xl wm-surface p-4" aria-labelledby="ce-by-policy">
             <h2 id="ce-by-policy" class="text-[15px] font-semibold text-ink">Rate rules applied</h2>
-            <p class="text-[12px] text-[#64748B]">The rule and version each estimate used. {{ ESTIMATE_LABEL }}</p>
+            <p class="text-[12px] text-[#64748B]">The rule and version each estimate used.</p>
             <p v-if="!summary.by_policy.length" class="mt-3 text-[13px] text-[#64748B]">No rule has been applied in this period.</p>
             <table v-else class="mt-3 w-full text-left text-[13px]">
-              <caption class="sr-only">Rate rules applied. {{ ESTIMATE_LABEL }}</caption>
+              <caption class="sr-only">Rate rules applied</caption>
               <thead><tr class="text-[12px] text-[#64748B]"><th scope="col" class="pb-1 font-medium">Rule</th><th scope="col" class="pb-1 text-right font-medium">Rate</th><th scope="col" class="pb-1 text-right font-medium">Payments</th><th scope="col" class="pb-1 text-right font-medium">Estimate</th></tr></thead>
               <tbody class="divide-y divide-[#F1F5F9]">
                 <tr v-for="r in summary.by_policy" :key="`${r.id}-${r.version}`">
@@ -109,13 +107,12 @@
 
     <!-- ================= Rate rules ================= -->
     <section v-show="tab === 'rules'" id="ce-panel-rules" role="tabpanel" aria-labelledby="ce-tab-rules" class="flex flex-col gap-4">
-      <div class="rounded-xl wm-surface p-4 text-[13px] text-[#475569]">
-        <p class="font-semibold text-ink">Which rule applies?</p>
-        <p class="mt-1">The most specific one in force when the customer confirmed the payment: <strong class="text-ink">Provider → Profession → Category → Place → District → Default.</strong> A step is skipped when the job doesn’t have what it needs (for example, when several of a provider’s professions fit, the profession rule isn’t used). Two rules that cover the same thing at the same time are never allowed, and a rule can’t start in the past, so it can never change an earlier estimate.</p>
-      </div>
+      <p class="flex items-center gap-1.5 text-[13.5px] font-semibold text-ink">Which rule applies?
+        <InfoTip label="which rule applies" text="The most specific rule in force when the customer confirmed the payment: Provider, Profession, Category, Place, District, then Default. A step is skipped when the job doesn’t have what it needs. Two rules for the same thing can’t overlap, and a rule can’t start in the past, so an earlier estimate never changes." />
+      </p>
 
       <div v-if="canManage && !form.open" class="flex"><button type="button" class="wm-btn wm-btn-primary !min-h-11 !rounded-lg" @click="openForm(null)"><i class="bi bi-plus-lg" aria-hidden="true"></i>New rate rule</button></div>
-      <p v-else-if="!canManage" class="wm-notice wm-notice-info"><i class="bi bi-lock" aria-hidden="true"></i><span>Your role can look at the rate rules but not change them.</span></p>
+      <DismissibleNotice v-else-if="!canManage" id="finance.estimates.rules-readonly" icon="bi-lock">Your role can view the rate rules but not change them.</DismissibleNotice>
 
       <!-- The rule form: preview first, then activate -->
       <form v-if="form.open" class="flex flex-col gap-4 rounded-xl wm-surface p-4" novalidate @submit.prevent="runPreview">
@@ -158,7 +155,7 @@
         <div v-if="preview" class="flex flex-col gap-3 rounded-xl border border-[#BFDBFE] bg-[#EFF6FF] p-4" aria-live="polite">
           <p class="text-[14px] font-semibold text-ink">Preview: {{ preview.scope }} at {{ preview.percent }}</p>
           <table class="w-full text-left text-[13px]">
-            <caption class="sr-only">Examples. {{ ESTIMATE_LABEL }}</caption>
+            <caption class="sr-only">Examples</caption>
             <thead><tr class="text-[12px] text-[#475569]"><th scope="col" class="pb-1 font-medium">A confirmed payment of</th><th scope="col" class="pb-1 text-right font-medium">Estimated commission</th><th scope="col" class="pb-1 text-right font-medium">Provider’s remainder</th></tr></thead>
             <tbody><tr v-for="e in preview.examples" :key="e.amount_ugx"><td class="py-1 text-ink">{{ formatUGX(e.amount_ugx) }}</td><td class="py-1 text-right font-medium text-ink">{{ formatUGX(e.commission_ugx) }}</td><td class="py-1 text-right">{{ formatUGX(e.provider_remainder_ugx) }}</td></tr></tbody>
           </table>
@@ -183,7 +180,7 @@
       </form>
 
       <StateBlock v-if="!policiesLoaded && !error" kind="loading" title="Loading rate rules…" />
-      <StateBlock v-else-if="policiesLoaded && !policies.length" title="No rate rules yet" message="Until an administrator creates one, no payment can be estimated: no rate is invented." />
+      <StateBlock v-else-if="policiesLoaded && !policies.length" title="No rate rules yet" message="No payment can be estimated until a rate rule exists." />
       <ul v-else class="flex flex-col gap-3">
         <li v-for="p in policies" :key="p.id" class="rounded-xl wm-surface p-4">
           <div class="flex flex-wrap items-start justify-between gap-2">
@@ -204,7 +201,7 @@
     <!-- ================= Which rate? ================= -->
     <section v-show="tab === 'check'" id="ce-panel-check" role="tabpanel" aria-labelledby="ce-tab-check" class="flex flex-col gap-4">
       <form class="grid grid-cols-1 gap-3 rounded-xl wm-surface p-4 sm:grid-cols-2" @submit.prevent="runCheck">
-        <p class="text-[13px] text-[#475569] sm:col-span-2">Pick a job and see which rate rule would apply, and why. Nothing is saved or changed.</p>
+        <p class="text-[13px] text-[#475569] sm:col-span-2">See which rate rule would apply to a job. Nothing is saved.</p>
         <label class="flex flex-col gap-1 text-[13px] font-medium text-ink">Service category<select v-model="check.category" required class="h-10 rounded-lg border border-[#CBD5E1] px-2 font-normal"><option value="">Choose…</option><option v-for="c in options.categories" :key="c.id" :value="c.slug">{{ c.name }}</option></select></label>
         <label class="flex flex-col gap-1 text-[13px] font-medium text-ink">Place <span class="font-normal text-[#64748B]">(optional)</span><select v-model="check.area" class="h-10 rounded-lg border border-[#CBD5E1] px-2 font-normal"><option value="">Not given</option><option v-for="a in options.areas" :key="a.id" :value="a.slug">{{ a.name }}</option></select></label>
         <label class="flex flex-col gap-1 text-[13px] font-medium text-ink">Profession <span class="font-normal text-[#64748B]">(optional)</span><select v-model="check.profession" class="h-10 rounded-lg border border-[#CBD5E1] px-2 font-normal"><option value="">Not given</option><option v-for="p in options.professions" :key="p.id" :value="p.slug">{{ p.name }}</option></select></label>
@@ -228,21 +225,22 @@
     </section>
 
     <!-- ================= Calculations ================= -->
-    <!-- ================= Obligations (B6): recorded, read only ================= -->
+    <!-- ================= Obligations: recorded, read only ================= -->
     <section v-show="tab === 'obligations'" id="ce-panel-obligations" role="tabpanel" aria-labelledby="ce-tab-obligations" class="flex flex-col gap-3">
-      <p class="wm-notice wm-notice-warning" role="note"><i class="bi bi-journal-text" aria-hidden="true"></i>
-        <span><strong class="font-semibold">Recorded obligations, not estimates.</strong> These are what a provider owes WorkMate because the customer confirmed a payment (after the chosen start). They are only recorded when obligations are switched on in Financial Settings, and this page can’t change them.</span></p>
       <StateBlock v-if="!obligationsLoaded && !error" kind="loading" title="Loading…" />
-      <template v-else>
-        <p v-if="!obligations.enabled" class="wm-notice wm-notice-info"><i class="bi bi-info-circle" aria-hidden="true"></i><span>Obligations are switched off, so nothing new is being recorded.</span></p>
-        <p v-else-if="!obligations.starts_at" class="wm-notice wm-notice-info"><i class="bi bi-info-circle" aria-hidden="true"></i><span>No start moment is set, so nothing is assessed yet. Payments before the start are never charged.</span></p>
-        <p v-else class="text-[13px] text-[#475569]">Payments the customer confirmed from {{ formatDateTime(obligations.starts_at) }} are assessed.</p>
+      <template v-else-if="obligationsLoaded">
+        <DismissibleNotice id="finance.estimates.obligations" icon="bi-journal-text">
+          <strong class="font-semibold">Recorded obligations, not estimates.</strong> What providers owe WorkMate on payments customers confirmed after the start moment. Read only.
+        </DismissibleNotice>
+        <DismissibleNotice v-if="!obligations.enabled" id="finance.estimates.obligations-off" version="off">Obligations are switched off, so nothing new is being recorded.</DismissibleNotice>
+        <DismissibleNotice v-else-if="!obligations.starts_at" id="finance.estimates.obligations-nostart" version="nostart" tone="warning">No start moment is set, so nothing is assessed yet.</DismissibleNotice>
+        <p v-else class="text-[13px] text-[#475569]">Payments customers confirmed from {{ formatDateTime(obligations.starts_at) }} are assessed.</p>
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <MetricCard label="Obligations recorded" :value="formatNumber(obligations.totals.assessments)" hint="One per customer-confirmed payment." />
           <MetricCard label="Commission assessed" :value="formatUGX(obligations.totals.assessed_ugx)" hint="Before any reversals." />
           <MetricCard label="Outstanding" :value="formatUGX(obligations.totals.outstanding_ugx)" :primary="true" hint="Assessed minus reversed. What providers pay is in Commission Payments and Commission Settlements." />
         </div>
-        <StateBlock v-if="!obligations.items.length" title="No obligations yet" message="They appear when a customer confirms a payment after the start moment, with Obligations switched on." />
+        <StateBlock v-if="!obligations.items.length" title="No obligations recorded" message="None yet." />
         <div v-else class="overflow-x-auto rounded-xl wm-surface">
           <table class="w-full min-w-[760px] text-left text-[13px]">
             <caption class="sr-only">Recorded commission obligations</caption>
@@ -268,13 +266,13 @@
     <section v-show="tab === 'calculations'" id="ce-panel-calculations" role="tabpanel" aria-labelledby="ce-tab-calculations" class="flex flex-col gap-3">
       <div class="flex flex-wrap items-end gap-3">
         <label class="flex flex-col gap-1 text-[13px] font-medium text-ink">Show<select v-model="filters.status" class="h-10 rounded-lg border border-[#CBD5E1] px-2 font-normal" @change="loadSnapshots(1)"><option value="">All</option><option value="calculated">Estimated</option><option value="excluded">Not counted</option></select></label>
-        <p class="pb-2 text-[12.5px] text-[#64748B]">Newest first. {{ ESTIMATE_LABEL }}. No customer or contact details are shown.</p>
+        <p class="pb-2 text-[12.5px] text-[#64748B]">Newest first. No customer or contact details are shown.</p>
       </div>
       <StateBlock v-if="!snapshotsLoaded && !error" kind="loading" title="Loading…" />
-      <StateBlock v-else-if="!snapshots.items.length" title="No calculations yet" message="A payment appears here once the customer confirms it and estimates are switched on." />
-      <div v-else class="overflow-x-auto rounded-xl wm-surface">
+      <StateBlock v-else-if="snapshotsLoaded && !snapshots.items.length" title="No calculations yet" message="None yet." />
+      <div v-else-if="snapshotsLoaded" class="overflow-x-auto rounded-xl wm-surface">
         <table class="w-full min-w-[720px] text-left text-[13px]">
-          <caption class="sr-only">Estimated commissions. {{ ESTIMATE_LABEL }}</caption>
+          <caption class="sr-only">Estimated commissions</caption>
           <thead><tr class="text-[12px] text-[#64748B]"><th scope="col" class="p-3 font-medium">Confirmed</th><th scope="col" class="p-3 font-medium">Provider</th><th scope="col" class="p-3 font-medium">Category</th><th scope="col" class="p-3 text-right font-medium">Payment</th><th scope="col" class="p-3 text-right font-medium">Rate</th><th scope="col" class="p-3 text-right font-medium">Estimate</th><th scope="col" class="p-3 font-medium">Rule / result</th></tr></thead>
           <tbody class="divide-y divide-[#F1F5F9]">
             <tr v-for="r in snapshots.items" :key="r.id">
@@ -285,7 +283,7 @@
           </tbody>
         </table>
       </div>
-      <div v-if="snapshots.total > snapshots.per_page" class="flex items-center justify-between text-[13px]">
+      <div v-if="snapshotsLoaded && snapshots.total > snapshots.per_page" class="flex items-center justify-between text-[13px]">
         <button type="button" class="wm-btn wm-btn-secondary !min-h-10 !rounded-lg" :disabled="snapshots.page <= 1 || busy" @click="loadSnapshots(snapshots.page - 1)">Newer</button>
         <span class="text-[#64748B]">Page {{ snapshots.page }} of {{ Math.ceil(snapshots.total / snapshots.per_page) }} · {{ snapshots.total }} in all</span>
         <button type="button" class="wm-btn wm-btn-secondary !min-h-10 !rounded-lg" :disabled="snapshots.page * snapshots.per_page >= snapshots.total || busy" @click="loadSnapshots(snapshots.page + 1)">Older</button>
@@ -303,6 +301,9 @@ import AdminPageHeader from '../components/AdminPageHeader.vue';
 import ActionDialog from '../components/ActionDialog.vue';
 import StateBlock from '../components/StateBlock.vue';
 import MetricCard from '../components/MetricCard.vue';
+import InfoTip from '../components/InfoTip.vue';
+import DismissibleNotice from '../components/DismissibleNotice.vue';
+import NoticeReopen from '../components/NoticeReopen.vue';
 import { api, fieldErrors } from '@/api/client.js';
 import { can } from '../permissions.js';
 import { toast } from '../stores/prototypeChanges.js';

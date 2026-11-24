@@ -186,7 +186,7 @@ const chartLinks = {
   registrations: { to: '/admin/analytics/customers', permission: 'analytics.view' },
   jobs: { to: '/admin/marketplace/jobs', permission: 'marketplace.view' },
   conversion: { to: '/admin/analytics/conversion', permission: 'analytics.view' },
-  money: { to: '/admin/finance/overview', permission: 'finance.view' },
+  money: { to: '/admin/finance/administration', permission: 'finance.overview.view' },
   demand: { to: '/admin/analytics/demand', permission: 'analytics.view' },
   areas: { to: '/admin/location/overview', permission: 'location.view' },
   search: { to: '/admin/location/search-analytics', permission: 'location.view' },
@@ -469,7 +469,7 @@ const charts = computed(() => {
     },
     ...(can('finance.summary') ? [{
       // Two panels, two scales: never a dual axis
-      id: 'money', kind: 'money', title: 'Transaction value and platform commission', minHeight: 330,
+      id: 'money', kind: 'money', title: 'Commission and financial position', minHeight: 330,
       summary: `${formatUGXCompact(tot.gtv)} gross transaction value${change('gtv')}; ${formatUGXCompact(tot.commission)} platform commission. These are separate figures: GTV is not revenue.`,
       panels: [
         { title: 'Gross transaction value', props: {
@@ -535,10 +535,10 @@ const charts = computed(() => {
 // Card frames shown while the first load is in flight
 const placeholderCharts = [
   'Registrations', 'Jobs created and completed', 'Daily active users', 'Community activity', 'Booking conversion and cancellation',
-  'Transaction value and platform commission', 'Service demand by category', 'Providers by registered area',
+  'Commission and financial position', 'Service demand by category', 'Providers by registered area',
   'Search outcomes', 'Disputes opened and resolved',
 ].map((title, i) => ({
   id: `ph${i}`, title, summary: '', legend: [], table: null, kind: 'none',
-  permission: title.startsWith('Transaction') ? 'finance.summary' : undefined,
+  permission: title.startsWith('Commission and') ? 'finance.summary' : undefined,
 }));
 </script>

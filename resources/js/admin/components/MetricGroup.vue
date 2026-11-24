@@ -12,8 +12,9 @@
         >
           <span class="flex min-w-0 items-center gap-1.5 text-[13px] text-[#475569]" :class="{ 'group-hover:text-primary': m.to }">
             <span class="truncate">{{ m.label }}</span>
-            <i v-if="m.hint" class="bi bi-info-circle text-[11px] text-[#94A3B8]" :title="m.hint" aria-hidden="true"></i>
-            <span v-if="m.hint" class="sr-only">({{ m.hint }})</span>
+            <InfoTip v-if="m.hint && !m.to" :label="m.label" :text="m.hint" />
+            <i v-else-if="m.hint" class="bi bi-info-circle text-[11px] text-[#94A3B8]" aria-hidden="true"></i>
+            <span v-if="m.hint && m.to" class="sr-only">({{ m.hint }})</span>
           </span>
           <span class="flex shrink-0 items-baseline gap-2">
             <span v-if="m.delta != null" class="text-[12px] font-semibold" :class="deltaClass(m)">
@@ -30,6 +31,7 @@
 
 <script setup>
 import { useId } from 'vue';
+import InfoTip from './InfoTip.vue';
 import { formatPercent } from '../utils/format.js';
 
 defineProps({

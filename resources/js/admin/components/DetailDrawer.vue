@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <Transition name="wm-drawer">
-      <div v-if="open" class="fixed inset-0 z-[120] flex justify-end" @keydown.esc="$emit('close')">
+      <div v-if="open" class="fixed inset-x-0 z-[120] flex justify-end" :style="{ top: 'var(--wm-vvt, 0px)', height: 'var(--wm-vvh, 100dvh)' }">
         <div class="wm-drawer-backdrop absolute inset-0 bg-[#0F172A]/30" aria-hidden="true" @click="$emit('close')"></div>
         <aside
           ref="panel"
@@ -9,8 +9,7 @@
           aria-modal="true"
           :aria-labelledby="titleId"
           tabindex="-1"
-          class="wm-drawer-panel wm-glass-pop relative flex h-full w-full max-w-[520px] flex-col !border-y-0 !border-r-0 focus:outline-none"
-          @keydown.tab="trapFocus"
+          class="wm-drawer-panel wm-glass-pop relative flex h-full w-full min-w-0 max-w-[520px] flex-col !border-y-0 !border-r-0 focus:outline-none"
         >
           <header class="flex items-start justify-between gap-3 border-b border-[#E2E8F0] px-5 py-4">
             <div class="min-w-0">
@@ -22,10 +21,10 @@
               <i class="bi bi-x-lg text-lg" aria-hidden="true"></i>
             </button>
           </header>
-          <div class="flex-1 overflow-y-auto overscroll-contain px-5 py-4">
+          <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 [overflow-wrap:anywhere]">
             <slot />
           </div>
-          <footer v-if="$slots.footer" class="flex flex-wrap gap-2 border-t border-[#E2E8F0] px-5 py-3">
+          <footer v-if="$slots.footer" class="flex flex-wrap gap-2 border-t border-[#E2E8F0] px-5 pt-3 pb-[calc(12px+env(safe-area-inset-bottom,0px))]">
             <slot name="footer" />
           </footer>
         </aside>
@@ -35,40 +34,19 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onBeforeUnmount, useId } from 'vue';
+import { ref, toRef, useId } from 'vue';
+import { useModalBehaviour } from '@/components/useModalBehaviour.js';
 
 const props = defineProps({
   open:    { type: Boolean, default: false },
   title:   { type: String, default: '' },
   eyebrow: { type: String, default: '' },
 });
-defineEmits(['close']);
+const emit = defineEmits(['close']);
 
 const titleId = useId();
 const panel = ref(null);
-let returnFocusTo = null;
-
-watch(() => props.open, async (isOpen) => {
-  if (isOpen) {
-    returnFocusTo = document.activeElement;
-    document.documentElement.style.overflow = 'hidden';
-    await nextTick();
-    panel.value?.focus();
-  } else {
-    document.documentElement.style.overflow = '';
-    returnFocusTo?.focus?.();
-  }
-});
-onBeforeUnmount(() => { document.documentElement.style.overflow = ''; });
-
-function trapFocus(e) {
-  const focusable = panel.value?.querySelectorAll('button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])');
-  if (!focusable?.length) return;
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  if (e.shiftKey && (document.activeElement === first || document.activeElement === panel.value)) { e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-}
+useModalBehaviour({ open: toRef(props, 'open'), panel, close: () => emit('close') });
 </script>
 
 <style scoped>

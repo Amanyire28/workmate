@@ -1,5 +1,5 @@
 <template>
-  <BottomSheet :open="open" :title="titles[step]" @close="close">
+  <BottomSheet :open="open" :title="titles[step]" :full="step === 'manual'" @close="close">
     <!-- 1. Amount -->
     <form v-if="step === 'amount'" :id="formId" class="flex flex-col gap-4" novalidate @submit.prevent="toMethod">
       <dl class="grid grid-cols-2 gap-2">

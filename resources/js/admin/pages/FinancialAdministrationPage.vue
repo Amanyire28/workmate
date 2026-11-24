@@ -1,11 +1,12 @@
 <template>
   <div class="flex flex-col gap-4">
-    <AdminPageHeader title="Financial Administration" description="Where commission stands, reports and exports, adjustment requests, reconciliation exceptions and the financial audit trail." demo />
+    <AdminPageHeader title="Financial Administration" description="Where commission stands, reports and exports, adjustment requests, reconciliation exceptions and the audit trail.">
+      <template #actions><NoticeReopen scope="finance.admin." /></template>
+    </AdminPageHeader>
 
-    <p class="wm-notice wm-notice-info" role="note">
-      <i class="bi bi-shield-check" aria-hidden="true"></i>
-      <span>Nothing on this page changes the ledger. Approving an adjustment records a decision only: posting it is not enabled until the correction policy is approved. Collected means money WorkMate verified it received, never a provider’s own report.</span>
-    </p>
+    <DismissibleNotice id="finance.admin.ledger" icon="bi-shield-check">
+      Nothing on this page changes the ledger. <strong class="font-semibold">Collected</strong> means money WorkMate verified it received, never a provider’s own report.
+    </DismissibleNotice>
 
     <div class="wm-segmented grid grid-cols-2 sm:inline-grid sm:grid-cols-5" role="tablist" aria-label="Financial administration">
       <button v-for="t in visibleTabs" :key="t.id" type="button" role="tab" class="wm-segment !min-h-11" :class="{ 'is-active': tab === t.id }" :aria-selected="tab === t.id" @click="setTab(t.id)">{{ t.label }}</button>
@@ -16,7 +17,7 @@
     <form v-if="['overview', 'reports'].includes(tab)" class="flex flex-wrap items-end gap-3" @submit.prevent="apply">
       <label class="flex flex-col gap-1 text-[13px] font-medium text-ink">From<input v-model="filters.from" type="date" class="h-10 rounded-lg border border-[#CBD5E1] px-2 font-normal" /></label>
       <label class="flex flex-col gap-1 text-[13px] font-medium text-ink">To<input v-model="filters.to" type="date" class="h-10 rounded-lg border border-[#CBD5E1] px-2 font-normal" /></label>
-      <label class="flex flex-col gap-1 text-[13px] font-medium text-ink">Provider number <span class="font-normal text-[#64748B]">(optional)</span><input v-model="filters.provider" type="number" min="1" class="h-10 w-32 rounded-lg border border-[#CBD5E1] px-2 font-normal" /></label>
+      <label class="flex flex-col gap-1 text-[13px] font-medium text-ink">Provider ID <span class="font-normal text-[#64748B]">(optional)</span><input v-model="filters.provider" type="number" min="1" class="h-10 w-32 rounded-lg border border-[#CBD5E1] px-2 font-normal" /></label>
       <button type="submit" class="wm-btn wm-btn-secondary !min-h-10 !rounded-lg" :disabled="busy">Show</button>
       <p v-if="periodError" class="w-full text-[12.5px] text-[#B91C1C]" role="alert">{{ periodError }}</p>
     </form>
@@ -26,7 +27,9 @@
       <StateBlock v-if="!overview && !error" kind="loading" title="Loading…" />
       <template v-else-if="overview">
         <div>
-          <h2 class="text-[15px] font-semibold text-ink">In the period: {{ overview.period.label }}</h2>
+          <h2 class="flex items-center gap-1.5 text-[15px] font-semibold text-ink">In the period: {{ overview.period.label }}
+            <InfoTip v-if="overview.notes && overview.notes.length" label="how these figures are worked out"><ul class="list-disc pl-4"><li v-for="n in overview.notes" :key="n">{{ n }}</li></ul></InfoTip>
+          </h2>
           <p class="text-[12.5px] text-[#64748B]">What was recorded between these dates.</p>
           <div class="mt-2 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <MetricCard v-for="c in cards.period" :key="c.key" :label="c.label" :value="formatUGX(c.value)" :hint="c.hint" :primary="c.key === 'collected'" />
@@ -46,7 +49,6 @@
           <p v-if="overview.as_of.provider_credit_ugx" class="mt-2 text-[13px] text-[#475569]">Providers hold {{ formatUGX(overview.as_of.provider_credit_ugx) }} in credit (paid more than owed). Nothing is refunded automatically.</p>
           <p class="mt-1 text-[13px] text-[#475569]">{{ overview.as_of.pending_adjustments }} adjustment {{ overview.as_of.pending_adjustments === 1 ? 'request is' : 'requests are' }} waiting for a decision.</p>
         </div>
-        <ul class="list-disc pl-5 text-[12.5px] text-[#64748B]"><li v-for="n in overview.notes" :key="n">{{ n }}</li></ul>
       </template>
     </section>
 
@@ -85,7 +87,7 @@
 
     <!-- ================= Adjustments ================= -->
     <section v-show="tab === 'adjustments'" class="flex flex-col gap-3" aria-label="Adjustments">
-      <p class="wm-notice wm-notice-warning"><i class="bi bi-info-circle" aria-hidden="true"></i><span>{{ adjustments ? adjustments.posting.note : 'Approving records the decision only.' }}</span></p>
+      <DismissibleNotice v-if="adjustments && adjustments.posting && adjustments.posting.note" id="finance.admin.posting" :version="adjustments.posting.note.slice(0, 60)" tone="warning">{{ adjustments.posting.note }}</DismissibleNotice>
       <div v-if="canRequest && !adjForm.open"><button type="button" class="wm-btn wm-btn-primary !min-h-11 !rounded-lg" @click="openAdjustment"><i class="bi bi-plus-lg" aria-hidden="true"></i>Propose an adjustment</button></div>
 
       <form v-if="adjForm.open" class="wm-surface flex flex-col gap-3 rounded-xl p-4" novalidate @submit.prevent="submitAdjustment">
@@ -214,6 +216,9 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import AdminPageHeader from '../components/AdminPageHeader.vue';
 import StateBlock from '../components/StateBlock.vue';
 import MetricCard from '../components/MetricCard.vue';
+import InfoTip from '../components/InfoTip.vue';
+import DismissibleNotice from '../components/DismissibleNotice.vue';
+import NoticeReopen from '../components/NoticeReopen.vue';
 import { api } from '@/api/client.js';
 import { newClientToken } from '@/utils/photos.js';
 import { can } from '../permissions.js';

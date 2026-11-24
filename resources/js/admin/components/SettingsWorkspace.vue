@@ -11,7 +11,8 @@
 
     <p v-if="values && !hasConnected" class="wm-notice wm-notice-warning">
       <i class="bi bi-plug" aria-hidden="true"></i>
-      <span>These settings aren’t connected to the platform yet, so they can’t be changed. The values shown are the planned defaults.</span>
+      <span v-if="def.quiet">Service currently not available.</span>
+      <span v-else>These settings aren’t connected to the platform yet, so they can’t be changed. The values shown are the planned defaults.</span>
     </p>
     <p v-else-if="values && !def.quiet" class="wm-notice wm-notice-info">
       <i class="bi bi-database" aria-hidden="true"></i>
@@ -40,13 +41,13 @@
             <label v-if="f.type === 'toggle'" class="flex items-start gap-3" :class="editable(f) ? 'cursor-pointer' : 'opacity-70'">
               <input v-model="values[f.key]" type="checkbox" class="mt-0.5 h-5 w-5 shrink-0 accent-[#1769D2]" :aria-describedby="f.help ? `${uid}-${f.key}-h` : undefined" />
               <span>
-                <span class="block text-[13.5px] font-medium text-ink">{{ f.label }}<ChangedMark :on="changed(f.key)" /><SourceMark :live="!!connected[f.key]" :unavailable="!!f.unavailable" /></span>
+                <span class="block text-[13.5px] font-medium text-ink">{{ f.label }}<ChangedMark :on="changed(f.key)" /><SourceMark :live="!!connected[f.key]" :unavailable="!!f.unavailable" :quiet="!!def.quiet" /><InfoTip v-if="f.info" :label="f.label" :text="f.info" /></span>
                 <span v-if="f.unavailable || f.help" :id="`${uid}-${f.key}-h`" class="block text-[12.5px] text-[#64748B]">{{ f.unavailable || f.help }}</span>
               </span>
             </label>
 
             <template v-else>
-              <label :for="`${uid}-${f.key}`" class="block text-[13.5px] font-medium text-ink">{{ f.label }}<ChangedMark :on="changed(f.key)" /><SourceMark :live="!!connected[f.key]" :unavailable="!!f.unavailable" /></label>
+              <label :for="`${uid}-${f.key}`" class="block text-[13.5px] font-medium text-ink">{{ f.label }}<ChangedMark :on="changed(f.key)" /><SourceMark :live="!!connected[f.key]" :unavailable="!!f.unavailable" :quiet="!!def.quiet" /><InfoTip v-if="f.info" :label="f.label" :text="f.info" /></label>
               <div class="mt-1.5 flex items-center gap-2">
                 <select
                   v-if="f.type === 'select'"
@@ -125,6 +126,7 @@ import { onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import AdminPageHeader from './AdminPageHeader.vue';
 import StateBlock from './StateBlock.vue';
 import ActionDialog from './ActionDialog.vue';
+import InfoTip from './InfoTip.vue';
 import { getSettings, saveSettings } from '../data/adminApi.js';
 import { toast } from '../stores/prototypeChanges.js';
 
@@ -137,12 +139,12 @@ const ChangedMark = (p) => (p.on ? h('span', { class: 'ml-1.5 rounded bg-[#FEF3E
 ChangedMark.props = ['on'];
 
 // "Live": saved on the server for the whole platform. "Not available yet": can't work today.
-const SourceMark = (p) => h('span', {
+const SourceMark = (p) => (p.quiet && p.live ? null : h('span', {
   class: p.live
     ? 'ml-1.5 rounded bg-[#EAF3FF] px-1.5 text-[11px] font-semibold text-[#1E5AA8]'
     : 'ml-1.5 rounded bg-[#F1F5F9] px-1.5 text-[11px] font-medium text-[#64748B]',
-}, p.live ? 'Live' : (p.unavailable ? 'Not available yet' : 'Not connected yet'));
-SourceMark.props = ['live', 'unavailable'];
+}, p.quiet ? 'Service currently not available.' : (p.live ? 'Live' : (p.unavailable ? 'Not available yet' : 'Not connected yet'))));
+SourceMark.props = ['live', 'unavailable', 'quiet'];
 
 const uid = useId();
 const values = ref(null);

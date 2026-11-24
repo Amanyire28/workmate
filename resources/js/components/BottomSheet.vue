@@ -1,7 +1,13 @@
 <template>
   <Teleport to="body">
     <Transition name="wm-sheet">
-      <div v-if="open" class="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-6" @keydown.esc="$emit('close')">
+      <!-- Sized to what is really visible (--wm-vvh), so the keyboard never covers the buttons -->
+      <div
+        v-if="open"
+        class="fixed inset-x-0 z-[100] flex justify-center"
+        :class="full ? 'items-stretch sm:items-center sm:p-6' : 'items-end sm:items-center sm:p-6'"
+        :style="{ top: 'var(--wm-vvt, 0px)', height: 'var(--wm-vvh, 100dvh)' }"
+      >
         <div class="wm-sheet-backdrop absolute inset-0 bg-ink/35 backdrop-blur-[2px]" aria-hidden="true" @click="$emit('close')"></div>
 
         <div
@@ -10,21 +16,22 @@
           aria-modal="true"
           :aria-labelledby="titleId"
           tabindex="-1"
-          class="wm-sheet-panel wm-glass-strong relative w-full sm:max-w-lg max-h-[88dvh] flex flex-col rounded-t-[28px] sm:rounded-[28px] !bg-white/85 !shadow-[0_-8px_40px_rgba(15,23,42,0.18),inset_0_1px_0_#fff] focus:outline-none"
-          @keydown.tab="trapFocus"
+          class="wm-sheet-panel wm-glass-strong relative flex w-full min-w-0 max-w-full flex-col !bg-white/85 !shadow-[0_-8px_40px_rgba(15,23,42,0.18),inset_0_1px_0_#fff] focus:outline-none sm:max-w-lg sm:rounded-[28px]"
+          :class="full ? 'h-full rounded-none sm:h-auto sm:max-h-[88%]' : 'max-h-[88%] rounded-t-[28px]'"
         >
-          <div class="flex items-center justify-between gap-4 px-5 pt-3 pb-2">
-            <h2 :id="titleId" class="wm-h2 !text-xl">{{ title }}</h2>
-            <button type="button" class="wm-icon-btn -mr-2" aria-label="Close" @click="$emit('close')">
+          <div class="flex items-center justify-between gap-4 px-5 pb-2" :class="full ? 'pt-[max(12px,env(safe-area-inset-top,0px))] sm:pt-3' : 'pt-3'">
+            <h2 :id="titleId" class="wm-h2 min-w-0 break-words !text-xl">{{ title }}</h2>
+            <button type="button" class="wm-icon-btn -mr-2 shrink-0" aria-label="Close" @click="$emit('close')">
               <i class="bi bi-x-lg text-lg" aria-hidden="true"></i>
             </button>
           </div>
 
-          <div class="flex-1 overflow-y-auto overscroll-contain px-5 pb-5">
+          <!-- Scrolls on its own; long references, file names and amounts wrap instead of widening the sheet -->
+          <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-5 [overflow-wrap:anywhere]">
             <slot />
           </div>
 
-          <div v-if="$slots.footer" class="flex gap-3 px-5 pt-3 pb-[calc(12px+var(--wm-safe-bottom))] sm:pb-4 border-t border-line">
+          <div v-if="$slots.footer" class="flex flex-wrap gap-3 border-t border-line px-5 pt-3 pb-[calc(12px+var(--wm-safe-bottom))] sm:pb-4 [&>*]:min-w-0 [&_.wm-btn]:whitespace-normal [&_.wm-btn]:px-4 [&_.wm-btn]:text-center">
             <slot name="footer" />
           </div>
         </div>
@@ -34,45 +41,23 @@
 </template>
 
 <script setup>
-import { ref, watch, nextTick, onBeforeUnmount, useId } from 'vue';
+import { ref, toRef, useId } from 'vue';
+import { useModalBehaviour } from './useModalBehaviour.js';
 
+/**
+ * The app's one bottom sheet. Short interactions use the default; a long form passes `full` to fill the screen on a phone
+ * (a centred panel on larger screens). Both scroll inside, keep the footer buttons reachable and respect the safe areas.
+ */
 const props = defineProps({
   open:  { type: Boolean, default: false },
   title: { type: String, required: true },
+  full:  { type: Boolean, default: false },
 });
-defineEmits(['close']);
+const emit = defineEmits(['close']);
 
 const titleId = useId();
 const panel = ref(null);
-let returnFocusTo = null;
-
-watch(() => props.open, async (isOpen) => {
-  if (isOpen) {
-    returnFocusTo = document.activeElement;
-    document.documentElement.style.overflow = 'hidden';
-    await nextTick();
-    panel.value?.focus();
-  } else {
-    document.documentElement.style.overflow = '';
-    returnFocusTo?.focus?.();
-  }
-});
-
-onBeforeUnmount(() => { document.documentElement.style.overflow = ''; });
-
-function trapFocus(e) {
-  const focusable = panel.value?.querySelectorAll(
-    'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])'
-  );
-  if (!focusable?.length) return;
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  if (e.shiftKey && (document.activeElement === first || document.activeElement === panel.value)) {
-    e.preventDefault(); last.focus();
-  } else if (!e.shiftKey && document.activeElement === last) {
-    e.preventDefault(); first.focus();
-  }
-}
+useModalBehaviour({ open: toRef(props, 'open'), panel, close: () => emit('close') });
 </script>
 
 <style scoped>

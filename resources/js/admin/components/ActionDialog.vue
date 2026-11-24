@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <Transition name="wm-dialog">
-      <div v-if="open" class="fixed inset-0 z-[140] flex items-end sm:items-center justify-center sm:p-6" @keydown.esc="$emit('close')">
+      <div v-if="open" class="fixed inset-x-0 z-[140] flex items-end sm:items-center justify-center sm:p-6" :style="{ top: 'var(--wm-vvt, 0px)', height: 'var(--wm-vvh, 100dvh)' }">
         <div class="absolute inset-0 bg-[#0F172A]/40" aria-hidden="true" @click="$emit('close')"></div>
         <form
           ref="panel"
@@ -10,10 +10,9 @@
           :aria-labelledby="titleId"
           :aria-describedby="message ? messageId : undefined"
           tabindex="-1"
-          class="wm-dialog-panel wm-glass-pop relative flex max-h-[90dvh] w-full flex-col rounded-t-2xl sm:max-w-[480px] sm:rounded-2xl focus:outline-none"
+          class="wm-dialog-panel wm-glass-pop relative flex max-h-[92%] w-full min-w-0 max-w-full flex-col rounded-t-2xl sm:max-w-[480px] sm:rounded-2xl focus:outline-none [overflow-wrap:anywhere]"
           novalidate
           @submit.prevent="submit"
-          @keydown.tab="trapFocus"
         >
           <div class="flex items-start gap-3 px-5 pt-5">
             <span
@@ -27,7 +26,7 @@
             </div>
           </div>
 
-          <div v-if="fields.length" class="flex flex-col gap-4 overflow-y-auto px-5 pt-4">
+          <div v-if="fields.length" class="flex min-h-0 flex-col gap-4 overflow-y-auto px-5 pt-4">
             <div v-for="f in fields" :key="f.key">
               <label :for="`${titleId}-${f.key}`" class="block text-[13px] font-medium text-ink">
                 {{ f.label }}<span v-if="f.required" class="text-[#B91C1C]" aria-hidden="true"> *</span>
@@ -88,7 +87,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, nextTick, useId } from 'vue';
+import { ref, reactive, watch, nextTick, toRef, useId } from 'vue';
+import { useModalBehaviour } from '@/components/useModalBehaviour.js';
 
 /**
  * Confirmation and small forms for record actions: approve, reject with a reason,
@@ -112,18 +112,17 @@ const messageId = useId();
 const panel = ref(null);
 const values = reactive({});
 const errors = reactive({});
-let returnFocusTo = null;
 
+// Scroll lock, Escape, focus trap and returning focus are shared with the other modals (and nest correctly)
+useModalBehaviour({ open: toRef(props, 'open'), panel, close: () => emit('close'), focus: () => panel.value?.querySelector('textarea, input, select') });
+
+// Each time it opens, start from clean fields (values are never reset by a resize or the keyboard)
 watch(() => props.open, async (isOpen) => {
   if (isOpen) {
-    returnFocusTo = document.activeElement;
     for (const k of Object.keys(values)) delete values[k];
     for (const k of Object.keys(errors)) delete errors[k];
     for (const f of props.fields) values[f.key] = f.initial ?? (f.type === 'select' ? f.options[0][0] : '');
     await nextTick();
-    (panel.value?.querySelector('textarea, input, select') || panel.value)?.focus();
-  } else {
-    returnFocusTo?.focus?.();
   }
 });
 
@@ -146,15 +145,6 @@ function submit() {
   const out = {};
   for (const f of props.fields) out[f.key] = f.type === 'number' ? Number(values[f.key]) : (typeof values[f.key] === 'string' ? values[f.key].trim() : values[f.key]);
   emit('confirm', out);
-}
-
-function trapFocus(e) {
-  const focusable = panel.value?.querySelectorAll('button:not(:disabled), input, select, textarea, [href]');
-  if (!focusable?.length) return;
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  if (e.shiftKey && (document.activeElement === first || document.activeElement === panel.value)) { e.preventDefault(); last.focus(); }
-  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
 }
 </script>
 

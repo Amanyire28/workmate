@@ -20,6 +20,10 @@ const pages = {
     'financial-administration': () => import('./pages/FinancialAdministrationPage.vue'),
 };
 const modulePage = () => import('./pages/ModulePage.vue');
+// Finance screens with no real data behind them yet. They stay hidden from the menu and keep their permission check, but a direct
+// address shows "Service currently not available." instead of sample records.
+const unavailablePage = () => import('./pages/ServiceUnavailablePage.vue');
+const UNAVAILABLE = ['finance-overview', 'transactions', 'commissions', 'refunds', 'payouts', 'reconciliation', 'finance-reports'];
 const tabbedPage = () => import('./pages/TabbedPage.vue');
 
 export const adminRoutes = [
@@ -36,7 +40,7 @@ export const adminRoutes = [
             ...navItems.filter(item => !item.tabOf).map(item => ({
                 // Child paths are relative to /admin
                 path: item.path.replace(/^\/admin\/?/, ''),
-                component: item.tabs ? tabbedPage : (pages[item.id] || modulePage),
+                component: UNAVAILABLE.includes(item.id) ? unavailablePage : (item.tabs ? tabbedPage : (pages[item.id] || modulePage)),
                 meta: {
                     navId: item.id,
                     permission: item.permission,

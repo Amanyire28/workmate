@@ -2,7 +2,7 @@
   <component
     :is="to ? 'router-link' : 'div'"
     :to="to || undefined"
-    class="group flex flex-col rounded-xl wm-glass-card"
+    class="group flex min-w-0 flex-col rounded-xl wm-glass-card"
     :class="[
       primary ? 'p-4 gap-2' : 'px-3.5 py-3 gap-1',
       to ? 'wm-hover-card cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary' : '',
@@ -10,18 +10,20 @@
   >
     <p class="flex items-center gap-1.5 text-[13px] font-medium text-[#64748B]">
       <span class="truncate">{{ label }}</span>
-      <i v-if="hint" class="bi bi-info-circle text-[12px] text-[#94A3B8]" :title="hint" aria-hidden="true"></i>
-      <span v-if="hint" class="sr-only">({{ hint }})</span>
+      <InfoTip v-if="hint && !to" :label="label" :text="hint" />
+      <i v-else-if="hint" class="bi bi-info-circle text-[12px] text-[#94A3B8]" aria-hidden="true"></i>
+      <span v-if="hint && to" class="sr-only">({{ hint }})</span>
     </p>
 
     <div class="flex items-end justify-between gap-3">
-      <p v-if="available" class="whitespace-nowrap font-semibold text-ink tracking-[-0.01em]" :class="primary ? 'text-[26px] leading-8' : 'text-xl leading-7'">{{ value }}</p>
-      <p v-else class="text-[15px] font-medium text-[#64748B]" :title="unavailableReason">Not available<span class="sr-only">: {{ unavailableReason }}</span></p>
+      <p v-if="loading" class="wm-skeleton h-7 w-24 !rounded-md" role="status" aria-busy="true"><span class="sr-only">Loading</span></p>
+      <p v-else-if="available" class="min-w-0 break-words font-semibold text-ink tracking-[-0.01em] sm:whitespace-nowrap" :class="primary ? 'text-[24px] leading-8 sm:text-[26px]' : 'text-xl leading-7'">{{ value }}</p>
+      <p v-else class="text-[15px] font-medium text-[#64748B]">Not available<span class="sr-only">: {{ unavailableReason }}</span></p>
       <!-- Shrinks (or gives way) before the number ever wraps -->
-      <Sparkline v-if="trend && trend.length > 1 && available" :values="trend" class="mb-1 min-w-0 flex-1 max-w-24" />
+      <Sparkline v-if="trend && trend.length > 1 && available && !loading" :values="trend" class="mb-1 min-w-0 flex-1 max-w-24" />
     </div>
 
-    <p v-if="available && delta != null" class="flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-[#64748B]">
+    <p v-if="available && !loading && delta != null" class="flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-[#64748B]">
       <span class="inline-flex items-center gap-0.5 font-semibold" :class="deltaClass">
         <i :class="['bi', delta >= 0 ? 'bi-arrow-up-short' : 'bi-arrow-down-short', 'text-base leading-none']" aria-hidden="true"></i>
         {{ formatPercent(Math.abs(delta)) }}
@@ -29,13 +31,14 @@
       </span>
       <span>vs previous period</span>
     </p>
-    <p v-if="available && context" class="text-[12.5px] text-[#64748B]">{{ context }}</p>
+    <p v-if="available && !loading && context" class="break-words text-[12.5px] text-[#64748B]">{{ context }}</p>
   </component>
 </template>
 
 <script setup>
 import { computed } from 'vue';
 import Sparkline from './charts/Sparkline.vue';
+import InfoTip from './InfoTip.vue';
 import { formatPercent } from '../utils/format.js';
 
 const props = defineProps({
@@ -44,11 +47,12 @@ const props = defineProps({
   delta:             { type: Number, default: null },     // ratio vs previous period
   goodWhen:          { type: String, default: 'up' },     // 'up' | 'down' | 'neutral'
   context:           { type: String, default: '' },
-  hint:              { type: String, default: '' },       // definition of the metric
+  hint:              { type: String, default: '' },       // definition of the metric, opened from the (i) icon
   trend:             { type: Array, default: null },
   to:                { type: String, default: '' },
   primary:           { type: Boolean, default: false },
   available:         { type: Boolean, default: true },    // false → "Not available", never a fake zero
+  loading:           { type: Boolean, default: false },   // true → a placeholder, never a figure
   unavailableReason: { type: String, default: 'This data is not collected yet.' },
 });
 

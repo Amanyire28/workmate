@@ -1,26 +1,27 @@
 <template>
   <div class="flex flex-col gap-4">
-    <AdminPageHeader title="Payment Disputes" description="Cases where a customer said a payment the provider reported isn’t right, and the two sides asked WorkMate to step in." demo />
+    <AdminPageHeader title="Payment Disputes" description="Cases where a customer said a payment the provider reported isn’t right, and WorkMate was asked to step in.">
+      <template #actions><NoticeReopen scope="finance.disputes." /></template>
+    </AdminPageHeader>
 
-    <p class="wm-notice wm-notice-info" role="note">
-      <i class="bi bi-shield-check" aria-hidden="true"></i>
-      <span>WorkMate does not collect or hold these payments. A decision here is a reasoned, attributed record: it can withdraw a provider’s report, but it can never confirm a payment for a customer, and it creates no charge, debt or commission.</span>
-    </p>
+    <DismissibleNotice id="finance.disputes.scope" icon="bi-shield-check">
+      WorkMate does not collect or hold these payments. A decision here is a reasoned, attributed record: it can withdraw a provider’s report, but never confirms a payment for a customer, and creates no charge, debt or commission.
+    </DismissibleNotice>
 
     <StateBlock v-if="error" kind="error" title="We couldn’t load this" :message="error"><button type="button" class="wm-btn wm-btn-secondary !min-h-10" @click="loadQueue">Try again</button></StateBlock>
 
     <!-- ================= The queue ================= -->
     <template v-if="!current">
       <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MetricCard label="Between the sides" :value="formatNumber(counts.open)" hint="Open cases the customer and provider are still discussing. WorkMate has not been asked yet." />
-        <MetricCard label="Waiting for review" :value="formatNumber(counts.escalated)" hint="Escalated to WorkMate and not yet taken by an administrator." :primary="true" />
-        <MetricCard label="In review" :value="formatNumber(counts.under_review)" hint="An administrator has taken the case." />
-        <MetricCard label="Closed" :value="formatNumber(counts.resolved)" hint="Settled by the two sides, withdrawn by the provider, or decided by WorkMate." />
+        <MetricCard label="Between the sides" :value="formatNumber(counts.open)" hint="Open cases the customer and provider are still discussing. WorkMate has not been asked yet." v-bind="state" />
+        <MetricCard label="Waiting for review" :value="formatNumber(counts.escalated)" hint="Escalated to WorkMate and not yet taken by an administrator." :primary="true" v-bind="state" />
+        <MetricCard label="In review" :value="formatNumber(counts.under_review)" hint="An administrator has taken the case." v-bind="state" />
+        <MetricCard label="Closed" :value="formatNumber(counts.resolved)" hint="Settled by the two sides, withdrawn by the provider, or decided by WorkMate." v-bind="state" />
       </div>
 
       <div class="wm-segmented flex flex-wrap" role="tablist" aria-label="Cases">
         <button v-for="t in QUEUE_TABS" :key="t.id || 'all'" type="button" role="tab" class="wm-segment !min-h-11" :class="{ 'is-active': filters.status === t.id }"
-          :aria-selected="filters.status === t.id" @click="setStatus(t.id)">{{ t.label }} <span class="text-[12px] opacity-70">{{ t.count(counts) }}</span></button>
+          :aria-selected="filters.status === t.id" @click="setStatus(t.id)">{{ t.label }} <span v-if="loaded" class="text-[12px] opacity-70">{{ t.count(counts) }}</span></button>
       </div>
 
       <form class="flex flex-wrap items-end gap-3" @submit.prevent="loadQueue(1)">
@@ -32,7 +33,7 @@
       </form>
 
       <StateBlock v-if="!loaded && !error" kind="loading" title="Loading cases…" />
-      <StateBlock v-else-if="loaded && !items.length" title="No cases here" message="When a customer and a provider can’t settle a payment question and one of them asks for help, it appears here." />
+      <StateBlock v-else-if="loaded && !items.length" title="No cases here" message="Cases appear when a customer or provider asks WorkMate for help." />
       <ul v-else class="flex flex-col gap-2">
         <li v-for="c in items" :key="c.id">
           <button type="button" class="wm-surface flex w-full flex-col gap-1 rounded-xl p-3.5 text-left hover:shadow-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary" @click="open(c.id)">
@@ -170,6 +171,8 @@ import AdminPageHeader from '../components/AdminPageHeader.vue';
 import ActionDialog from '../components/ActionDialog.vue';
 import StateBlock from '../components/StateBlock.vue';
 import MetricCard from '../components/MetricCard.vue';
+import DismissibleNotice from '../components/DismissibleNotice.vue';
+import NoticeReopen from '../components/NoticeReopen.vue';
 import { api } from '@/api/client.js';
 import { can } from '../permissions.js';
 import { toast } from '../stores/prototypeChanges.js';
@@ -190,6 +193,8 @@ const canResolve = computed(() => can('disputes.resolve'));
 const error = ref('');
 const busy = ref(false);
 const loaded = ref(false);
+// A count is shown only once the server has answered: "loading" or "not available", never a made-up zero
+const state = computed(() => ({ loading: !loaded.value && !error.value, available: loaded.value, unavailableReason: 'Could not be loaded.' }));
 const counts = ref({ open: 0, escalated: 0, under_review: 0, resolved: 0 });
 const items = ref([]);
 const page = ref(1);

@@ -2,7 +2,7 @@
   <div class="flex flex-col gap-4">
     <AdminPageHeader title="Commission Settlements" description="What each provider owes, in settlement cycles, and the reconciliation exceptions that need a decision." />
 
-    <p v-if="loaded && !enabled" class="wm-notice wm-notice-info"><i class="bi bi-toggle-off" aria-hidden="true"></i><span>Settlements are off. Existing records stay readable.</span></p>
+    <DismissibleNotice v-if="loaded && !enabled" id="finance.settlements.off" version="off" icon="bi-toggle-off">Settlements are switched off. Existing records stay readable.</DismissibleNotice>
 
     <div class="wm-segmented grid grid-cols-2 sm:inline-grid" role="tablist" aria-label="Settlements">
       <button v-for="t in ADMIN_TABS" :key="t.id" type="button" role="tab" class="wm-segment !min-h-11" :class="{ 'is-active': tab === t.id }" :aria-selected="tab === t.id" @click="setTab(t.id)">{{ t.label }}</button>
@@ -18,8 +18,8 @@
         <p class="pb-2 text-[12.5px] text-[#64748B]">{{ Object.entries(cycleCounts).map(([k, n]) => `${cycleLabel(k)} ${n}`).join(' · ') }}</p>
       </div>
       <StateBlock v-if="!cyclesLoaded && !error" kind="loading" title="Loading…" />
-      <StateBlock v-else-if="!openCycle && !cycles.length" title="No cycles" message="Cycles appear once commission obligations are recorded with settlement switched on." />
-      <ul v-else-if="!openCycle" class="flex flex-col gap-2">
+      <StateBlock v-else-if="cyclesLoaded && !openCycle && !cycles.length" title="No settlement cycles" message="None yet." />
+      <ul v-else-if="cyclesLoaded && !openCycle" class="flex flex-col gap-2">
         <li v-for="c in cycles" :key="c.id"><button type="button" class="wm-surface flex w-full flex-col gap-0.5 rounded-xl p-3.5 text-left hover:shadow-md" @click="showCycle(c.id)">
           <span class="flex flex-wrap items-center justify-between gap-2"><span class="text-[14.5px] font-semibold text-ink">#{{ c.id }} · {{ c.provider || 'Provider' }}</span><span class="rounded-full px-2.5 py-0.5 text-[12px] font-medium" :class="CYCLE_BADGE[c.status]">{{ cycleLabel(c.status) }}</span></span>
           <span class="text-[13px] text-[#475569]">{{ c.jobs }} {{ c.jobs === 1 ? 'job' : 'jobs' }} · payable {{ formatUGX(c.payable_ugx) }} · verified {{ formatUGX(c.credits_ugx) }} · to pay {{ formatUGX(Math.max(c.outstanding_ugx, 0)) }}<template v-if="c.due_at"> · due {{ formatDateTime(c.due_at) }}</template></span></button></li>
@@ -48,8 +48,8 @@
     <!-- ================= Exceptions ================= -->
     <section v-show="tab === 'exceptions'" class="flex flex-col gap-3" aria-label="Exceptions">
       <StateBlock v-if="!exceptionsLoaded && !error" kind="loading" title="Loading…" />
-      <StateBlock v-else-if="!exceptions.length" title="No exceptions" message="Money that could not be applied to a settlement appears here until it is reviewed." />
-      <ul v-else class="flex flex-col gap-2">
+      <StateBlock v-else-if="exceptionsLoaded && !exceptions.length" title="No exceptions" message="None open." />
+      <ul v-else-if="exceptionsLoaded" class="flex flex-col gap-2">
         <li v-for="e in exceptions" :key="e.id" class="wm-surface flex flex-col gap-0.5 rounded-xl p-3.5">
           <span class="flex flex-wrap items-center justify-between gap-2"><span class="text-[14.5px] font-semibold text-ink">{{ e.provider || 'Provider' }} · {{ formatUGX(e.amount_ugx) }}</span>
             <span class="rounded-full px-2.5 py-0.5 text-[12px] font-medium" :class="e.status === 'open' ? 'bg-[#FEF3C7] text-[#92400E]' : 'bg-[#F1F5F9] text-[#475569]'">{{ e.status === 'open' ? 'Needs a decision' : 'Resolved' }}</span></span>
@@ -65,6 +65,7 @@
 import { ref, onMounted } from 'vue';
 import AdminPageHeader from '../components/AdminPageHeader.vue';
 import StateBlock from '../components/StateBlock.vue';
+import DismissibleNotice from '../components/DismissibleNotice.vue';
 import { api } from '@/api/client.js';
 import { formatUGX, formatDateTime } from '../utils/format.js';
 import { ADMIN_TABS, CYCLE_STATUS, cycleLabel, paymentWords, channelLabel, dueWords, EXCEPTION_WORDS } from '@/utils/settlement.js';

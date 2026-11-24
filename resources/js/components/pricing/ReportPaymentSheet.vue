@@ -1,5 +1,5 @@
 <template>
-  <BottomSheet :open="open" :title="corrects ? 'Report the right amount' : 'Report a payment'" @close="cancel">
+  <BottomSheet :open="open" :title="corrects ? 'Report the right amount' : 'Report a payment'" full @close="cancel">
     <form :id="formId" class="flex flex-col gap-4" novalidate @submit.prevent="submit">
       <p class="wm-notice wm-notice-info"><i class="bi bi-info-circle" aria-hidden="true"></i>
         <span>Tell WorkMate about money the customer paid you directly. It counts as paid only once the customer confirms it.

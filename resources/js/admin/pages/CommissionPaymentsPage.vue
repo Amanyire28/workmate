@@ -10,11 +10,11 @@
 
     <!-- Summary -->
     <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
-      <MetricCard label="Verified collections" :value="formatUGX(summary.verified_ugx)" :context="`${formatNumber(summary.verified_count)} payments`" :primary="true" />
-      <MetricCard label="Outstanding" :value="formatUGX(summary.outstanding_ugx)" context="commission" />
-      <MetricCard label="Awaiting verification" :value="formatNumber(summary.awaiting_count)" :context="formatUGX(summary.awaiting_ugx)" />
-      <MetricCard label="Pending gateway" :value="formatNumber(summary.gateway_pending_count)" :context="formatUGX(summary.gateway_pending_ugx)" />
-      <MetricCard label="Failed payments" :value="formatNumber(summary.failed_count)" />
+      <MetricCard label="Verified collections" :value="formatUGX(summary.verified_ugx)" :context="`${formatNumber(summary.verified_count)} payments`" :primary="true" hint="Payments WorkMate verified and applied to settlements." v-bind="state" />
+      <MetricCard label="Outstanding" :value="formatUGX(summary.outstanding_ugx)" context="commission" hint="What providers still owe across their settlements, as of now." v-bind="state" />
+      <MetricCard label="Awaiting verification" :value="formatNumber(summary.awaiting_count)" :context="formatUGX(summary.awaiting_ugx)" hint="Manual payments with proof that an administrator has not checked yet." v-bind="state" />
+      <MetricCard label="Pending mobile money" :value="formatNumber(summary.gateway_pending_count)" :context="formatUGX(summary.gateway_pending_ugx)" hint="Mobile money requests a provider started that are not yet approved." v-bind="state" />
+      <MetricCard label="Failed payments" :value="formatNumber(summary.failed_count)" hint="Mobile money requests that were declined, cancelled or expired." v-bind="state" />
     </div>
 
     <!-- One payment -->
@@ -158,6 +158,8 @@ const canExport = computed(() => can('finance.reports.view'));
 
 const error = ref('');
 const loaded = ref(false);
+// A figure is shown only once the server has answered: "loading" or "not available", never a made-up zero
+const state = computed(() => ({ loading: !loaded.value && !error.value, available: loaded.value, unavailableReason: 'Could not be loaded.' }));
 const summary = reactive({ verified_ugx: 0, verified_count: 0, outstanding_ugx: 0, awaiting_count: 0, awaiting_ugx: 0, gateway_pending_count: 0, gateway_pending_ugx: 0, failed_count: 0 });
 const items = ref([]);
 const page = ref(1);

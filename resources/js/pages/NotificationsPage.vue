@@ -1,8 +1,9 @@
 <template>
   <div class="wm-container wm-container-sm wm-page">
-    <div class="flex items-center justify-between gap-3">
-      <h1 class="wm-h1">Notifications</h1>
-      <div class="flex shrink-0 items-center -mr-2">
+    <!-- Wraps onto a second line on the narrowest phones instead of pushing the page wider than the screen -->
+    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <h1 class="wm-h1 min-w-0">Notifications</h1>
+      <div class="flex max-w-full items-center -mr-2">
         <button v-if="notifications.unread" type="button" class="wm-btn wm-btn-ghost !min-h-10 !px-3 text-sm" @click="markRead()">Mark all as read</button>
         <button type="button" class="wm-icon-btn" aria-label="Choose what you’re notified about" @click="openSettings">
           <i class="bi bi-gear text-lg" aria-hidden="true"></i>

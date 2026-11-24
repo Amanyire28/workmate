@@ -1,5 +1,5 @@
 <template>
-  <BottomSheet :open="open" :title="title" @close="cancel">
+  <BottomSheet :open="open" :title="title" full @close="cancel">
     <form :id="formId" class="flex flex-col gap-4" novalidate @submit.prevent="submit">
       <p v-if="mode === 'amend'" class="wm-notice wm-notice-info"><i class="bi bi-info-circle" aria-hidden="true"></i>
         <span>The price already agreed ({{ ugx(req.pricing.agreed.amount) }}) stays until the customer accepts the new one.</span></p>
