@@ -212,3 +212,52 @@ Because every push to `main` deploys to the live site:
 6. Summarise what changed, which files were touched, and any follow-up the owner must do on the server (for example, new `.env` keys).
 
 **When in doubt, stop and ask.** A delayed feature is recoverable; lost production data may not be.
+
+---
+
+## 12. Strict development and targeted testing protocol
+
+These rules are mandatory for every AI coding assistant and every human working on this repository.
+
+### Mandatory rules
+
+1. **Study the existing implementation before writing code.** Read the relevant services, routes, models, components and tests first.
+2. **Identify root causes** instead of making speculative corrections.
+3. **Present an implementation plan and wait for approval** before changing anything.
+4. **Implement only the approved scope.**
+5. **Reuse existing infrastructure** (services, endpoints, components, ledger, reconciliation). Do not build parallel versions.
+6. **Prioritise feature-specific integration tests** for new and changed behaviour.
+7. **Never run the full PHPUnit suite, the full JavaScript suite or the browser suites without explicit approval.**
+8. **Never repeat successful tests** unless the code they cover has changed.
+9. **After a correction, run only the directly affected tests.**
+10. **Do not test unrelated modules.**
+11. **Stop after three unsuccessful targeted correction attempts** and report.
+12. **Stop and report if debugging a single issue exceeds 15 minutes.**
+13. **Never weaken valid assertions to obtain passing tests.** A changed expectation needs a stated, deliberate reason (for example an approved wording change), and must be reported.
+14. **Verify database isolation before testing** (see below).
+15. **Provide a concise implementation report and stop.**
+16. **Never commit, push, deploy or activate financial switches without explicit approval.** Approval for one step is not approval for the next.
+
+### Database isolation (destructive and database-related tests)
+
+- Run database-related tests and destructive commands (`migrate:fresh`, `migrate:refresh`, `db:wipe`, `db:seed`, any `RefreshDatabase` test) only against an **explicitly configured, isolated testing database** (`workmate_test`).
+- Before running any of them, **verify the actual resolved database connection**: the connection's database name, host and port as Laravel resolves them in that process (for example with `php artisan tinker --execute="echo config('database.connections.mysql.database');"` run with the same environment variables, or the harness's own check). Do not assume that a flag, an environment name or a file exists. For example, `--env=testing` is acceptable only when a dedicated `.env.testing` pointing at the isolated testing database exists and the resolved connection has been checked; without that file it silently falls back to the development database.
+- Destructive operations must **fail safely**: any script, harness or command that wipes or migrates data must first check that the resolved database is the designated testing database and refuse to run (exit with an error) if it is not.
+- **Never reset development or production databases.** Never touch production data, files or credentials, and never read or print `.env` contents.
+
+### Approval gates and migrations
+
+- Stay on `main` unless told otherwise, and keep each phase in its own commit so it stays identifiable.
+- Before a deployment that contains migrations, read each migration and classify it LOW, MEDIUM or HIGH. Never assume "additive" means safe. HIGH means stop and ask for a verified backup and approval.
+- Pushing to `main` deploys. If a deploy fails, stop, report the exact error, and do not push speculative fixes or restore anything without approval.
+
+### Reporting and money rules
+
+- Report exactly which checks ran, which passed, which failed and which could not be run. Never claim a check passed that was not run.
+- Only ledger entries change a balance. Never write a balance directly, never post adjustments, never modify historical ledger entries. Every payment, whatever its route, ends in `CommissionSettlements::creditPayment`.
+- No real payment gateway is integrated. The simulated gateway exists only in the `local` and `testing` environments and must never settle a production obligation.
+- If the full PHP 7.4 suite is approved and runs out of memory, run PHPUnit directly with more memory (`php -d memory_limit=1536M vendor/phpunit/phpunit/phpunit`); `artisan test` does not pass `-d` options to its child process.
+
+### Handover
+
+When asked to stop, write the current state to `docs/current-development-status.md` (state, uncommitted changes, failures, next steps) and do nothing else.
