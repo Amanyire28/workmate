@@ -16,11 +16,11 @@ class CommissionPaymentReport extends Model
     public const VERIFIED = 'verified';
     public const REJECTED = 'rejected';
 
-    public const CHANNELS = ['mtn_momo', 'airtel_money', 'bank_transfer', 'cash'];
+    public const CHANNELS = ['manual', 'mtn_momo', 'airtel_money', 'bank_transfer', 'cash'];
 
     private const FROZEN = [
         'provider_profile_id', 'cycle_id', 'reported_by_user_id', 'amount_ugx', 'channel', 'reference', 'paid_on', 'note', 'client_token',
-        'evidence_path', 'evidence_name', 'evidence_mime', 'evidence_size',
+        'evidence_path', 'evidence_name', 'evidence_mime', 'evidence_size', 'source', 'attempt_id',
     ];
 
     protected $guarded = ['*'];

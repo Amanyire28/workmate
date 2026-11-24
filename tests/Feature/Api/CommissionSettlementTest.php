@@ -48,8 +48,8 @@ class CommissionSettlementTest extends ApiTestCase
     {
         $this->setting('finance.pricing_enabled', true);
         $this->setting('finance.commission_shadow_enabled', true);
-        $this->setting('finance.commission_assessment_enabled', true);
         $this->setting('finance.commission_assessment_from', now()->subHour()->toIso8601String());
+        $this->setting('finance.commission_assessment_enabled', true);
         $this->setting('finance.commission_settlement_enabled', $settlement);
     }
 
@@ -402,9 +402,10 @@ class CommissionSettlementTest extends ApiTestCase
         $this->job($provider);   // a second cycle that must not be touched
         $cycle = $this->cycleOf($provider);
         $other = $this->cycleOf($provider, 1);
-        $payment = $this->report($provider, $cycle, ['amount' => 50000])->assertCreated()->json('data.id');
+        $payment = $this->report($provider, $cycle, ['amount' => 30000])->assertCreated()->json('data.id');
 
-        $this->verify($this->userWithRoles(['finance']), $payment, 50000)->assertOk()->assertJsonPath('data.credited_ugx', 30000)->assertJsonPath('data.excess_ugx', 20000);
+        // The report can't be for more than is owed, but finance can find that MORE arrived than was reported
+        $this->verify($this->userWithRoles(['finance']), $payment, 50000, ['note' => 'More money arrived than reported'])->assertOk()->assertJsonPath('data.credited_ugx', 30000)->assertJsonPath('data.excess_ugx', 20000);
         $this->assertSame('settled', $this->state($cycle)['status']);
         $this->assertSame(10000, $this->state($other)['outstanding_ugx']);   // not silently allocated to another cycle
         $this->assertSame(10000, $this->owed($provider));                     // never negative
@@ -496,12 +497,12 @@ class CommissionSettlementTest extends ApiTestCase
         $this->assertSame(0, CommissionPaymentReport::count());
 
         $this->setting('finance.commission_accepts_cash', true);
-        $this->report($provider, $cycle, ['channel' => 'cash', 'reference' => null, 'paid_on' => now()->toDateString()])->assertCreated();
+        $this->report($provider, $cycle, ['amount' => 1000, 'channel' => 'cash', 'reference' => null, 'paid_on' => now()->toDateString()])->assertCreated();
         // Only so many wait at once
         for ($i = 0; $i < 4; $i++) {
-            $this->report($provider, $cycle)->assertCreated();
+            $this->report($provider, $cycle, ['amount' => 1000])->assertCreated();
         }
-        $this->report($provider, $cycle)->assertStatus(429)->assertJsonPath('code', 'too_many_pending');
+        $this->report($provider, $cycle, ['amount' => 1000])->assertStatus(429)->assertJsonPath('code', 'too_many_pending');
         $this->assertSame(5, CommissionPaymentReport::count());
     }
 
@@ -522,7 +523,7 @@ class CommissionSettlementTest extends ApiTestCase
             $this->assertSame(1, $this->note($admin, 'A commission payment needs checking')->count());
         }
         $this->assertSame(0, $this->note($provider->owner, 'A commission payment needs checking')->count());
-        $this->assertSame("/admin/finance/settlements?payment={$one}", $this->note($finance, 'A commission payment needs checking')->first()->url);
+        $this->assertSame("/admin/finance/payments?payment={$one}", $this->note($finance, 'A commission payment needs checking')->first()->url);
     }
 
     public function test_notifications_carry_no_amounts_references_or_reasons()
@@ -608,7 +609,7 @@ class CommissionSettlementTest extends ApiTestCase
         $this->signIn($manager);
         $this->assertNull($this->getJson('/api/v1/me/commission')->assertOk()->json('data'));
         $this->signIn($provider->owner);
-        $this->postJson('/api/v1/me/finance/access', ['user_id' => $manager->id, 'allowed' => true])->assertOk();
+        $this->postJson('/api/v1/me/finance/access', ['user_id' => $manager->id, 'allowed' => true, 'can_pay' => true])->assertOk();
 
         foreach ([$provider->owner, $manager] as $allowed) {
             $this->signIn($allowed);
@@ -636,7 +637,7 @@ class CommissionSettlementTest extends ApiTestCase
         $this->job($provider);
         $this->signIn($provider->owner);
         $this->assertNull($this->getJson('/api/v1/me/commission')->json('data.settlement.instructions'));
-        $this->assertSame(['mtn_momo', 'airtel_money', 'bank_transfer'], $this->getJson('/api/v1/me/commission')->json('data.settlement.channels'));
+        $this->assertSame(['manual', 'mtn_momo', 'airtel_money', 'bank_transfer'], $this->getJson('/api/v1/me/commission')->json('data.settlement.channels'));
         $this->setting('finance.commission_payment_instructions', 'Pay to merchant code 123456 (WorkMate).');
         $this->assertSame('Pay to merchant code 123456 (WorkMate).', $this->getJson('/api/v1/me/commission')->json('data.settlement.instructions'));
     }

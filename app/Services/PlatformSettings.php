@@ -150,6 +150,7 @@ class PlatformSettings
     {
         $value = $this->cast($key, $value);
         $this->assertOrdering($key, $value);
+        $this->assertFinanceRules($key, $value);
         $before = $this->get($key);
 
         if ($before === $value) {
@@ -166,6 +167,67 @@ class PlatformSettings
         });
 
         Cache::forget(self::CACHE_KEY);
+    }
+
+    /** The start moment as one unambiguous Kampala time (a time typed without an offset is Kampala time); anything unreadable is refused */
+    private function kampalaMoment(?string $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+        try {
+            $at = \Carbon\Carbon::parse($value, Scheduling::TIMEZONE);
+        } catch (\Throwable $e) {
+            throw new BusinessRuleException('setting_invalid', 'Choose a valid date and time.', 422);
+        }
+        if ($at->year < 2020 || $at->year > 2100) {
+            throw new BusinessRuleException('setting_invalid', 'Choose a valid date and time.', 422);
+        }
+
+        return $at->setTimezone(Scheduling::TIMEZONE)->format('Y-m-d\TH:i:sP');
+    }
+
+    /**
+     * The real dependencies between the financial switches, enforced here and never only in the screen. Recording obligations needs
+     * flexible pricing (final prices), commission estimates (the rate applied) and a valid start moment; so those three cannot be
+     * removed while obligations are on. Settlement does not depend on any of them: providers must still be able to pay what was
+     * already recorded after new obligations are switched off. Everything else is independent.
+     *
+     * @param  mixed  $value
+     */
+    private function assertFinanceRules(string $key, $value): void
+    {
+        $assessing = (bool) $this->get('finance.commission_assessment_enabled');
+        switch ($key) {
+            case 'finance.commission_assessment_enabled':
+                if ($value === true) {
+                    if (! (bool) $this->get('finance.pricing_enabled')) {
+                        throw new BusinessRuleException('setting_dependency', 'Turn on flexible pricing first.', 422);
+                    }
+                    if (! (bool) $this->get('finance.commission_shadow_enabled')) {
+                        throw new BusinessRuleException('setting_dependency', 'Turn on commission estimates first.', 422);
+                    }
+                    if (! $this->get('finance.commission_assessment_from')) {
+                        throw new BusinessRuleException('setting_dependency', 'Choose the start date and time first.', 422);
+                    }
+                }
+                break;
+            case 'finance.commission_assessment_from':
+                if ($value === null && $assessing) {
+                    throw new BusinessRuleException('setting_dependency', 'Turn off commission obligations before clearing the start date.', 422);
+                }
+                break;
+            case 'finance.commission_shadow_enabled':
+                if ($value === false && $assessing) {
+                    throw new BusinessRuleException('setting_dependency', 'Turn off commission obligations first.', 422);
+                }
+                break;
+            case 'finance.pricing_enabled':
+                if ($value === false && $assessing) {
+                    throw new BusinessRuleException('setting_dependency', 'Turn off commission obligations first.', 422);
+                }
+                break;
+        }
     }
 
     /** @return array<string, mixed> */
@@ -187,8 +249,9 @@ class PlatformSettings
             default:
                 // Text: trimmed, with an empty value meaning "not set"
                 $value = trim((string) $value);
+                $value = $value === '' ? null : $value;
 
-                return $value === '' ? null : $value;
+                return $key === 'finance.commission_assessment_from' ? $this->kampalaMoment($value) : $value;
         }
     }
 

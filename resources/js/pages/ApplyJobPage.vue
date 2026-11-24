@@ -132,7 +132,7 @@ const startOptions = ['Today', 'Tomorrow', 'This week', 'On the date requested']
 
 const form = reactive({ message: '', start: '', price: '', profession: '' });
 const errors = reactive({ message: '', start: '', price: '', profession: '' });
-// An estimate (when switched on in Admin → Settings → Pricing): a guide for the customer, not the price of the job
+// An estimate (when switched on in Admin → Finance → Financial Settings): a guide for the customer, not the price of the job
 const estimate = ref(blankEstimate());
 const estimateErrors = reactive({ amount: '', max: '' });
 const options = reactive({ professions: [], default: null, must_choose: false });

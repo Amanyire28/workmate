@@ -61,9 +61,9 @@ return [
         ],
         // Budgets, price estimates and inspection (Phase B1). Nothing here charges or collects money.
         'finance' => [
-            'label' => 'Pricing',
-            'view_permission' => 'admin.manage',
-            'change_permission' => 'admin.manage',
+            'label' => 'Financial settings',
+            'view_permission' => 'finance.settings.manage',
+            'change_permission' => 'finance.settings.manage',
         ],
         // Invite Friends (Admin → Invitations)
         'referrals' => [
@@ -182,31 +182,31 @@ return [
         'finance.commission_shadow_enabled' => [
             'group' => 'finance',
             'label' => 'Calculate estimated commissions (shadow mode)',
-            'description' => 'Works out what WorkMate could earn from payments the customer confirmed, using the commission rate rules. Every figure is an ESTIMATE, not collected: nothing is charged, no provider owes anything, and nothing is shown to providers or customers. Off by default, and independent of the Pricing switch: it never turns payment reporting on, and no setting makes a commission enforceable.',
+            'description' => 'Works out what WorkMate could earn from payments the customer confirmed, using the commission rate rules. Every figure is an estimate: nothing is charged or owed by it. Off by default.',
             'type' => 'boolean', 'default' => false,
         ],
         'finance.commission_max_bp' => [
             'group' => 'finance',
             'label' => 'Highest commission rate a rule may have (basis points)',
-            'description' => 'A safety ceiling on new commission rate rules: 100 basis points = 1%, so 2000 = 20%. It is a limit, not a rate: no rate is set by it.',
+            'description' => 'The highest commission rate a rate rule may have, in basis points (100 = 1%, so 2000 = 20%). A limit, not a rate.',
             'type' => 'integer', 'min' => 100, 'max' => 5000, 'default' => 2000,
         ],
         'finance.commission_assessment_enabled' => [
             'group' => 'finance',
             'label' => 'Record commission obligations (off by default)',
-            'description' => 'When on, a payment the customer confirmed (on or after the start moment below) becomes a recorded commission obligation for the provider, in an append-only ledger. Nothing is collected: no payment, gateway, deadline or penalty exists. It also needs the Pricing and Estimated-commission switches on, and it turns neither on. Do not switch on without the written activation approval.',
+            'description' => 'When on, a payment the customer confirmed (on or after the start moment) becomes a recorded commission obligation for the provider, in an append-only ledger. Needs flexible pricing, commission estimates and a start moment; none of them is turned on by this.',
             'type' => 'boolean', 'default' => false,
         ],
         'finance.commission_assessment_from' => [
             'group' => 'finance',
             'label' => 'Obligations start at (date and time)',
-            'description' => 'Only payments the customer confirmed at or after this moment can become obligations, so nothing in the past is ever charged. Empty (the default) means nothing is assessed. Example: 2026-12-01T00:00:00+03:00.',
+            'description' => 'Only payments the customer confirmed at or after this moment can become obligations, so nothing in the past is ever charged. Kampala time. Empty (the default) means nothing is assessed.',
             'type' => 'string', 'max' => 30, 'default' => null,
         ],
         'finance.commission_settlement_enabled' => [
             'group' => 'finance',
             'label' => 'Commission settlement (off by default)',
-            'description' => 'When on, recorded commission obligations are grouped into settlement cycles with due dates, providers can report paying WorkMate, and finance can verify those payments into the ledger. Nothing is collected automatically and no penalty, suspension or deduction exists. Do not switch on without the written activation approval.',
+            'description' => 'When on, recorded commission obligations are grouped into settlement cycles with due dates, and providers can pay WorkMate by the payment methods that are available. Only a verified payment reduces what is owed. No penalty, suspension or deduction exists.',
             'type' => 'boolean', 'default' => false,
         ],
         'finance.commission_payment_instructions' => [
@@ -383,6 +383,12 @@ return [
             'description' => 'The amount in Terms 32.4, as set by your advocate.',
             'type' => 'string', 'max' => 120, 'default' => null,
         ],
+    ],
+
+    // Commission collection (Phase B10). The simulator is only ever used in the local and testing environments; production ignores this.
+    'payments' => [
+        'simulator' => env('PAYMENTS_SIMULATOR', true),
+        'attempt_minutes' => 15,
     ],
 
 ];

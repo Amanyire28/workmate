@@ -644,6 +644,10 @@ const SETTINGS_DEFAULTS = {
         smartPush: false,
         ...PRESENCE_DEFAULTS,
     }),
+    'financial-settings': () => ({
+        pricingEnabled: false, agreementExpiryDays: 7, shadowEnabled: false, maxRatePercent: 20, assessmentEnabled: false, assessmentFrom: '',
+        settlementEnabled: false, paymentInstructions: '', acceptsCash: false, threeJobWindowHours: 0,
+    }),
     rules: () => ({
         commissionRate: COMMISSION_RATE * 100, freeCancellationHours: 12, providerResponseHours: 24, quoteExpiryDays: 3,
         autoCompleteDays: 3, minPayout: 20000, payoutDay: 'Monday', disputeWindowDays: 7, maxActiveBookingsNewCustomer: 3,
@@ -670,7 +674,37 @@ export const SERVER_SETTINGS = {
         videoMaxMb: 'community.video_max_mb',
         smartPush: 'notifications.smart_push',
     },
+    // Financial Settings: the order is the order switches can be turned ON (what an item needs comes first)
+    'financial-settings': {
+        pricingEnabled: 'finance.pricing_enabled', agreementExpiryDays: 'finance.agreement_expiry_days',
+        shadowEnabled: 'finance.commission_shadow_enabled', maxRatePercent: 'finance.commission_max_bp',
+        assessmentFrom: 'finance.commission_assessment_from', assessmentEnabled: 'finance.commission_assessment_enabled',
+        paymentInstructions: 'finance.commission_payment_instructions', acceptsCash: 'finance.commission_accepts_cash',
+        threeJobWindowHours: 'finance.settlement_three_job_window_hours', settlementEnabled: 'finance.commission_settlement_enabled',
+    },
 };
+
+/** Values the screen shows differently from how the server keeps them (the server keeps the rate ceiling in basis points and the start moment in Kampala time) */
+const SETTING_VIEW = {
+    'finance.commission_max_bp': { read: (v) => (v === '' || v == null ? '' : Number(v) / 100), write: (v) => Math.round(Number(v) * 100) },
+    // "2030-01-15T09:30:00+03:00" <-> the date and time picker's "2030-01-15T09:30" (always Kampala time)
+    'finance.commission_assessment_from': {
+        read: (v) => (v ? String(v).slice(0, 16) : ''),
+        write: (v) => (v ? String(v).slice(0, 16) : ''),
+    },
+};
+const viewRead = (key, v) => (SETTING_VIEW[key] ? SETTING_VIEW[key].read(v) : v);
+const viewWrite = (key, v) => (SETTING_VIEW[key] ? SETTING_VIEW[key].write(v) : v);
+
+/** Turning something OFF goes dependents-first and turning things ON goes prerequisites-first, so the server's dependency checks never trip over the save order */
+function orderedChanges(moduleId, changes) {
+    const order = Object.keys(SERVER_SETTINGS[moduleId] || {});
+    const keys = Object.keys(changes);
+    if (moduleId !== 'financial-settings') return keys;
+    const turningOff = keys.filter(k => changes[k] === false).sort((a, b) => order.indexOf(b) - order.indexOf(a));
+    const rest = keys.filter(k => changes[k] !== false).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+    return [...turningOff, ...rest];
+}
 
 /**
  * Current values: live ones from GET /admin/settings, the rest shown at their
@@ -688,8 +722,8 @@ export async function getSettings(moduleId) {
         for (const [field, key] of Object.entries(mapped)) {
             const s = server.get(key);
             if (!s) continue;   // this role may not see it
-            values[field] = s.value ?? '';
-            defaults[field] = s.default ?? '';
+            values[field] = viewRead(key, s.value ?? '');
+            defaults[field] = viewRead(key, s.default ?? '');
             connected[field] = { key, canChange: s.can_change, min: s.min, max: s.max };
         }
     }
@@ -699,9 +733,9 @@ export async function getSettings(moduleId) {
 
 /** Saves changed live settings one by one; the server validates and audits each */
 export async function saveSettings(moduleId, changes, reason) {
-    for (const [field, value] of Object.entries(changes)) {
+    for (const field of orderedChanges(moduleId, changes)) {
         const key = SERVER_SETTINGS[moduleId]?.[field];
-        if (key) await api(`/admin/settings/${key}`, { method: 'PATCH', body: { value, reason } });
+        if (key) await api(`/admin/settings/${key}`, { method: 'PATCH', body: { value: viewWrite(key, changes[field]), reason } });
     }
 }
 

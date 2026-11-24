@@ -1,8 +1,8 @@
 <template>
   <div class="flex flex-col gap-4">
-    <AdminPageHeader :title="item.label" :description="def.description || item.summary" demo>
+    <AdminPageHeader :title="item.label" :description="def.description || item.summary" :demo="!def.quiet">
       <template v-if="values && canEdit" #actions>
-        <button type="button" class="wm-btn wm-btn-secondary !min-h-10 !rounded-lg !text-[13.5px]" :disabled="isDefault" @click="resetDefaults">Reset to defaults</button>
+        <button v-if="!def.noReset" type="button" class="wm-btn wm-btn-secondary !min-h-10 !rounded-lg !text-[13.5px]" :disabled="isDefault" @click="resetDefaults">Reset to defaults</button>
         <button type="button" class="wm-btn wm-btn-primary !min-h-10 !rounded-lg !text-[13.5px]" :disabled="!changes.length" @click="review">
           Save {{ changes.length || '' }} {{ changes.length === 1 ? 'change' : 'changes' }}
         </button>
@@ -13,7 +13,7 @@
       <i class="bi bi-plug" aria-hidden="true"></i>
       <span>These settings aren’t connected to the platform yet, so they can’t be changed. The values shown are the planned defaults.</span>
     </p>
-    <p v-else-if="values" class="wm-notice wm-notice-info">
+    <p v-else-if="values && !def.quiet" class="wm-notice wm-notice-info">
       <i class="bi bi-database" aria-hidden="true"></i>
       <span>Settings marked <strong class="font-semibold">Live</strong> apply to the whole platform as soon as you save. Those marked <strong class="font-semibold">Not available yet</strong> can’t work today; each says why.</span>
     </p>
@@ -57,14 +57,24 @@
                 >
                   <option v-for="[v, l] in f.options" :key="v" :value="v">{{ l }}</option>
                 </select>
+                <textarea
+                  v-else-if="f.type === 'textarea'"
+                  :id="`${uid}-${f.key}`"
+                  v-model="values[f.key]"
+                  rows="4" :maxlength="f.max"
+                  class="w-full max-w-[560px] rounded-lg border bg-white px-3 py-2 text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-[#F8FAFC]"
+                  :class="errors[f.key] ? 'border-[#B91C1C]' : 'border-[#CBD5E1]'"
+                  :aria-invalid="errors[f.key] ? 'true' : undefined"
+                  :aria-describedby="`${uid}-${f.key}-h`"
+                ></textarea>
                 <input
                   v-else
                   :id="`${uid}-${f.key}`"
                   v-model="values[f.key]"
-                  :type="f.type === 'number' ? 'number' : f.type === 'time' ? 'time' : 'text'"
+                  :type="f.type === 'number' ? 'number' : f.type === 'time' ? 'time' : f.type === 'datetime' ? 'datetime-local' : 'text'"
                   :min="f.min" :max="f.max" :step="f.step || (f.type === 'number' ? 1 : undefined)"
                   class="h-10 rounded-lg border bg-white px-3 text-[14px] text-ink focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-[#F8FAFC]"
-                  :class="[errors[f.key] ? 'border-[#B91C1C]' : 'border-[#CBD5E1]', f.type === 'number' || f.type === 'time' ? 'w-32' : 'w-full max-w-[360px]']"
+                  :class="[errors[f.key] ? 'border-[#B91C1C]' : 'border-[#CBD5E1]', f.type === 'number' || f.type === 'time' ? 'w-32' : f.type === 'datetime' ? 'w-56' : 'w-full max-w-[360px]']"
                   :aria-invalid="errors[f.key] ? 'true' : undefined"
                   :aria-describedby="`${uid}-${f.key}-h`"
                 />

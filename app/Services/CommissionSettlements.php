@@ -86,7 +86,7 @@ class CommissionSettlements
     /** The channels a provider may report paying through (cash only when an approved way of collecting it is switched on) */
     public function channels(): array
     {
-        $channels = ['mtn_momo', 'airtel_money', 'bank_transfer'];
+        $channels = ['manual', 'mtn_momo', 'airtel_money', 'bank_transfer'];
         if ((bool) $this->settings->get('finance.commission_accepts_cash')) {
             $channels[] = 'cash';
         }
@@ -100,6 +100,41 @@ class CommissionSettlements
         $text = trim((string) $this->settings->get('finance.commission_payment_instructions'));
 
         return $text !== '' ? $text : null;
+    }
+
+    /* ---------------- What can be paid ---------------- */
+
+    /** The ids of this business's cycles that still owe something, oldest first */
+    public function payableCycleIds(int $providerId): array
+    {
+        return $this->cycleSummary(['provider' => $providerId])->where('outstanding_ugx', '>', 0)->orderBy('id')->pluck('id')->map(function ($id) {
+            return (int) $id;
+        })->all();
+    }
+
+    /** What the business owes on its settlement cycles right now: the one figure every payment is checked against */
+    public function payable(int $providerId): int
+    {
+        return (int) $this->cycleSummary(['provider' => $providerId])->where('outstanding_ugx', '>', 0)->sum('outstanding_ugx');
+    }
+
+    /** Money already promised but not yet verified: manual reports waiting to be checked and gateway requests still open */
+    public function reserved(int $providerId, ?int $exceptReportId = null): int
+    {
+        $manual = (int) CommissionPaymentReport::where('provider_profile_id', $providerId)->where('status', CommissionPaymentReport::PENDING)
+            ->when($exceptReportId, function ($q) use ($exceptReportId) {
+                $q->where('id', '!=', $exceptReportId);
+            })->sum('amount_ugx');
+        $gateway = (int) DB::table('commission_payment_attempts')->where('provider_profile_id', $providerId)->whereIn('status', ['pending', 'processing'])
+            ->where('expires_at', '>', now())->sum('amount_ugx');
+
+        return $manual + $gateway;
+    }
+
+    /** What may still be offered as a new payment: owed, minus what is already on its way */
+    public function available(int $providerId): int
+    {
+        return max($this->payable($providerId) - $this->reserved($providerId), 0);
     }
 
     /* ---------------- Cycles ---------------- */
@@ -240,6 +275,9 @@ class CommissionSettlements
         }
         $reference = $this->reference($data['reference'] ?? null, $channel);
         $paidOn = $this->date($data['paid_on'] ?? null);
+        if ($channel === 'manual' && ($paidOn === null || ! $file)) {
+            throw new BusinessRuleException('proof_required', 'Add the date you paid and a photo or PDF of your proof of payment.', 422);
+        }
         $note = $this->note($data['note'] ?? null);
         $token = isset($data['client_token']) && $data['client_token'] !== '' ? mb_substr((string) $data['client_token'], 0, 64) : null;
         $cycleId = (int) ($data['cycle_id'] ?? 0);
@@ -247,12 +285,27 @@ class CommissionSettlements
         $stored = null;
         try {
             $report = DB::transaction(function () use ($user, $amount, $channel, $reference, $paidOn, $note, $token, $cycleId, $file, &$stored) {
-                $cycle = CommissionSettlementCycle::find($cycleId);
-                $providerId = $cycle && in_array((int) $cycle->provider_profile_id, $this->providerIdsFor($user), true) ? (int) $cycle->provider_profile_id : null;
+                if ($cycleId > 0) {
+                    $cycle = CommissionSettlementCycle::find($cycleId);
+                    $providerId = $cycle && in_array((int) $cycle->provider_profile_id, $this->providerIdsFor($user), true) ? (int) $cycle->provider_profile_id : null;
+                } else {
+                    // No cycle named: the payment is for the business's whole balance, anchored on its oldest cycle that still owes
+                    $ids = $this->providerIdsFor($user);
+                    $providerId = $ids ? (int) $ids[0] : null;
+                }
                 if (! $providerId) {
                     throw new BusinessRuleException('not_found', 'The requested item was not found.', 404);
                 }
+                if (! app(ProviderFinanceAccess::class)->canPay($user, $providerId)) {
+                    throw new BusinessRuleException('payment_not_allowed', 'You can’t pay commission for this business. Ask the owner.', 403);
+                }
                 ProviderProfile::whereKey($providerId)->lockForUpdate()->first();
+                if ($cycleId <= 0) {
+                    $cycleId = (int) ($this->payableCycleIds($providerId)[0] ?? 0);
+                    if ($cycleId <= 0) {
+                        throw new BusinessRuleException('cycle_settled', 'No outstanding commission.', 409);
+                    }
+                }
 
                 if ($token) {
                     $same = CommissionPaymentReport::where('provider_profile_id', $providerId)->where('client_token', $token)->first();
@@ -262,6 +315,11 @@ class CommissionSettlements
                 }
                 if ($this->state($cycleId)['outstanding_ugx'] <= 0) {
                     throw new BusinessRuleException('cycle_settled', 'This settlement has nothing left to pay.', 409);
+                }
+                // Never more than is owed, once what is already on its way is counted: no double payment, no overpayment
+                $room = $this->payable($providerId) - $this->reserved($providerId);
+                if ($amount > $room) {
+                    throw new BusinessRuleException('amount_too_high', $room > 0 ? 'You can pay up to UGX '.number_format($room).' now.' : 'Your outstanding commission is already covered by payments waiting to be checked.', 422);
                 }
                 if (CommissionPaymentReport::where('provider_profile_id', $providerId)->where('status', CommissionPaymentReport::PENDING)->count() >= self::MAX_PENDING) {
                     throw new BusinessRuleException('too_many_pending', 'You already have '.self::MAX_PENDING.' payments waiting to be checked. Wait for WorkMate to check them first.', 429);
@@ -279,7 +337,7 @@ class CommissionSettlements
                 $row = new CommissionPaymentReport();
                 $row->forceFill([
                     'provider_profile_id' => $providerId, 'cycle_id' => $cycleId, 'reported_by_user_id' => $user->getKey(), 'amount_ugx' => $amount,
-                    'channel' => $channel, 'reference' => $reference, 'active_reference' => $key, 'paid_on' => $paidOn, 'note' => $note, 'client_token' => $token,
+                    'channel' => $channel, 'source' => 'manual', 'reference' => $reference, 'active_reference' => $key, 'paid_on' => $paidOn, 'note' => $note, 'client_token' => $token,
                     'evidence_path' => $evidence ? $evidence['path'] : null, 'evidence_name' => $evidence ? mb_substr($evidence['name'], 0, 120) : null,
                     'evidence_mime' => $evidence ? $evidence['mime'] : null, 'evidence_size' => $evidence ? $evidence['size'] : null,
                     'status' => CommissionPaymentReport::PENDING,
@@ -335,37 +393,71 @@ class CommissionSettlements
                 throw new BusinessRuleException('note_required', 'The amount you confirmed differs from what was reported. Say why.', 422);
             }
 
-            $owed = max($this->state((int) $report->cycle_id)['outstanding_ugx'], 0);
-            $credited = min($amount, $owed);
-            $excess = $amount - $credited;
-
-            $entryId = null;
-            if ($credited > 0) {
-                $entry = new CommissionLedgerEntry();
-                $entry->forceFill([
-                    'assessment_id' => null, 'cycle_id' => $report->cycle_id, 'commission_payment_id' => $report->id, 'provider_profile_id' => $report->provider_profile_id,
-                    'entry_type' => CommissionLedgerEntry::SETTLEMENT, 'amount_ugx' => -$credited, 'reason' => 'payment_verified', 'reference' => 'settle:'.$report->id,
-                    'dispute_id' => null, 'actor_id' => $admin->getKey(), 'created_at' => now(),
-                ])->save();
-                $entryId = (int) $entry->id;
-            }
-            if ($excess > 0) {
-                $this->exception(CommissionException::OVERPAYMENT, (int) $report->provider_profile_id, (int) $report->id, (int) $report->cycle_id, $excess,
-                    'More was received than the cycle owed; the extra is not applied anywhere until a reconciliation decision.');
-            }
-
-            $report->forceFill([
-                'status' => CommissionPaymentReport::VERIFIED, 'decided_by_user_id' => $admin->getKey(), 'decided_at' => now(), 'decision_note' => $note,
-                'verified_amount_ugx' => $amount, 'credited_ugx' => $credited, 'excess_ugx' => $excess, 'ledger_entry_id' => $entryId,
-            ])->save();
-            $this->audit->record('commission.payment_verified', $report, ['status' => 'pending'], [
-                'status' => 'verified', 'verified_amount_ugx' => $amount, 'credited_ugx' => $credited, 'excess_ugx' => $excess, 'cycle_id' => (int) $report->cycle_id,
-            ], $note, $admin);
-            $this->notice('payment_verified', (int) $report->provider_profile_id, (int) $report->cycle_id, 'payment:'.$report->id.':verified', $report->id, $admin);
-            $this->reconcileProvider((int) $report->provider_profile_id);
-
-            return $report;
+            return $this->creditPayment($report, $amount, $admin, $note);
         }, 3);
+    }
+
+    /**
+     * The one place a payment becomes a credit, for a manual payment an administrator verified AND for a gateway payment its gateway
+     * confirmed ($actor is null for the gateway). Call inside a transaction that holds the report and provider locks. It credits at most what
+     * is owed, the report's own settlement first and then the business's other open settlements oldest first; anything beyond that is an
+     * audited exception and is not applied anywhere. Writes ledger lines only, one per settlement, and stamps the receipt.
+     */
+    public function creditPayment(CommissionPaymentReport $report, int $amount, ?User $actor, ?string $note): CommissionPaymentReport
+    {
+        $providerId = (int) $report->provider_profile_id;
+        $order = [(int) $report->cycle_id];
+        foreach ($this->payableCycleIds($providerId) as $id) {
+            if (! in_array($id, $order, true)) {
+                $order[] = $id;
+            }
+        }
+        // What was reported is the most this payment may spread over the business's settlements; money finance found beyond that is for a human decision
+        $remaining = min($amount, (int) $report->amount_ugx);
+        $firstEntry = null;
+        $lines = 0;
+        foreach ($order as $cycleId) {
+            if ($remaining <= 0) {
+                break;
+            }
+            $take = min(max($this->state($cycleId)['outstanding_ugx'], 0), $remaining);
+            if ($take <= 0) {
+                continue;
+            }
+            $entry = new CommissionLedgerEntry();
+            $entry->forceFill([
+                'assessment_id' => null, 'cycle_id' => $cycleId, 'commission_payment_id' => $report->id, 'provider_profile_id' => $providerId,
+                'entry_type' => CommissionLedgerEntry::SETTLEMENT, 'amount_ugx' => -$take, 'reason' => 'payment_verified',
+                'reference' => $lines === 0 ? 'settle:'.$report->id : 'settle:'.$report->id.':'.$cycleId,
+                'dispute_id' => null, 'actor_id' => $actor ? $actor->getKey() : null, 'created_at' => now(),
+            ])->save();
+            $firstEntry = $firstEntry ?: (int) $entry->id;
+            $remaining -= $take;
+            $lines++;
+        }
+        $credited = min($amount, (int) $report->amount_ugx) - $remaining;
+        $excess = $amount - $credited;
+        if ($excess > 0) {
+            $this->exception(CommissionException::OVERPAYMENT, $providerId, (int) $report->id, (int) $report->cycle_id, $excess,
+                'More was received than was owed; the extra is not applied anywhere until a reconciliation decision.');
+        }
+
+        $report->forceFill([
+            'status' => CommissionPaymentReport::VERIFIED, 'decided_by_user_id' => $actor ? $actor->getKey() : null, 'decided_at' => now(), 'decision_note' => $note,
+            'verified_amount_ugx' => $amount, 'credited_ugx' => $credited, 'excess_ugx' => $excess, 'ledger_entry_id' => $firstEntry,
+            'receipt_number' => 'WMR-'.now()->format('Ymd').'-'.str_pad((string) $report->id, 6, '0', STR_PAD_LEFT),
+        ])->save();
+        $this->audit->record('commission.payment_verified', $report, ['status' => 'pending'], [
+            'status' => 'verified', 'verified_amount_ugx' => $amount, 'credited_ugx' => $credited, 'excess_ugx' => $excess, 'cycle_id' => (int) $report->cycle_id,
+            'source' => $report->source, 'receipt_number' => $report->receipt_number,
+        ], $note, $actor);
+        $this->notice('payment_verified', $providerId, (int) $report->cycle_id, 'payment:'.$report->id.':verified', $report->id, $actor);
+        if ($this->payable($providerId) === 0) {
+            $this->notice('cleared', $providerId, null, 'cleared:'.$report->id, $report->id);
+        }
+        $this->reconcileProvider($providerId);
+
+        return $report;
     }
 
     /** Finance does not accept a reported payment. It credits nothing; the reason is kept and the provider can read it. */
@@ -442,7 +534,7 @@ class CommissionSettlements
         }
     }
 
-    private function exception(string $kind, int $providerId, ?int $paymentId, ?int $cycleId, int $amount, string $detail): void
+    public function exception(string $kind, int $providerId, ?int $paymentId, ?int $cycleId, int $amount, string $detail): void
     {
         $row = new CommissionException();
         $row->forceFill([
@@ -450,6 +542,7 @@ class CommissionSettlements
             'status' => 'open', 'detail' => $detail, 'created_at' => now(),
         ])->save();
         $this->audit->record('commission.exception_opened', $row, [], ['kind' => $kind, 'amount_ugx' => $amount, 'provider_profile_id' => $providerId], $detail, null);
+        $this->notice('payment_exception', $providerId, $cycleId, 'exception:'.$row->id, $paymentId);
     }
 
     /* ---------------- The scheduled catch-up ---------------- */
@@ -554,7 +647,7 @@ class CommissionSettlements
             'paid_on' => optional($r->paid_on)->toDateString(), 'note' => $r->note, 'status' => $r->status, 'reported_at' => $r->created_at->toIso8601String(),
             'decided_at' => optional($r->decided_at)->toIso8601String(), 'decision_note' => $r->decision_note,
             'credited_ugx' => $r->credited_ugx, 'excess_ugx' => $r->excess_ugx, 'verified_amount_ugx' => $r->verified_amount_ugx,
-            'evidence' => $r->evidence_mime ? ['name' => $r->evidence_name, 'mime' => $r->evidence_mime, 'size' => $r->evidence_size] : null,
+            'source' => $r->source, 'receipt_number' => $r->receipt_number, 'evidence' => $r->evidence_mime ? ['name' => $r->evidence_name, 'mime' => $r->evidence_mime, 'size' => $r->evidence_size] : null,
         ] + ($forAdmin ? ['provider_id' => (int) $r->provider_profile_id] : []);
     }
 

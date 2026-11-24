@@ -216,7 +216,7 @@ const blank = () => ({
 });
 const form = reactive(blank());
 const errors = reactive({ title: '', category: '', area: '', when: '', budget: '' });
-// Budget types (when switched on in Admin → Settings → Pricing): a set amount, a range, negotiable or none
+// Budget types (when switched on in Admin → Finance → Financial Settings): a set amount, a range, negotiable or none
 const budgetSpec = ref(blankBudget());
 const budgetErrors = reactive({ amount: '', min: '', max: '' });
 const photos = ref([]);

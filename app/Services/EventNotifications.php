@@ -282,19 +282,24 @@ class EventNotifications
             'overdue' => ['Commission overdue', 'A commission settlement is past its deadline. Open My Work to see it.'],
             'payment_verified' => ['Commission payment verified', 'WorkMate checked and recorded your commission payment. Open My Work to see your balance.'],
             'payment_rejected' => ['Commission payment not accepted', 'WorkMate could not accept a commission payment you reported. Open My Work to see why.'],
-            'payment_awaiting' => ['A commission payment needs checking', 'A provider reported paying commission. Open Settlements to check it.'],
+            'payment_awaiting' => ['A commission payment needs checking', 'A provider sent proof of a commission payment. Open Commission Payments to check it.'],
+            'payment_exception' => ['A payment needs attention', 'A commission payment did not reconcile. Open Financial Administration to look at it.'],
+            'payment_started' => ['Payment request sent', 'Approve it on your phone to finish paying.'],
+            'payment_failed' => ['Payment failed', 'Your commission payment did not go through. Open My Finances to try again.'],
+            'cleared' => ['Commission cleared', 'You have no outstanding commission. Thank you.'],
         ];
         if (! isset($copy[$kind])) {
             return;
         }
         [$title, $body] = $copy[$kind];
 
-        if ($kind === 'payment_awaiting') {
-            $ids = User::where('status', User::STATUS_ACTIVE)->whereHas('roles.permissions', function ($q) {
-                $q->where('key', 'settlements.verify');
+        if (in_array($kind, ['payment_awaiting', 'payment_exception'], true)) {
+            $permission = $kind === 'payment_awaiting' ? 'settlements.verify' : 'finance.exceptions.review';
+            $ids = User::where('status', User::STATUS_ACTIVE)->whereHas('roles.permissions', function ($q) use ($permission) {
+                $q->where('key', $permission);
             })->pluck('id');
             $this->send(UserNotifications::ACCOUNT, $ids, [
-                'title' => $title, 'body' => $body, 'url' => '/admin/finance/settlements?payment='.$paymentId,
+                'title' => $title, 'body' => $body, 'url' => $kind === 'payment_awaiting' ? '/admin/finance/payments?payment='.$paymentId : '/admin/finance/administration',
                 'tag' => 'commission-payment-'.$paymentId, 'important' => true,
             ]);
 
@@ -305,7 +310,7 @@ class EventNotifications
         $members = ProviderMember::where('provider_profile_id', $providerId)->where(function ($q) {
             $q->where('role', ProviderMember::ROLE_OWNER)->orWhere('can_view_finances', true);
         })->pluck('user_id');
-        $url = in_array($kind, ['payment_verified', 'payment_rejected'], true) ? '/my-finances?tab=to-workmate' : '/my-finances?tab=settlements'.($cycleId ? '&cycle='.$cycleId : '');
+        $url = in_array($kind, ['payment_verified', 'payment_rejected', 'payment_started', 'payment_failed', 'cleared'], true) ? '/my-finances?tab=to-workmate' : '/my-finances?tab=settlements'.($cycleId ? '&cycle='.$cycleId : '');
         $this->send(UserNotifications::ACCOUNT, $members, [
             'title' => $title, 'body' => $body, 'url' => $url,
             'tag' => 'commission-'.$kind.'-'.($paymentId ?: $cycleId), 'important' => true,

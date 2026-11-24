@@ -204,7 +204,7 @@ watch(provider, (p) => {
   if (p && (p.workStatus === 'busy' || p.acceptsImmediate === false) && !form.when.timing) form.when = { ...form.when, timing: 'scheduled' };
 }, { immediate: true });
 const errors = reactive({ service: '', details: '', area: '', when: '', budget: '' });
-// Budget types (when switched on in Admin → Settings → Pricing): a set amount, a range, negotiable or none
+// Budget types (when switched on in Admin → Finance → Financial Settings): a set amount, a range, negotiable or none
 const budgetSpec = ref(blankBudget());
 const budgetErrors = reactive({ amount: '', min: '', max: '' });
 

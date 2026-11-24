@@ -280,5 +280,33 @@ export default {
             ],
         },
     },
+    /* ================= Financial settings (Phase B10) ================= */
+    'financial-settings': {
+        type: 'settings', editPermission: 'finance.settings.manage', quiet: true, noReset: true,
+        description: 'The switches and values behind pricing, commission estimates, obligations and settlements. Every change is confirmed and recorded.',
+        sections: [
+            { title: 'Pricing and negotiation', fields: [
+                { key: 'pricingEnabled', label: 'Flexible pricing', type: 'toggle', help: 'Customers and providers can use fixed, range and negotiable prices.',
+                  confirmOn: 'Customers and providers will see the new pricing options straight away.' },
+                { key: 'agreementExpiryDays', label: 'Price offer expires after', type: 'number', unit: 'days', min: 1, max: 60 },
+            ] },
+            { title: 'Commission estimates', fields: [
+                { key: 'shadowEnabled', label: 'Commission estimates', type: 'toggle', help: 'Works out what commission could be, for review. Nothing is owed or collected.' },
+                { key: 'maxRatePercent', label: 'Highest commission rate allowed', type: 'number', unit: '%', min: 1, max: 50, step: 0.5, help: 'No rate rule can be set above this.' },
+            ] },
+            { title: 'Commission obligations', fields: [
+                { key: 'assessmentFrom', label: 'Obligations start at', type: 'datetime', help: 'Kampala time. Payments confirmed before this are never charged.' },
+                { key: 'assessmentEnabled', label: 'Record commission obligations', type: 'toggle', help: 'Needs flexible pricing, commission estimates and a start date.',
+                  confirmOn: 'Providers will start owing commission on payments customers confirm from the start date.' },
+            ] },
+            { title: 'Commission settlements', fields: [
+                { key: 'settlementEnabled', label: 'Commission settlements', type: 'toggle', help: 'Providers can pay what they owe, and you check and record it.',
+                  confirmOn: 'Providers will see their settlements and can start paying.' },
+                { key: 'paymentInstructions', label: 'Payment instructions', type: 'textarea', max: 500, wide: true, help: 'Shown to providers exactly as written when they pay by manual payment.' },
+                { key: 'acceptsCash', label: 'Accept cash payments', type: 'toggle' },
+                { key: 'threeJobWindowHours', label: 'Hours to pay after the third job', type: 'number', unit: 'hours', min: 0, max: 720, help: '0 means the seven-day limit applies.' },
+            ] },
+        ],
+    },
 };
 

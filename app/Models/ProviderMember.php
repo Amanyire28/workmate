@@ -21,6 +21,7 @@ class ProviderMember extends Model
         'provider_profile_id' => 'integer',
         'user_id' => 'integer',
         'can_view_finances' => 'boolean',
+        'can_pay_commission' => 'boolean',
     ];
 
     public function profile()

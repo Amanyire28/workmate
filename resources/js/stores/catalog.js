@@ -30,7 +30,7 @@ export const appSettings = reactive({
     minimumAge: 18,
     // Community videos: the limits the server checks
     videoMaxMb: 25,
-    // Admin → Settings → Pricing: budget types, estimates and "inspection first" (off: everything as before)
+    // Admin → Finance → Financial Settings: budget types, estimates and "inspection first" (off: everything as before)
     pricingEnabled: false,
 });
 

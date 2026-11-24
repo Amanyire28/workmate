@@ -15,7 +15,7 @@
       <span class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1" :class="summary.pricing_enabled ? 'border-[#86EFAC] bg-[#F0FDF4] text-[#166534]' : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#475569]'">
         <i :class="['bi', summary.pricing_enabled ? 'bi-toggle-on' : 'bi-toggle-off']" aria-hidden="true"></i>Pricing options {{ summary.pricing_enabled ? 'on' : 'off' }}
       </span>
-      <span class="text-[#64748B]">Safety ceiling for any rate: {{ bpToPercent(summary.ceiling_bp || 0) }}. Both switches are in Settings → Pricing.</span>
+      <span class="text-[#64748B]">Safety ceiling for any rate: {{ bpToPercent(summary.ceiling_bp || 0) }}. Both switches are in Financial Settings.</span>
     </div>
     <p v-if="loaded && !summary.shadow_enabled" class="wm-notice wm-notice-info">
       <i class="bi bi-info-circle" aria-hidden="true"></i>
@@ -231,7 +231,7 @@
     <!-- ================= Obligations (B6): recorded, read only ================= -->
     <section v-show="tab === 'obligations'" id="ce-panel-obligations" role="tabpanel" aria-labelledby="ce-tab-obligations" class="flex flex-col gap-3">
       <p class="wm-notice wm-notice-warning" role="note"><i class="bi bi-journal-text" aria-hidden="true"></i>
-        <span><strong class="font-semibold">Recorded obligations, not estimates.</strong> These are what a provider owes WorkMate because the customer confirmed a payment (after the chosen start). They are only recorded when Obligations are switched on in Settings, nothing is collected by any system yet, and this page can’t change them.</span></p>
+        <span><strong class="font-semibold">Recorded obligations, not estimates.</strong> These are what a provider owes WorkMate because the customer confirmed a payment (after the chosen start). They are only recorded when obligations are switched on in Financial Settings, and this page can’t change them.</span></p>
       <StateBlock v-if="!obligationsLoaded && !error" kind="loading" title="Loading…" />
       <template v-else>
         <p v-if="!obligations.enabled" class="wm-notice wm-notice-info"><i class="bi bi-info-circle" aria-hidden="true"></i><span>Obligations are switched off, so nothing new is being recorded.</span></p>
@@ -240,7 +240,7 @@
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <MetricCard label="Obligations recorded" :value="formatNumber(obligations.totals.assessments)" hint="One per customer-confirmed payment." />
           <MetricCard label="Commission assessed" :value="formatUGX(obligations.totals.assessed_ugx)" hint="Before any reversals." />
-          <MetricCard label="Outstanding" :value="formatUGX(obligations.totals.outstanding_ugx)" :primary="true" hint="Assessed minus reversed. Settlement is a later phase." />
+          <MetricCard label="Outstanding" :value="formatUGX(obligations.totals.outstanding_ugx)" :primary="true" hint="Assessed minus reversed. What providers pay is in Commission Payments and Commission Settlements." />
         </div>
         <StateBlock v-if="!obligations.items.length" title="No obligations yet" message="They appear when a customer confirms a payment after the start moment, with Obligations switched on." />
         <div v-else class="overflow-x-auto rounded-xl wm-surface">

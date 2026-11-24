@@ -158,6 +158,10 @@ class ProviderFinance
                     'outstanding_ugx' => max($balance, 0), 'credit_ugx' => max(-$balance, 0),
                     'overdue_ugx' => $totals['overdue']['outstanding_ugx'] ?? 0, 'overdue_cycles' => $totals['overdue']['count'] ?? 0,
                     'current_cycle' => $currentId ? $this->settlements->state((int) $currentId) : null,
+                    // Since the business began: what was assessed (before reversals), what verified payments took off, and what is waiting to be checked or approved
+                    'assessed_total_ugx' => (int) DB::table('commission_ledger_entries')->where('provider_profile_id', $providerId)->where('entry_type', 'assessment')->sum('amount_ugx'),
+                    'verified_total_ugx' => -(int) DB::table('commission_ledger_entries')->where('provider_profile_id', $providerId)->where('entry_type', 'settlement')->sum('amount_ugx'),
+                    'pending_ugx' => $this->settlements->reserved($providerId),
                 ],
                 // What the backend allows right now (the screen only shows buttons for what is allowed)
                 'can_report_payment' => $this->settlements->enabled(),

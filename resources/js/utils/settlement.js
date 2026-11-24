@@ -26,6 +26,7 @@ export const PAYMENT_STATUS = {
 export const paymentWords = (status) => PAYMENT_STATUS[status] || PAYMENT_STATUS.pending;
 
 export const CHANNELS = {
+    manual: 'Manual payment',
     mtn_momo: 'MTN Mobile Money',
     airtel_money: 'Airtel Money',
     bank_transfer: 'Bank transfer',
@@ -91,12 +92,13 @@ export function reportBody(form, cycleId, token) {
 
 /** The tabs on the administrator page, with their counts */
 export const ADMIN_TABS = [
-    { id: 'payments', label: 'To verify' },
     { id: 'cycles', label: 'Cycles' },
     { id: 'exceptions', label: 'Exceptions' },
 ];
 
 export const EXCEPTION_WORDS = {
-    overpayment: 'More was received than the cycle owed. The extra is not applied anywhere.',
+    overpayment: 'More was received than was owed. The extra is not applied anywhere.',
+    late_payment: 'The gateway confirmed money after the request had ended. It is not applied until reviewed.',
+    gateway_mismatch: 'The gateway confirmed a different amount than was requested. It is not applied until reviewed.',
     excess_credit: 'Verified payments now exceed what is owed (an obligation was reversed). Nothing is refunded automatically.',
 };

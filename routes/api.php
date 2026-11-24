@@ -93,6 +93,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         ->name('covers.show');
     Route::get('areas', [DirectoryController::class, 'areas'])->name('areas.index');
     Route::get('settings', [DirectoryController::class, 'settings'])->name('settings.public');
+    // Phase B10: a payment gateway confirms a payment (no sign-in: the gateway's signature is the authentication)
+    Route::post('payments/callbacks/{gateway}', [\App\Http\Controllers\Api\V1\PaymentCallbackController::class, 'handle'])->where('gateway', '[a-z_]+')->middleware('throttle:120,1')->name('payments.callback');
     // "What's New": the release announcement, if one is switched on
     Route::get('announcements/current', [AnnouncementController::class, 'current'])->name('announcements.current');
     Route::middleware('throttle:place-search')->group(function () {
@@ -271,6 +273,17 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::get('cycles/{id}', [\App\Http\Controllers\Api\V1\ProviderFinanceController::class, 'cycle'])->whereNumber('id')->name('cycle');
             Route::get('commission-payments', [\App\Http\Controllers\Api\V1\ProviderFinanceController::class, 'commissionPayments'])->name('commission-payments');
             Route::get('disputes', [\App\Http\Controllers\Api\V1\ProviderFinanceController::class, 'disputes'])->name('disputes');
+            // Phase B10: paying WorkMate commission. Starting a payment needs the settlement switch and permission to pay; reading never does.
+            Route::get('pay', [\App\Http\Controllers\Api\V1\ProviderPaymentController::class, 'overview'])->name('pay');
+            Route::post('pay/mobile-money', [\App\Http\Controllers\Api\V1\ProviderPaymentController::class, 'start'])->middleware('throttle:10,1')->name('pay.start');
+            Route::get('pay/attempts/{id}', [\App\Http\Controllers\Api\V1\ProviderPaymentController::class, 'attempt'])->whereNumber('id')->name('pay.attempt');
+            Route::post('pay/attempts/{id}/cancel', [\App\Http\Controllers\Api\V1\ProviderPaymentController::class, 'cancel'])->whereNumber('id')->middleware('throttle:20,1')->name('pay.cancel');
+            Route::get('receipts/{id}', [\App\Http\Controllers\Api\V1\ProviderPaymentController::class, 'receipt'])->whereNumber('id')->name('receipt');
+            Route::get('receipts/{id}.pdf', [\App\Http\Controllers\Api\V1\ProviderPaymentController::class, 'receiptPdf'])->whereNumber('id')->middleware('throttle:20,1')->name('receipt.pdf');
+            if (app()->environment(['local', 'testing'])) {
+                // Development and tests only: what approving or refusing on the phone would do. Not registered anywhere else.
+                Route::post('pay/attempts/{id}/simulate/{outcome}', [\App\Http\Controllers\Api\V1\ProviderPaymentController::class, 'simulate'])->whereNumber('id')->where('outcome', 'successful|failed|cancelled')->name('pay.simulate');
+            }
             Route::get('statements/{kind}.{format}', [\App\Http\Controllers\Api\V1\ProviderFinanceController::class, 'statementFile'])->where('kind', '[a-z]+')->where('format', '[a-z]+')->middleware('throttle:20,1')->name('statements');
         });
         // Phase B6: the provider business's own commission obligations (owner or manager; nobody else's)
@@ -446,6 +459,13 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 Route::get('payments/{id}/evidence', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'evidence'])->whereNumber('id')->name('payments.evidence');
                 Route::get('exceptions', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'exceptions'])->name('exceptions');
             });
+            // Phase B10: Commission Payments (manual proofs and gateway payments together). Reading: settlements.view; export: finance.reports.view.
+            Route::middleware('can:settlements.view')->prefix('commission-payments')->name('commission-payments.')->group(function () {
+                Route::get('summary', [\App\Http\Controllers\Api\V1\Admin\CommissionPaymentController::class, 'summary'])->name('summary');
+                Route::get('/', [\App\Http\Controllers\Api\V1\Admin\CommissionPaymentController::class, 'index'])->name('index');
+                Route::get('{kind}/{id}', [\App\Http\Controllers\Api\V1\Admin\CommissionPaymentController::class, 'show'])->where('kind', 'report|attempt')->whereNumber('id')->name('show');
+            });
+            Route::get('commission-payments-export', [\App\Http\Controllers\Api\V1\Admin\CommissionPaymentController::class, 'export'])->middleware(['can:finance.reports.view', 'can:settlements.view', 'throttle:20,1'])->name('commission-payments.export');
             Route::middleware(['can:settlements.verify', 'throttle:60,1'])->prefix('settlements')->name('settlements.')->group(function () {
                 Route::post('payments/{id}/verify', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'verify'])->whereNumber('id')->name('payments.verify');
                 Route::post('payments/{id}/reject', [\App\Http\Controllers\Api\V1\Admin\SettlementController::class, 'reject'])->whereNumber('id')->name('payments.reject');

@@ -20,7 +20,7 @@ class ProcessCommissionSettlements extends Command
             return self::SUCCESS;
         }
         $r = $settlements->catchUp(max(1, (int) $this->option('limit')));
-        $this->info('Allocated: ' . $r['allocated'] . '  Reminders sent: ' . $r['reminders'] . ' (nothing is collected)');
+        $this->info('Allocated: ' . $r['allocated'] . '  Reminders sent: ' . $r['reminders'] . '');
 
         return self::SUCCESS;
     }

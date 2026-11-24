@@ -71,7 +71,7 @@ test('a report is sent as whole UGX with only the fields that were filled in', (
 });
 
 test('the administrator tabs and exception words are defined', () => {
-    assert.deepEqual(ADMIN_TABS.map((t) => t.id), ['payments', 'cycles', 'exceptions']);
+    assert.deepEqual(ADMIN_TABS.map((t) => t.id), ['cycles', 'exceptions']);
     assert.ok(EXCEPTION_WORDS.overpayment && EXCEPTION_WORDS.excess_credit);
     assert.match(EXCEPTION_WORDS.excess_credit, /Nothing is refunded automatically/);
 });

@@ -230,6 +230,8 @@ class CommissionAggregationTest extends ApiTestCase
     {
         $settings = app(PlatformSettings::class);
         $settings->set('finance.pricing_enabled', true, $this->root);
+        $settings->set('finance.commission_shadow_enabled', true, $this->root);
+        $settings->set('finance.commission_assessment_from', now()->subHour()->toIso8601String(), $this->root);
         $settings->set('finance.commission_assessment_enabled', true, $this->root);
         $settings->set('finance.commission_settlement_enabled', true, $this->root);
         $p = $this->provider();

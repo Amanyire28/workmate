@@ -22,7 +22,7 @@ class CommissionObligationController extends Controller
     public function report(Request $request, CommissionSettlements $settlements): JsonResponse
     {
         $data = $request->validate([
-            'cycle_id' => ['required', 'integer', 'min:1'],
+            'cycle_id' => ['nullable', 'integer', 'min:1'],
             'amount' => ['required', 'integer', 'min:' . CommissionSettlements::MIN_AMOUNT, 'max:' . CommissionSettlements::MAX_AMOUNT],
             'channel' => ['required', 'in:' . implode(',', CommissionPaymentReport::CHANNELS)],
             'reference' => ['nullable', 'string', 'max:' . CommissionSettlements::MAX_REFERENCE],

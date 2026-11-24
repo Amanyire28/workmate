@@ -44,28 +44,18 @@
               <div class="rounded-xl bg-primary-tint px-3.5 py-2.5"><dt class="text-[12.5px] text-muted">Confirmed by customers</dt><dd class="text-[20px] font-bold text-ink">{{ ugx(summary.customer_payments.confirmed_ugx) }}</dd><dd class="text-[12.5px] text-muted">{{ summary.customer_payments.confirmed_count }} {{ summary.customer_payments.confirmed_count === 1 ? 'payment' : 'payments' }} in this period</dd></div>
               <div class="rounded-xl bg-[#F8FAFC] px-3.5 py-2.5"><dt class="text-[12.5px] text-muted">You reported in this period</dt><dd class="text-[17px] font-bold text-ink">{{ ugx(summary.customer_payments.reported_ugx) }}</dd><dd class="text-[12.5px] text-muted">Includes ones still waiting. Only confirmed ones count as paid.</dd></div>
             </dl>
-            <p class="text-[13px] font-medium text-ink">Today</p>
-            <dl class="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              <div class="rounded-xl bg-[#F8FAFC] px-3.5 py-2.5"><dt class="text-[12.5px] text-muted">Waiting for the customer</dt><dd class="text-[16px] font-bold text-ink">{{ ugx(summary.customer_payments.awaiting.amount_ugx) }}</dd><dd class="text-[12.5px] text-muted">{{ summary.customer_payments.awaiting.count }} not counted as paid</dd></div>
-              <div class="rounded-xl bg-[#F8FAFC] px-3.5 py-2.5"><dt class="text-[12.5px] text-muted">Questioned by the customer</dt><dd class="text-[16px] font-bold text-ink">{{ ugx(summary.customer_payments.questioned.amount_ugx) }}</dd><dd class="text-[12.5px] text-muted">{{ summary.customer_payments.questioned.count }} not counted as paid</dd></div>
-              <div class="rounded-xl bg-[#F8FAFC] px-3.5 py-2.5"><dt class="text-[12.5px] text-muted">Still to be paid on agreed jobs</dt><dd class="text-[16px] font-bold text-ink">{{ ugx(summary.customer_payments.remaining_ugx) }}</dd><dd class="text-[12.5px] text-muted">{{ summary.customer_payments.remaining_jobs }} {{ summary.customer_payments.remaining_jobs === 1 ? 'job' : 'jobs' }} with an agreed price</dd></div>
-            </dl>
-          </section>
-
-          <section class="wm-card flex flex-col gap-3" aria-labelledby="mf-commission">
-            <div><h2 id="mf-commission" class="text-[16px] font-semibold text-ink">Commission you owe WorkMate</h2>
-              <p class="text-[13.5px] text-muted">A share of payments customers confirmed. It is separate from what customers paid you.</p></div>
+            <p class="text-[13px] font-medium text-ink">Since you started</p>
             <dl class="grid grid-cols-2 gap-2">
-              <div class="rounded-xl bg-[#F8FAFC] px-3.5 py-2.5"><dt class="text-[12.5px] text-muted">Added in this period</dt><dd class="text-[16px] font-bold text-ink">{{ ugx(summary.commission.period.assessed_ugx) }}</dd></div>
-              <div class="rounded-xl bg-[#F8FAFC] px-3.5 py-2.5"><dt class="text-[12.5px] text-muted">Taken off in this period</dt><dd class="text-[16px] font-bold text-ink">{{ ugx(summary.commission.period.reversed_ugx) }}</dd></div>
-              <div class="rounded-xl bg-[#F8FAFC] px-3.5 py-2.5"><dt class="text-[12.5px] text-muted">Net added in this period</dt><dd class="text-[16px] font-bold text-ink">{{ ugx(summary.commission.period.net_ugx) }}</dd></div>
-              <div class="rounded-xl bg-[#F8FAFC] px-3.5 py-2.5"><dt class="text-[12.5px] text-muted">Payments to WorkMate verified in this period</dt><dd class="text-[16px] font-bold text-ink">{{ ugx(summary.commission.period.settled_ugx) }}</dd></div>
+              <div class="rounded-xl bg-[#F8FAFC] px-3.5 py-2.5"><dt class="text-[12.5px] text-muted">Total commission assessed</dt><dd class="text-[16px] font-bold text-ink">{{ ugx(summary.commission.as_of.assessed_total_ugx) }}</dd></div>
+              <div class="rounded-xl bg-[#F8FAFC] px-3.5 py-2.5"><dt class="text-[12.5px] text-muted">Total verified payments</dt><dd class="text-[16px] font-bold text-ink">{{ ugx(summary.commission.as_of.verified_total_ugx) }}</dd></div>
             </dl>
             <p class="text-[13px] font-medium text-ink">Today</p>
             <dl class="grid grid-cols-2 gap-2">
-              <div class="rounded-xl bg-primary-tint px-3.5 py-2.5"><dt class="text-[12.5px] text-muted">Still to pay</dt><dd class="text-[20px] font-bold text-ink">{{ ugx(summary.commission.as_of.outstanding_ugx) }}</dd></div>
+              <div class="rounded-xl bg-primary-tint px-3.5 py-2.5"><dt class="text-[12.5px] text-muted">Outstanding</dt><dd class="text-[20px] font-bold text-ink">{{ ugx(summary.commission.as_of.outstanding_ugx) }}</dd></div>
               <div class="rounded-xl px-3.5 py-2.5" :class="summary.commission.as_of.overdue_ugx ? 'bg-[#FEE2E2]' : 'bg-[#F8FAFC]'"><dt class="text-[12.5px] text-muted">Overdue</dt><dd class="text-[20px] font-bold text-ink">{{ ugx(summary.commission.as_of.overdue_ugx) }}</dd></div>
+              <div v-if="summary.commission.as_of.pending_ugx" class="col-span-2 rounded-xl bg-[#FEF3C7] px-3.5 py-2.5"><dt class="text-[12.5px] text-[#92400E]">Pending payments</dt><dd class="text-[16px] font-bold text-ink">{{ ugx(summary.commission.as_of.pending_ugx) }}</dd></div>
             </dl>
+            <button v-if="showPay" type="button" class="wm-btn wm-btn-primary !min-h-12 w-full" @click="sheet = true"><i class="bi bi-cash-coin" aria-hidden="true"></i>Pay commission</button>
             <p v-if="summary.commission.as_of.credit_ugx" class="text-[13px] text-muted">You have paid {{ ugx(summary.commission.as_of.credit_ugx) }} more than is owed. WorkMate will look at it; nothing is refunded automatically.</p>
 
             <section v-if="cycle" class="flex flex-col gap-2 rounded-xl border border-line px-3.5 py-3" aria-label="Current settlement">
@@ -73,11 +63,8 @@
               <p class="text-[13.5px] text-ink">{{ ugx(cycle.outstanding_ugx) }} to pay · {{ jobsWords(cycle) }} with commission</p>
               <p class="text-[13px] text-muted">{{ dueWords(cycle, shortDate) }}</p>
               <p v-if="earlierTriggerWords(cycle, shortDate)" class="text-[13px] text-muted">{{ earlierTriggerWords(cycle, shortDate) }}</p>
-              <div v-if="commissionInfo && commissionInfo.instructions" class="rounded-lg bg-[#F8FAFC] px-3 py-2 text-[13px]"><p class="font-medium text-ink">How to pay WorkMate</p><p class="whitespace-pre-line text-muted">{{ commissionInfo.instructions }}</p></div>
-              <button v-if="summary.commission.can_report_payment && canReport(cycle)" type="button" class="wm-btn wm-btn-primary !min-h-12 w-full" @click="sheet = true"><i class="bi bi-cash-coin" aria-hidden="true"></i>Report commission payment</button>
-              <p v-else-if="canReport(cycle)" class="text-[12.5px] text-muted">Reporting a payment isn’t available right now.</p>
             </section>
-            <p v-else class="text-[13.5px] text-muted">Nothing to settle right now.</p>
+            <p v-else class="text-[13.5px] text-muted">No outstanding commission.</p>
           </section>
           <ul class="list-disc pl-5 text-[12.5px] text-muted"><li v-for="n in summary.notes" :key="n">{{ n }}</li></ul>
         </template>
@@ -134,12 +121,13 @@
 
       <!-- ============ Paid to WorkMate ============ -->
       <div v-else-if="tab === 'to-workmate'" class="mt-4 flex flex-col gap-3" role="tabpanel">
-        <EmptyState v-if="toWorkmate && !toWorkmate.items.length" icon="bi-bank" title="No payments to WorkMate" message="Commission payments you report appear here, with what WorkMate decided." />
+        <EmptyState v-if="toWorkmate && !toWorkmate.items.length" icon="bi-bank" title="No payments to WorkMate" message="Your commission payments appear here." />
         <ul v-else-if="toWorkmate" class="flex flex-col gap-2">
           <li v-for="p in toWorkmate.items" :key="p.id" class="wm-card !p-3">
             <p class="flex flex-wrap items-baseline justify-between gap-2"><strong class="text-[14px] text-ink">{{ ugx(p.amount_ugx) }} · {{ channelLabel(p.channel) }}</strong><span class="wm-pill !py-0" :class="`wm-pill-${commissionPaymentWords(p.status).tone}`">{{ commissionPaymentWords(p.status).label }}</span></p>
             <p class="text-[13px] text-muted">{{ shortDate(p.reported_at) }}<template v-if="p.reference"> · {{ p.reference }}</template> · settlement #{{ p.cycle_id }}</p>
             <p class="text-[12.5px] text-muted">{{ commissionPaymentWords(p.status).why }}</p>
+            <a v-if="p.status === 'verified' && p.receipt_number" :href="`/api/v1/me/finance/receipts/${p.id}.pdf`" class="inline-flex min-h-11 items-center gap-1.5 text-[13px] text-primary" download><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i>Receipt {{ p.receipt_number }}</a>
             <p v-if="p.status === 'rejected' && p.decision_note" class="text-[13px] text-ink">Why: “{{ p.decision_note }}”</p>
             <p v-if="p.status === 'verified' && p.excess_ugx" class="text-[12.5px] text-muted">{{ ugx(p.excess_ugx) }} of it was more than was owed and is not applied until WorkMate reviews it.</p>
           </li>
@@ -178,7 +166,8 @@
           <ul v-else class="flex flex-col gap-1">
             <li v-for="m in access.members" :key="m.user_id" class="flex items-center justify-between gap-3 rounded-xl bg-[#F8FAFC] px-3 py-2 text-[14px]">
               <span class="text-ink">{{ m.name }} <span class="text-muted">· {{ roleWords(m.role) }}</span></span>
-              <label class="inline-flex min-h-11 items-center gap-2 text-[13px] text-ink"><input type="checkbox" class="h-5 w-5 accent-[#1769D2]" :checked="m.can_view_finances" :disabled="accessBusy" :aria-label="`Allow ${m.name} to see the finances`" @change="setAccess(m, $event.target.checked)" />Can see</label>
+              <label class="inline-flex min-h-11 items-center gap-2 text-[13px] text-ink"><input type="checkbox" class="h-5 w-5 accent-[#1769D2]" :checked="m.can_view_finances" :disabled="accessBusy" :aria-label="`Allow ${m.name} to see the finances`" @change="setAccess(m, $event.target.checked, m.can_pay_commission)" />Can see</label>
+              <label class="inline-flex min-h-11 items-center gap-2 text-[13px] text-ink"><input type="checkbox" class="h-5 w-5 accent-[#1769D2]" :checked="m.can_pay_commission" :disabled="accessBusy || !m.can_view_finances" :aria-label="`Allow ${m.name} to pay commission`" @change="setAccess(m, true, $event.target.checked)" />Can pay</label>
             </li>
           </ul>
           <p v-if="accessError" class="wm-field-error" role="alert">{{ accessError }}</p>
@@ -204,7 +193,7 @@
     </BottomSheet>
 
     <DisputePanel :open="!!openDispute" :dispute-id="openDispute" @close="openDispute = null" @changed="reloadAll" />
-    <ReportCommissionPaymentSheet v-if="commissionInfo && commissionInfo.settlement" :open="sheet" :cycle="cycle" :channels="commissionInfo.settlement.channels" :instructions="commissionInfo.settlement.instructions" @close="sheet = false" @done="sheetDone" />
+    <PayCommissionSheet v-if="pay" :open="sheet" :pay="pay" @close="sheet = false" @done="sheetDone" />
   </div>
 </template>
 
@@ -215,10 +204,11 @@ import BackLink from '@/components/BackLink.vue';
 import BottomSheet from '@/components/BottomSheet.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import DisputePanel from '@/components/pricing/DisputePanel.vue';
-import ReportCommissionPaymentSheet from '@/components/pricing/ReportCommissionPaymentSheet.vue';
+import PayCommissionSheet from '@/components/pricing/PayCommissionSheet.vue';
+import { showPayButton } from '@/utils/payCommission.js';
 import { api } from '@/api/client.js';
 import { shortDate } from '@/utils/pricing.js';
-import { CYCLE_STATUS, cycleLabel, channelLabel, dueWords, jobsWords, canReport, earlierTriggerWords, PAYMENT_STATUS } from '@/utils/settlement.js';
+import { CYCLE_STATUS, cycleLabel, channelLabel, dueWords, jobsWords, earlierTriggerWords, PAYMENT_STATUS } from '@/utils/settlement.js';
 import {
   PERIODS, periodProblem, query, statementUrl, TABS, lineWords, paymentState, disputeStage, methodLabel, roleWords, ugx,
 } from '@/utils/myFinances.js';
@@ -265,7 +255,8 @@ const payStatus = ref('');
 const cycles = ref(null);
 const toWorkmate = ref(null);
 const disputes = ref(null);
-const commissionInfo = ref(null);
+const pay = ref(null);
+const showPay = computed(() => showPayButton(pay.value));
 const openCycle = ref(null);
 const openDispute = ref(null);
 const sheet = ref(false);
@@ -317,21 +308,21 @@ function applyDates() {
 }
 
 const reloadAll = () => { loadTab(); };
-const sheetDone = async () => { sheet.value = false; await loadSummary(); await loadCommissionInfo(); };
+const sheetDone = async () => { await loadSummary(); await loadPay(); loadTab(); };
 
-async function loadCommissionInfo() {
+async function loadPay() {
   try {
-    commissionInfo.value = (await api('/me/commission')).data;
+    pay.value = (await api('/me/finance/pay')).data;
   } catch {
-    commissionInfo.value = null;
+    pay.value = null;
   }
 }
 
-async function setAccess(member, allowed) {
+async function setAccess(member, allowed, canPay = null) {
   accessBusy.value = true;
   accessError.value = '';
   try {
-    access.value = (await api('/me/finance/access', { method: 'POST', body: { user_id: member.user_id, allowed } })).data;
+    access.value = (await api('/me/finance/access', { method: 'POST', body: { user_id: member.user_id, allowed, can_pay: allowed ? canPay : false } })).data;
   } catch (e) {
     accessError.value = e.message;
   } finally {
@@ -350,7 +341,7 @@ async function start() {
     }
     state.value = 'ready';
     loadTab();
-    loadCommissionInfo();
+    loadPay();
     if (route.query.dispute) openDispute.value = Number(route.query.dispute) || null;
     if (route.query.cycle) showCycle(Number(route.query.cycle));
   } catch (e) {

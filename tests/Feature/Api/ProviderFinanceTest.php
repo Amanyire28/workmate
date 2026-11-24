@@ -39,11 +39,20 @@ class ProviderFinanceTest extends ApiTestCase
 
     private function activate(bool $on = true): void
     {
-        $this->setting('finance.pricing_enabled', $on);
-        $this->setting('finance.commission_shadow_enabled', $on);
-        $this->setting('finance.commission_assessment_enabled', $on);
+        if (! $on) {
+            // Switching off: what depends on a switch goes first
+            foreach (['finance.commission_settlement_enabled', 'finance.commission_assessment_enabled', 'finance.commission_shadow_enabled', 'finance.pricing_enabled'] as $key) {
+                $this->setting($key, false);
+            }
+            $this->setting('finance.commission_assessment_from', now()->subHour()->toIso8601String());
+
+            return;
+        }
+        $this->setting('finance.pricing_enabled', true);
+        $this->setting('finance.commission_shadow_enabled', true);
         $this->setting('finance.commission_assessment_from', now()->subHour()->toIso8601String());
-        $this->setting('finance.commission_settlement_enabled', $on);
+        $this->setting('finance.commission_assessment_enabled', true);
+        $this->setting('finance.commission_settlement_enabled', true);
     }
 
     private function provider(string $name = null): ProviderProfile
@@ -416,7 +425,12 @@ class ProviderFinanceTest extends ApiTestCase
         $mid = $this->fin($provider->owner, 'statement?period=custom&from='.$from.'&to='.$from)->json('data');
         $before = (int) DB::table('commission_ledger_entries')->where('provider_profile_id', $provider->id)->where('created_at', '<', \Carbon\Carbon::parse($from, 'Africa/Kampala')->startOfDay()->utc()->toDateTimeString())->sum('amount_ugx');
         $this->assertSame($before, $mid['totals']['opening_ugx']);
-        $inside = array_sum(array_column($mid['items'], 'amount_ugx'));
+        // A day can hold more than one page of lines (it depends on the hour the test runs), so read every page
+        $items = $mid['items'];
+        for ($page = 2; $page <= 3; $page++) {
+            $items = array_merge($items, $this->fin($provider->owner, 'statement?period=custom&from='.$from.'&to='.$from.'&page='.$page)->json('data.items'));
+        }
+        $inside = array_sum(array_column($items, 'amount_ugx'));
         $this->assertSame($mid['totals']['opening_ugx'] + $inside, $mid['totals']['closing_ugx']);
         $this->assertNull($mid['totals']['matches_ledger']);                       // it does not end today, so no claim is made about today's balance
         $this->assertNotSame([], $mid['items']);

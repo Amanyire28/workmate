@@ -47,8 +47,8 @@ class FinancialAdministrationTest extends ApiTestCase
     {
         $this->setting('finance.pricing_enabled', true);
         $this->setting('finance.commission_shadow_enabled', true);
-        $this->setting('finance.commission_assessment_enabled', true);
         $this->setting('finance.commission_assessment_from', now()->subHour()->toIso8601String());
+        $this->setting('finance.commission_assessment_enabled', true);
         $this->setting('finance.commission_settlement_enabled', true);
     }
 
@@ -107,7 +107,7 @@ class FinancialAdministrationTest extends ApiTestCase
     private function verify(int $payment, int $amount): void
     {
         $this->signIn($this->finance);
-        $this->postJson("/api/v1/admin/settlements/payments/{$payment}/verify", ['amount_ugx' => $amount, 'receipt_confirmed' => true])->assertOk();
+        $this->postJson("/api/v1/admin/settlements/payments/{$payment}/verify", ['amount_ugx' => $amount, 'receipt_confirmed' => true, 'note' => 'Checked against the account statement'])->assertOk();
     }
 
     /** A provider with three jobs (UGX 30,000 owed, one cycle due), part of it paid and verified: [provider, cycle id] */
@@ -428,7 +428,7 @@ class FinancialAdministrationTest extends ApiTestCase
             $this->job($provider);
         }
         $cycle = $this->cycleOf($provider);
-        $payment = $this->reportPayment($provider, $cycle, 50000)->assertCreated()->json('data.id');
+        $payment = $this->reportPayment($provider, $cycle, 30000)->assertCreated()->json('data.id');
         $this->verify($payment, 50000);
 
         return [$provider, CommissionException::first(), $payment];

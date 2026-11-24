@@ -40,13 +40,20 @@ class CommissionObligationTest extends ApiTestCase
         app(PlatformSettings::class)->set($key, $value, $this->root);
     }
 
+    /** Writes a stored value the way an old or damaged row would hold it, bypassing the checks the settings screen applies */
+    private function rawSetting(string $key, $value): void
+    {
+        \App\Models\PlatformSetting::updateOrCreate(['key' => $key], ['value' => $value ?? '']);
+        \Illuminate\Support\Facades\Cache::forget('platform_settings.overrides');
+    }
+
     /** Pricing, estimates and obligations on, starting a minute ago (so payments confirmed from now count) */
     private function activate(bool $obligations = true, ?string $from = null): void
     {
         $this->setting('finance.pricing_enabled', true);
         $this->setting('finance.commission_shadow_enabled', true);
-        $this->setting('finance.commission_assessment_enabled', $obligations);
         $this->setting('finance.commission_assessment_from', $from ?: now()->subMinute()->toIso8601String());
+        $this->setting('finance.commission_assessment_enabled', $obligations);
     }
 
     private function provider(): ProviderProfile
@@ -144,7 +151,7 @@ class CommissionObligationTest extends ApiTestCase
     public function test_without_a_start_moment_nothing_is_assessed_and_the_past_is_never_charged()
     {
         $this->activate(true, '');
-        $this->setting('finance.commission_assessment_from', null);
+        $this->rawSetting('finance.commission_assessment_from', null);
         $this->global();
         [$provider, $customer, $id] = $this->priced();
         $before = $this->confirmed($provider, $customer, $id, 100000);
@@ -173,7 +180,7 @@ class CommissionObligationTest extends ApiTestCase
     public function test_an_unreadable_start_moment_assesses_nothing()
     {
         $this->activate();
-        $this->setting('finance.commission_assessment_from', 'not a date');
+        $this->rawSetting('finance.commission_assessment_from', 'not a date');
         $this->global();
         [$provider, $customer, $id] = $this->priced();
         $this->confirmed($provider, $customer, $id, 100000);
@@ -186,14 +193,14 @@ class CommissionObligationTest extends ApiTestCase
         $this->global();
         [$provider, $customer, $id] = $this->priced();
         $payment = $this->reported($provider, $id, 100000);
-        $this->setting('finance.pricing_enabled', false);
+        $this->rawSetting('finance.pricing_enabled', false);
         // (confirming needs pricing on; confirm first, then switch off and look again)
         $this->setting('finance.pricing_enabled', true);
         $this->confirmPayment($customer, $id, $payment, 100000);
         $this->assertSame(1, CommissionAssessment::count());
         // A second payment confirmed while pricing is on is assessed; with it off nothing new can even be confirmed
         $second = $this->reported($provider, $id, 100000);
-        $this->setting('finance.pricing_enabled', false);
+        $this->rawSetting('finance.pricing_enabled', false);
         $this->signIn($customer);
         $this->postJson("/api/v1/me/requests/{$id}/payments/{$second}/confirm", ['amount' => 100000])->assertStatus(409);
         $this->catchUp();
@@ -479,7 +486,7 @@ class CommissionObligationTest extends ApiTestCase
             $list = $this->getJson('/api/v1/admin/commission/assessments')->assertOk()->json('data');
             $this->assertSame([1, 5000, 5000], [$list['totals']['assessments'], $list['totals']['assessed_ugx'], $list['totals']['outstanding_ugx']]);
             $this->assertSame([$provider->id, 'outstanding', '5%', 1], [$list['items'][0]['provider_id'], $list['items'][0]['status'], $list['items'][0]['rate'], $list['items'][0]['policy_version']]);
-            $this->assertStringContainsString('not collected', $list['label']);
+            $this->assertSame('Recorded obligation', $list['label']);
             $detail = $this->getJson("/api/v1/admin/commission/assessments/{$a->id}")->assertOk()->json('data');
             $this->assertSame([['assessment', 5000]], array_map(function ($e) {
                 return [$e['type'], $e['amount_ugx']];

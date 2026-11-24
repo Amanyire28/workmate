@@ -13,6 +13,9 @@ class CommissionException extends Model
 {
     public const OVERPAYMENT = 'overpayment';
     public const EXCESS_CREDIT = 'excess_credit';
+    // Gateway money that cannot be applied automatically: confirmed after the request expired or was cancelled, or for another amount
+    public const LATE_PAYMENT = 'late_payment';
+    public const GATEWAY_MISMATCH = 'gateway_mismatch';
 
     public $timestamps = false;
 

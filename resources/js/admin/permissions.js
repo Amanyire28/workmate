@@ -33,6 +33,7 @@ export const PERMISSIONS = {
     'finance.exceptions.review': 'Take, annotate and investigate commission reconciliation exceptions',
     'finance.adjustments.approve': 'Approve or reject a proposed financial adjustment',
     'finance.exceptions.resolve': 'Authorise resolving a commission reconciliation exception',
+    'finance.settings.manage': 'See and change the financial settings: pricing, commission estimates, obligations and settlements',
     'content.view':       'Moderate videos and manage content and translations',
     'comms.view':         'Manage notifications, templates and campaigns',
     'comms.send':         'Send push announcements to everyone who turned them on',

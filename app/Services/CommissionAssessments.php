@@ -34,7 +34,7 @@ use Throwable;
  * one ledger entry per reference).
  *
  * Money is never moved here: no gateway, no collection, no settlement, no deadline. What a provider owes is the SUM of their
- * entries; settlement and reconciliation are a later phase. Providers see only their own; administrators only read.
+ * entries; settlement and payment are in CommissionSettlements and CommissionCollections. Providers see only their own; administrators only read.
  */
 class CommissionAssessments
 {
@@ -64,7 +64,8 @@ class CommissionAssessments
             return null;
         }
         try {
-            return Carbon::parse($value);
+            // The stored moment carries its Kampala offset; the database and every comparison run on the application clock
+            return Carbon::parse($value)->setTimezone(config('app.timezone'));
         } catch (Throwable $e) {
             return null;
         }
@@ -275,7 +276,7 @@ class CommissionAssessments
         $disputes = PaymentDispute::whereIn('payment_report_id', $rows->pluck('payment_report_id'))->pluck('id', 'payment_report_id');
 
         return [
-            'label' => 'Recorded obligation: not collected by any system yet',
+            'label' => 'Recorded obligation',
             'enabled' => $this->enabled(),
             'starts_at' => optional($this->startsAt())->toIso8601String(),
             'totals' => [

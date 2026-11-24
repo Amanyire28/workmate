@@ -66,19 +66,29 @@ class ProviderFinanceAccess
         return $this->roleIn($user, $providerId) === ProviderMember::ROLE_OWNER;
     }
 
+    /** The owner always; another member only when the owner allowed them to see the finances AND to pay commission (Phase B10) */
+    public function canPay(User $user, int $providerId): bool
+    {
+        return ProviderMember::where('user_id', $user->getKey())->where('provider_profile_id', $providerId)->where(function ($q) {
+            $q->where('role', ProviderMember::ROLE_OWNER)->orWhere(function ($w) {
+                $w->where('can_view_finances', true)->where('can_pay_commission', true);
+            });
+        })->exists();
+    }
+
     /** What the My Finances screen needs to know about the person asking */
     public function describe(User $user): array
     {
         $id = $this->providerId($user);
         $role = $id ? $this->roleIn($user, $id) : null;
-        $out = ['allowed' => (bool) $id, 'provider_id' => $id, 'role' => $role, 'can_manage_access' => $role === ProviderMember::ROLE_OWNER, 'members' => []];
+        $out = ['allowed' => (bool) $id, 'provider_id' => $id, 'role' => $role, 'can_manage_access' => $role === ProviderMember::ROLE_OWNER, 'can_pay' => $id ? $this->canPay($user, $id) : false, 'members' => []];
         if ($id) {
             $profile = ProviderProfile::withTrashed()->find($id);
             $out['business'] = $profile ? $profile->display_name : null;
         }
         if ($out['can_manage_access']) {
             $out['members'] = ProviderMember::where('provider_profile_id', $id)->where('role', '!=', ProviderMember::ROLE_OWNER)->with('user:id,name')->orderBy('id')->get()->map(function ($m) {
-                return ['user_id' => (int) $m->user_id, 'name' => optional($m->user)->name, 'role' => $m->role, 'can_view_finances' => (bool) $m->can_view_finances];
+                return ['user_id' => (int) $m->user_id, 'name' => optional($m->user)->name, 'role' => $m->role, 'can_view_finances' => (bool) $m->can_view_finances, 'can_pay_commission' => (bool) $m->can_pay_commission];
             })->all();
         }
 
@@ -86,23 +96,26 @@ class ProviderFinanceAccess
     }
 
     /** The owner gives or takes back a team member's access to the business's finances. Audited. */
-    public function setAccess(User $owner, int $memberUserId, bool $allowed): array
+    public function setAccess(User $owner, int $memberUserId, bool $allowed, ?bool $canPay = null): array
     {
         $providerId = $this->providerId($owner);
         if (! $providerId || ! $this->isOwner($owner, $providerId)) {
             throw new BusinessRuleException('not_authorised', 'Only the business owner can change who sees its finances.', 403);
         }
-        DB::transaction(function () use ($providerId, $memberUserId, $allowed, $owner) {
+        DB::transaction(function () use ($providerId, $memberUserId, $allowed, $canPay, $owner) {
             $member = ProviderMember::where('provider_profile_id', $providerId)->where('user_id', $memberUserId)->where('role', '!=', ProviderMember::ROLE_OWNER)->lockForUpdate()->first();
             if (! $member) {
                 throw new BusinessRuleException('not_found', 'The requested item was not found.', 404);
             }
-            if ((bool) $member->can_view_finances === $allowed) {
+            // Paying needs seeing: taking the finances away takes paying away too
+            $pay = $allowed ? ($canPay === null ? (bool) $member->can_pay_commission : $canPay) : false;
+            if ((bool) $member->can_view_finances === $allowed && (bool) $member->can_pay_commission === $pay) {
                 return;
             }
-            $member->forceFill(['can_view_finances' => $allowed])->save();
-            $this->audit->record('finance.provider_access_changed', $member, ['can_view_finances' => ! $allowed], [
-                'can_view_finances' => $allowed, 'provider_profile_id' => $providerId, 'member_user_id' => $memberUserId,
+            $before = ['can_view_finances' => (bool) $member->can_view_finances, 'can_pay_commission' => (bool) $member->can_pay_commission];
+            $member->forceFill(['can_view_finances' => $allowed, 'can_pay_commission' => $pay])->save();
+            $this->audit->record('finance.provider_access_changed', $member, $before, [
+                'can_view_finances' => $allowed, 'can_pay_commission' => $pay, 'provider_profile_id' => $providerId, 'member_user_id' => $memberUserId,
             ], null, $owner);
         });
 

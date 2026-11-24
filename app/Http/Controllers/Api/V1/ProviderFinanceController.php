@@ -49,9 +49,9 @@ class ProviderFinanceController extends Controller
 
     public function setAccess(Request $request): JsonResponse
     {
-        $data = $request->validate(['user_id' => ['required', 'integer', 'min:1'], 'allowed' => ['required', 'boolean']]);
+        $data = $request->validate(['user_id' => ['required', 'integer', 'min:1'], 'allowed' => ['required', 'boolean'], 'can_pay' => ['nullable', 'boolean']]);
 
-        return response()->json(['data' => $this->access->setAccess($request->user(), (int) $data['user_id'], (bool) $data['allowed'])]);
+        return response()->json(['data' => $this->access->setAccess($request->user(), (int) $data['user_id'], (bool) $data['allowed'], array_key_exists('can_pay', $data) && $data['can_pay'] !== null ? (bool) $data['can_pay'] : null)]);
     }
 
     public function summary(Request $request): JsonResponse
