@@ -2,7 +2,7 @@
   <!-- The provider business reports payments it received, takes a report back (with a reason) or corrects one. The owner or a
        manager only; a payment the customer confirmed is not the provider's to take back. -->
   <div v-if="allowed" class="flex flex-col gap-2">
-    <button v-if="left !== 0" type="button" class="wm-btn wm-btn-secondary !min-h-11 w-full" :disabled="busy" @click="openSheet(null)">
+    <button v-if="left !== 0 && !hideReport" type="button" class="wm-btn wm-btn-secondary !min-h-11 w-full" :disabled="busy" @click="openSheet(null)">
       <i class="bi bi-cash-coin" aria-hidden="true"></i>Report a payment
     </button>
 
@@ -40,24 +40,22 @@ import ReportPaymentSheet from '@/components/pricing/ReportPaymentSheet.vue';
 import { api } from '@/api/client.js';
 import { appSettings } from '@/stores/catalog.js';
 import { ugx, methodLabel, withdrawableReports, uncorrectedReports } from '@/utils/pricing.js';
+import { canReportPayment, paymentLeft } from '@/utils/workActions.js';
 
 const props = defineProps({
   // The request as the received-requests API sent it (with its `payments` block)
   req: { type: Object, required: true },
+  // My Work shows "Report a payment" as the card's main action or under More, so it is not repeated here
+  hideReport: { type: Boolean, default: false },
 });
 const emit = defineEmits(['updated']);
 
 // Owner or manager, a job that was accepted (also once done), made with the booking system, and pricing options on
-const allowed = computed(() => appSettings.pricingEnabled && !!props.req.payments && props.req.can_manage_pricing && !props.req.is_legacy
-  && ['scheduled', 'in_progress', 'completed'].includes(props.req.status));
+const allowed = computed(() => canReportPayment(props.req, { pricingOn: appSettings.pricingEnabled }));
 const withdrawable = computed(() => withdrawableReports(props.req.payments));
 const uncorrected = computed(() => uncorrectedReports(props.req.payments));
 // What can still be reported against the final price (null: no final price, nothing to compare with)
-const left = computed(() => {
-  const p = props.req.payments;
-
-  return p && p.final_price ? Math.max(p.final_price.amount - p.totals.reported, 0) : null;
-});
+const left = computed(() => paymentLeft(props.req.payments));
 
 const sheet = ref(false);
 const correcting = ref(null);
@@ -90,4 +88,7 @@ async function withdraw(report) {
     busy.value = false;
   }
 }
+
+// The card opens the report form from its main action or its More sheet
+defineExpose({ openReport: () => openSheet(null) });
 </script>

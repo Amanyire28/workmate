@@ -153,3 +153,22 @@ Decided by the owner on 2026-11-25. WorkMate may operate **without active commis
 **Open MVP problems** are tracked separately in [`mvp-known-issues.md`](mvp-known-issues.md).
 
 **Next step.** A read-only UI/UX review and a prioritized improvement roadmap were presented to the owner on 2026-11-25. No UI implementation starts until the owner approves the direction.
+
+## 15. U1 and U2: Provider My Work redesign (released)
+
+Frontend only. No backend, API, route, permission, configuration, migration or financial change. Released on 2026-11-25 as the commit "feat: redesign provider My Work dashboard and job actions", with the owner's acceptance of the limitations below (no physical-device check yet; the team-member Received tab issue is documented in `mvp-known-issues.md` and was not touched). Includes the conditional finance visibility rule (U3).
+
+**What it does.** The provider's "Received" tab on My Work is now a workspace: a title with an availability pill (opens a sheet with the two unchanged controls, immediate work and bookings for later, plus Time off); a "Needs your attention" section (new requests, price changes asked, payments questioned; each category counts a job once and opens that group of jobs, selecting its tab); tabs New, Upcoming, Working and History (the existing statuses open, scheduled, in_progress, and completed plus cancelled; no new states); simplified job cards with one main action, Chat and More, and a collapsible Details; a Find more work row and up to three recommended jobs (community posts no longer shown on this page); a conditional finance row; and a two-column desktop layout. The customer tabs are unchanged.
+
+**Main action rules** (`resources/js/utils/workActions.js`, unit tested): a questioned payment leads with "Review payment"; a new request leads with Accept (none if the provider already suggested a time: it is the customer's turn); a price change the provider may answer leads with "Send a new price" (not on a brand-new request); then Start work, Mark as done, or Report a payment on a completed job with something left to report. Every other permitted action is in More. Accepting from More opens the existing "How long will it take?" choice first (legacy requests accept directly, as before).
+
+**Finance row.** Shown only when the server's own figures show something to act on: commission outstanding, overdue or in credit, a commission payment waiting to be checked (`commission.as_of.pending_ugx`, already exposed), or customer payments waiting or questioned. Nothing while loading; a short notice with a retry if the request fails; never treated as "nothing owed". My Finances stays under More and in Account.
+
+**Files.** New: `utils/workActions.js`, `components/work/AvailabilityControl.vue`, `AttentionBar.vue`, `JobActionsSheet.vue`, `tests/js/workActions.test.mjs`. Changed: `pages/MyActivityPage.vue`, `components/work/ReceivedRequestCard.vue`, `components/pricing/FinanceSnapshotCard.vue`, `components/pricing/PaymentProviderActions.vue` (shared rules and a hide-report option only), `components/engagement/RecommendedForYou.vue`. Removed: `components/work/MyWorkPanel.vue` (replaced by `AvailabilityControl.vue`).
+
+**Verified** (headless Edge mobile emulation on `workmate_test`, plus Node unit tests): `workActions.test.mjs` 15 of 15; browser pass 66 of 66 at 320 and 390px and 61 of 61 at 1280px (no horizontal overflow; every job state and action reaches its original form or sheet; both availability controls; attention navigation; three notification links; customer view; empty provider); a focused pass for the duration choice from More, the payment-question sheet (opens, closes, scroll restored, Escape), and a team member's permissions. One production build after the last change.
+
+**Not verified:** physical devices; a team member in the UI (see `mvp-known-issues.md` item 10: a non-owner member does not get the Received tab today, so the permission check was done on the member's real API data run through the same rules).
+
+**Temporary test data** in `workmate_test` only: requests 11 to 15 (new, suggested time, scheduled, completed, cancelled), five extra customer users, two price agreements, and one team member (role member) of the test provider. Nothing in development or production.
+

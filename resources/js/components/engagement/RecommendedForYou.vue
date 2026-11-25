@@ -1,18 +1,18 @@
 <template>
   <!-- Suggestions that suit this person: open jobs for providers, and posts on their topics -->
-  <section v-if="jobs.length || posts.length" class="mb-5" aria-labelledby="for-you-heading">
-    <h2 id="for-you-heading" class="text-lg font-semibold text-ink mb-2.5">Recommended for you</h2>
+  <section v-if="jobs.length || (withPosts && posts.length)" :class="compact ? '' : 'mb-5'" aria-labelledby="for-you-heading">
+    <h2 id="for-you-heading" class="text-lg font-semibold text-ink mb-2.5">{{ title }}</h2>
 
     <template v-if="jobs.length">
-      <p class="text-sm text-muted mb-2">Open jobs in your line of work, near where you work, that you haven’t applied to yet.</p>
-      <ul class="wm-home-row">
-        <li v-for="job in jobs" :key="job.id" class="wm-home-row-item">
+      <p v-if="!compact" class="text-sm text-muted mb-2">Open jobs in your line of work, near where you work, that you haven’t applied to yet.</p>
+      <ul :class="compact ? 'flex flex-col gap-3' : 'wm-home-row'">
+        <li v-for="job in jobs" :key="job.id" :class="compact ? '' : 'wm-home-row-item'">
           <JobCard :job="job" />
         </li>
       </ul>
     </template>
 
-    <template v-if="posts.length">
+    <template v-if="withPosts && posts.length">
       <p class="text-sm text-muted mt-4 mb-2">From the community, on topics you care about</p>
       <ul class="flex flex-col gap-2">
         <li v-for="post in posts" :key="post.id">
@@ -39,6 +39,13 @@ import { toJob, agoLabel } from '@/stores/catalog.js';
 // The server picks them (and never sends a job's exact location)
 watch(() => auth.user?.id, (id) => { if (id) loadRecommendations(); }, { immediate: true });
 
-const jobs = computed(() => (engagement.recommendations?.jobs || []).map(toJob));
+// On My Work only a few jobs are shown and no community posts (those stay in Community); `limit` 0 means all
+const props = defineProps({
+  limit:     { type: Number, default: 0 },
+  withPosts: { type: Boolean, default: true },
+  compact:   { type: Boolean, default: false },
+  title:     { type: String, default: 'Recommended for you' },
+});
+const jobs = computed(() => (engagement.recommendations?.jobs || []).map(toJob).slice(0, props.limit > 0 ? props.limit : undefined));
 const posts = computed(() => engagement.recommendations?.posts || []);
 </script>

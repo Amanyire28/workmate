@@ -1,7 +1,11 @@
 <template>
   <div class="wm-container wm-page">
-    <h1 class="wm-h1">My work</h1>
-    <SuggestionCard page="work" class="mt-4" />
+    <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+      <h1 class="wm-h1 min-w-0">My work</h1>
+      <AvailabilityControl v-if="isProvider" ref="availRef" @state="availability = $event" />
+    </div>
+    <!-- Elsewhere the suggestion stays at the top; on the provider's own list it waits until there is work to show, then moves below it -->
+    <SuggestionCard v-if="activeTab !== 'received' || (state === 'ready' && !received.length)" page="work" class="mt-4" />
 
     <!-- Tabs -->
     <div class="mt-5 flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -15,14 +19,14 @@
           :aria-selected="activeTab === tab.id"
           :aria-controls="`panel-${tab.id}`"
           :tabindex="activeTab === tab.id ? 0 : -1"
-          class="wm-hit wm-segment !px-2 sm:!px-4"
+          class="wm-hit wm-segment relative min-w-0 !px-1 max-[359px]:!text-[12px] sm:!px-4"
           @click="selectTab(tab.id)"
           @keydown.right.prevent="switchTab(1)"
           @keydown.left.prevent="switchTab(-1)"
         >
-          {{ tab.label }}
+          <span class="min-w-0 truncate">{{ tab.label }}</span>
           <span v-if="state === 'ready'" class="hidden sm:inline ml-1 font-normal text-muted">{{ tab.count() }}</span>
-          <span v-if="tab.id === 'received' && waitingCount" class="ml-1 inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full bg-primary text-white text-[11px] font-semibold" :aria-label="`${waitingCount} waiting for your reply`">{{ waitingCount }}</span>
+          <span v-if="tab.id === 'received' && waitingCount" class="inline-flex min-w-5 h-5 px-1.5 items-center justify-center rounded-full bg-primary text-white text-[11px] font-semibold max-sm:absolute max-sm:-top-1 max-sm:right-0 sm:ml-1" :aria-label="`${waitingCount} waiting for your reply`">{{ waitingCount }}</span>
         </button>
       </div>
       <router-link v-if="currentTab.action" :to="currentTab.action.to" class="wm-btn wm-btn-ghost !px-2 self-end sm:self-auto">
@@ -63,23 +67,67 @@
         <p v-if="actionError" class="wm-notice wm-notice-error mb-3" role="alert">
           <i class="bi bi-exclamation-circle" aria-hidden="true"></i><span>{{ actionError }}</span>
         </p>
-        <FinanceSnapshotCard class="mb-4" />
-        <MyWorkPanel v-model:stage="stage" :requests="received" class="mb-4" />
-        <RecommendedForYou />
-        <ul v-if="shownReceived.length" class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-          <ReceivedRequestCard v-for="req in shownReceived" :key="req.id" :req="req"
-            @updated="replace" @refresh="load({ quiet: true })" @message="messageCustomer"
-            @report="reportFor = { about: 'customer', name: $event.customer.name.split(' ')[0], requestId: $event.id }" />
-        </ul>
-        <p v-else-if="received.length" class="wm-card wm-meta">Nothing here right now. <button type="button" class="wm-link" @click="stage = ''">Show everything</button></p>
-        <EmptyState
-          v-if="!received.length"
-          icon="bi-inbox"
-          title="No requests yet"
-          message="When a customer asks you for a service, it shows up here so you can accept it or reply."
-        >
-          <router-link to="/find-work" class="wm-btn wm-btn-primary !min-h-12">Find work</router-link>
-        </EmptyState>
+        <p v-if="availability.paused" class="wm-notice wm-notice-warning mb-3" role="status">
+          <i class="bi bi-pause-circle" aria-hidden="true"></i>
+          <span>New requests are paused. Your existing jobs are below. <button type="button" class="wm-link" @click="availRef && availRef.open()">Change availability</button></span>
+        </p>
+
+        <div class="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start lg:gap-6">
+          <div class="flex min-w-0 flex-col gap-3">
+            <FinanceSnapshotCard />
+            <AttentionBar :index="attentionIdx" :active="attentionActive" @pick="pickAttention" />
+
+            <template v-if="received.length">
+              <!-- New, Upcoming, Working, History: the existing statuses, with their counts -->
+              <div class="wm-segmented grid grid-cols-4" role="group" aria-label="Show jobs">
+                <button v-for="t in WORK_TABS" :key="t.id" type="button" class="wm-hit wm-segment !px-1 !py-1.5"
+                  :class="{ 'is-active': highlightTab === t.id }" :aria-pressed="highlightTab === t.id ? 'true' : 'false'" @click="pickWorkTab(t.id)">
+                  <span class="flex flex-col items-center leading-tight">
+                    <span class="text-[13.5px]">{{ t.label }}</span>
+                    <span class="text-[12px] font-normal opacity-75">{{ tabTotals[t.id] }}</span>
+                  </span>
+                </button>
+              </div>
+              <p v-if="attentionActive" class="flex flex-wrap items-center justify-between gap-2 text-[13.5px] text-muted">
+                <span>Showing: {{ attentionLabel }}</span>
+                <button type="button" class="wm-link min-h-11" @click="pickAttention(attentionActive)">Show all jobs</button>
+              </p>
+
+              <ul v-if="shownReceived.length" class="flex flex-col gap-3">
+                <ReceivedRequestCard v-for="req in shownReceived" :key="req.id" :req="req"
+                  @updated="replace" @refresh="load({ quiet: true })" @message="messageCustomer"
+                  @report="reportFor = { about: 'customer', name: $event.customer.name.split(' ')[0], requestId: $event.id }" />
+              </ul>
+              <p v-else class="wm-card wm-meta">{{ currentEmpty }}</p>
+            </template>
+            <EmptyState
+              v-else
+              icon="bi-inbox"
+              title="No requests yet"
+              message="When a customer asks you for a service, it shows up here."
+            >
+              <router-link to="/find-work" class="wm-btn wm-btn-primary !min-h-12">Find work</router-link>
+            </EmptyState>
+          </div>
+
+          <aside class="mt-6 flex min-w-0 flex-col gap-4 lg:sticky lg:top-[calc(var(--wm-header-h)+16px)] lg:mt-0" aria-label="More for your work">
+            <router-link v-if="received.length" to="/find-work" class="wm-card wm-card-link flex items-center gap-3 !py-3">
+              <span class="wm-icon-tile" aria-hidden="true"><i class="bi bi-search"></i></span>
+              <span class="min-w-0 flex-1 text-[15px] font-semibold text-ink">Find more work</span>
+              <i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+            </router-link>
+            <RecommendedForYou :limit="3" :with-posts="false" compact title="Jobs you could take" />
+            <SuggestionCard v-if="state === 'ready' && received.length" page="work" />
+            <nav class="wm-card !p-0 overflow-hidden" aria-label="Your business">
+              <router-link :to="servicesLink" class="flex min-h-12 items-center gap-3 border-b border-line px-4 text-[15px] text-ink">
+                <i class="bi bi-tags text-muted" aria-hidden="true"></i><span class="flex-1">My services and prices</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+              </router-link>
+              <router-link to="/my-finances" class="flex min-h-12 items-center gap-3 px-4 text-[15px] text-ink">
+                <i class="bi bi-wallet2 text-muted" aria-hidden="true"></i><span class="flex-1">My Finances</span><i class="bi bi-chevron-right text-muted" aria-hidden="true"></i>
+              </router-link>
+            </nav>
+          </aside>
+        </div>
       </template>
 
       <!-- Service requests sent to providers -->
@@ -252,7 +300,9 @@ import StatusBadge from '@/components/StatusBadge.vue';
 import RequestPhotos from '@/components/RequestPhotos.vue';
 import EmptyState from '@/components/EmptyState.vue';
 import UserAvatar from '@/components/UserAvatar.vue';
-import MyWorkPanel from '@/components/work/MyWorkPanel.vue';
+import AvailabilityControl from '@/components/work/AvailabilityControl.vue';
+import AttentionBar from '@/components/work/AttentionBar.vue';
+import { WORK_TABS, tabOf, tabCounts, defaultTab, attentionIndex, tabFor, ATTENTION } from '@/utils/workActions.js';
 import FinanceSnapshotCard from '@/components/pricing/FinanceSnapshotCard.vue';
 import SuggestionCard from '@/components/engagement/SuggestionCard.vue';
 import RecommendedForYou from '@/components/engagement/RecommendedForYou.vue';
@@ -324,15 +374,55 @@ function sentLabel(iso) {
 
 const state = ref('loading');
 const received = ref([]);
-// The provider's stage filter: new | upcoming | working | done, or '' for all
-const stage = ref('');
-const STAGE_STATUS = { new: 'open', upcoming: 'scheduled', working: 'in_progress', done: 'completed' };
-// Upcoming bookings soonest first; everything else newest first
-const shownReceived = computed(() => {
-  const list = stage.value ? received.value.filter(r => r.status === STAGE_STATUS[stage.value]) : received.value;
-  if (stage.value !== 'upcoming') return list;
-  return [...list].sort((a, b) => (a.schedule?.start || '').localeCompare(b.schedule?.start || ''));
+// The provider's work tab (new | upcoming | working | history), and an attention category chosen from "Needs your attention"
+const workTab = ref('new');
+let tabChosen = false;                 // once the provider (or a link) picked a tab, a reload never moves it
+const attention = ref('');
+const availability = ref({ paused: false, loaded: false });
+const availRef = ref(null);
+const ctx = computed(() => ({ pricingOn: appSettings.pricingEnabled }));
+const tabTotals = computed(() => tabCounts(received.value));
+const attentionIdx = computed(() => attentionIndex(received.value, ctx.value));
+// An attention filter only stands while it still has jobs in it
+const attentionActive = computed(() => (attention.value && attentionIdx.value[attention.value].length ? attention.value : ''));
+const attentionLabel = computed(() => {
+  const a = ATTENTION.find(x => x.id === attentionActive.value);
+  const n = attentionActive.value ? attentionIdx.value[attentionActive.value].length : 0;
+  return a ? `${n} ${n === 1 ? a.one : a.many}` : '';
 });
+// The tab to show as selected: the provider's own choice, or the one tab an attention category lives in (none when its jobs are spread over several)
+const highlightTab = computed(() => (attentionActive.value ? tabFor(received.value, attentionIdx.value[attentionActive.value]) : workTab.value));
+const currentEmpty = computed(() => (WORK_TABS.find(t => t.id === workTab.value) || WORK_TABS[0]).empty);
+// Upcoming bookings soonest first; everything else as the server sent it (newest first)
+const shownReceived = computed(() => {
+  let list = received.value;
+  if (attentionActive.value) {
+    const ids = attentionIdx.value[attentionActive.value];
+    list = list.filter(r => ids.includes(r.id));
+  } else {
+    list = list.filter(r => tabOf(r) === workTab.value);
+  }
+  if (!attentionActive.value && workTab.value === 'upcoming') return [...list].sort((a, b) => (a.schedule?.start || '').localeCompare(b.schedule?.start || ''));
+  return list;
+});
+
+function pickWorkTab(id) {
+  tabChosen = true;
+  attention.value = '';
+  workTab.value = id;
+}
+
+/** A category from "Needs your attention": its jobs, in their tab when they are all in one, otherwise across tabs */
+function pickAttention(id) {
+  tabChosen = true;
+  if (attentionActive.value === id) { attention.value = ''; return; }
+  attention.value = id;
+  const only = tabFor(received.value, attentionIdx.value[id]);
+  if (only) workTab.value = only;
+}
+
+// Where the provider's own business is managed: the services part of their profile
+const servicesLink = computed(() => (auth.user?.provider_ids?.length ? `/provider/${auth.user.provider_ids[0]}#services` : '/account'));
 const requests = ref([]);
 const postedJobs = ref([]);
 const applications = ref([]);
@@ -399,6 +489,7 @@ async function load({ quiet = false } = {}) {
       isProvider.value ? api('/me/received-requests') : Promise.resolve({ data: [] }),
     ]);
     received.value = incoming.data;
+    if (!tabChosen) workTab.value = defaultTab(received.value);
 
     requests.value = mine.data.filter(r => r.kind === 'direct').map(toRequest);
 
@@ -427,6 +518,9 @@ async function showLinkedRequest() {
   const id = Number(route.query.request);
   if (linkedShown || !id) return;
   linkedShown = true;
+  // The job may be in another work tab: open that one first (a notification link names the job, not the tab)
+  const job = received.value.find(r => r.id === id);
+  if (job && activeTab.value === 'received') { tabChosen = true; attention.value = ''; workTab.value = tabOf(job); }
   await nextTick();
   const el = document.getElementById(`request-${id}`);
   if (el) el.scrollIntoView({ block: 'center' });
