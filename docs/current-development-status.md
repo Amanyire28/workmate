@@ -127,3 +127,29 @@ Tests that still need to pass (only after related code changes, and only the tar
 - Owner approved B10 for deployment with all four financial switches off. Decisions: Financial Settings management stays Super Administrator only (`finance.settings.manage`); oldest-first allocation across open cycles approved; manual payment and verification workflow unchanged.
 - Deferred until a real gateway is integrated, and **mandatory prerequisites before activating any real gateway** (also in README, "Before a real gateway"): late payment reconciliation; gateway amount mismatch resolution; exception traceability to payment attempts; corrected callbacks after a mismatched confirmation.
 - Migrations 000080 and 000081 classified LOW. No `.env` change needed.
+
+## 14. Strategic direction: MVP first, financial freeze
+
+Decided by the owner on 2026-11-25. WorkMate may operate **without active commission collection for its first four months**. The priority is user acquisition, marketplace growth, adoption, interface quality and launch readiness.
+
+**Released since section 13:** B10 (`6d2311b`), then B11 (financial interface refinement) and B12 (mobile responsiveness and shared modal behaviour) as `59a646e`, all deployed. B1 to B12 all stay in place.
+
+**Frozen, not cancelled.** Do not remove or change existing financial code, tables, APIs, permissions, records or settings, and do not change production financial settings. Deferred until monetization becomes a business priority:
+- Mandatory price agreement enforcement.
+- Commission calculation redesign.
+- Commission assessment workflow changes.
+- Three-job settlement enforcement.
+- Automatic provider restrictions and delisting.
+- Fines and penalties.
+- Commission avoidance monitoring.
+- Payment gateway integration. Prerequisites before any real gateway: late payment reconciliation, gateway amount mismatch resolution, exception traceability to payment attempts, and corrected callbacks after a mismatch (also in the README under "Before a real gateway").
+- Further advanced financial reporting.
+- Still deferred from earlier: adjustment ledger posting, wallets, escrow, automatic collection and payouts, and activating any financial switch (needs explicit owner approval).
+
+**Rules for new work.** Each proposal must serve at least one of: acquiring customers, acquiring providers, helping customers discover providers, increasing successful service requests, improving customer-provider communication, building trust, improving retention, improving usability, security or operational reliability. Otherwise defer it. Reuse existing components and infrastructure; do not rebuild working modules; do not add features for their own sake.
+
+**Design principles for UI work.** Mobile-first; simple navigation; clean, modern, professional; sky-blue and blue brand; minimal text; one clear primary action per screen; consistent typography, spacing, icons and components; proper loading, empty and error states; responsive and accessible; fast on affordable phones and slow connections; no excessive animation, unnecessary cards or heavy effects.
+
+**Open MVP problems** are tracked separately in [`mvp-known-issues.md`](mvp-known-issues.md).
+
+**Next step.** A read-only UI/UX review and a prioritized improvement roadmap were presented to the owner on 2026-11-25. No UI implementation starts until the owner approves the direction.

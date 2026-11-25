@@ -1176,6 +1176,8 @@ The mobile apps will use the **same `/api/v1` endpoints**, so the marketplace ba
 
 ## Roadmap
 
+> **Current direction (from 2026-11-25): MVP refinement, not monetization.** WorkMate may run without active commission collection for its first months while the focus is acquiring customers and providers, helping customers find providers, and making the existing product simple, reliable and ready for real users. The financial module is **frozen, not cancelled**: everything already built stays in place (code, tables, APIs, permissions, records, switches off), and the deferred items are listed in [`docs/current-development-status.md`](docs/current-development-status.md) (section 14) and the open MVP problems in [`docs/mvp-known-issues.md`](docs/mvp-known-issues.md). New work must serve at least one of: acquiring customers, acquiring providers, helping customers discover providers, more successful requests, better customer-provider communication, trust, retention, or usability, security and reliability.
+
 ### Foundation
 - [x] Laravel API under `/api/v1` with one response and error format
 - [x] Roles, permissions and audit log
@@ -1231,6 +1233,7 @@ The mobile apps will use the **same `/api/v1` endpoints**, so the marketplace ba
 - [ ] Automatic performance evaluation (blue tick)
 
 ### Payments
+*On hold by owner decision (2026-11-25). Existing infrastructure is kept; see the deferred list in `docs/current-development-status.md`.*
 - [ ] Mobile money (sandbox first), commission, refunds, payouts, reconciliation
 
 ### Notifications
